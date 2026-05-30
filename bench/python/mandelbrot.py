@@ -10,10 +10,13 @@ for py in range(N):
         x = 0.0
         y = 0.0
         i = 0
-        while x * x + y * y <= 4.0 and i < MAXITER:
-            xt = x * x - y * y + x0
-            y = 2.0 * x * y + y0
-            x = xt
+        xx = 0.0
+        yy = 0.0
+        while xx + yy <= 4.0 and i < MAXITER:
+            y = 2.0 * x * y + y0   # uses old x, old y
+            x = xx - yy + x0       # uses old xx, yy
+            xx = x * x
+            yy = y * y
             i += 1
         total += i
 

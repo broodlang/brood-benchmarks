@@ -1,17 +1,19 @@
 (def n (let (e (getenv "BENCH_N")) (if e (string->number e) 128)))
 (def maxi 100)
 
-;; new x and new y are both computed from the OLD x/y (argument eval order)
-(defn esc (x y x0 y0 i)
-  (if (and (<= (+ (* x x) (* y y)) 4.0) (< i maxi))
-    (esc (+ (- (* x x) (* y y)) x0) (+ (* 2.0 (* x y)) y0) x0 y0 (+ i 1))
+;; carry xx=x*x and yy=y*y so each is computed once per iteration, not ~5×
+(defn esc (x y xx yy x0 y0 i)
+  (if (and (<= (+ xx yy) 4.0) (< i maxi))
+    (let (ny (+ (* 2.0 (* x y)) y0)      ; uses old x, old y
+          nx (+ (- xx yy) x0))           ; uses old xx, yy
+      (esc nx ny (* nx nx) (* ny ny) x0 y0 (+ i 1)))
     i))
 
 (defn row-sum (px py acc)
   (if (>= px n) acc
     (let (x0 (- (* (/ px n) 3.0) 2.0)
           y0 (- (* (/ py n) 3.0) 1.5))
-      (row-sum (+ px 1) py (+ acc (esc 0.0 0.0 x0 y0 0))))))
+      (row-sum (+ px 1) py (+ acc (esc 0.0 0.0 0.0 0.0 x0 y0 0))))))
 
 (defn grid-sum (py acc)
   (if (>= py n) acc
