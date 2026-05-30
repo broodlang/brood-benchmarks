@@ -1,0 +1,6 @@
+;; Tests for the hello module. `nest test` loads src/ first, so `greeting`
+;; is available without an explicit (require 'hello) here.
+(require 'test)
+
+(describe "hello"
+  (test "greeting" (assert= (greeting) "hello benchmark")))

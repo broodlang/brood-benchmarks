@@ -1,0 +1,5 @@
+(def n (let (e (getenv "BENCH_N")) (if e (string->number e) 30)))
+
+(defn fib (m) (if (< m 2) m (+ (fib (- m 1)) (fib (- m 2)))))
+
+(println (fib n))

@@ -1,0 +1,6 @@
+(def n (let (e (getenv "BENCH_N")) (if e (string->number e) 3000000)))
+
+;; raw iteration: tail-recursive count with an accumulator (TCO, O(1) stack)
+(defn loop--acc (i acc) (if (>= i n) acc (loop--acc (+ i 1) (+ acc 1))))
+
+(println (loop--acc 0 0))

@@ -1,0 +1,16 @@
+(def n (let (e (getenv "BENCH_N")) (if e (string->number e) 20000)))
+
+;; parent pid captured here (top level) — NOT inside the spawned child, where
+;; (self) would be the child's own pid.
+(def me (self))
+
+(defn worker (i) (send me [:done i]))
+
+(defn fan (i) (if (>= i n) nil (do (spawn (worker i)) (fan (+ i 1)))))
+
+(defn collect (got acc)
+  (if (= got n) acc
+    (collect (+ got 1) (receive ([:done i] (+ acc i))))))
+
+(fan 0)
+(println (collect 0 0))

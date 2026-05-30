@@ -1,0 +1,13 @@
+(def n (let (e (getenv "BENCH_N")) (if e (string->number e) 100000)))
+(def kk 1000)
+
+;; LCG token stream tallied into an immutable map (assoc returns a fresh map)
+(defn gen (x m i)
+  (if (>= i n) m
+    (let (x2  (bit-and (+ (* x 1103515245) 12345) 2147483647)
+          key (rem x2 kk))
+      (gen x2 (assoc m key (+ (get m key 0) 1)) (+ i 1)))))
+
+(def counts (gen 123456789 {} 0))
+
+(println (reduce (fn (acc kv) (let ([k v] kv) (+ acc (* k v)))) 0 counts))
