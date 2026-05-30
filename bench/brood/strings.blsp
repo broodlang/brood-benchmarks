@@ -1,0 +1,3 @@
+(def n (let (e (getenv "BENCH_N")) (if e (string->number e) 50000)))
+
+(println (string-length (join "," (map number->string (range n)))))

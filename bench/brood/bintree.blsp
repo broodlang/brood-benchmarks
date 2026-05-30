@@ -1,0 +1,9 @@
+(def n (let (e (getenv "BENCH_N")) (if e (string->number e) 40)))
+(def depth 12)
+
+(defn make (d) (if (= d 0) nil [(make (- d 1)) (make (- d 1))]))
+(defn check (node) (if (nil? node) 1 (+ 1 (check (nth node 0)) (check (nth node 1)))))
+
+(defn run (i acc) (if (>= i n) acc (run (+ i 1) (+ acc (check (make depth))))))
+
+(println (run 0 0))

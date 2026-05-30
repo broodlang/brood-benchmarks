@@ -1,0 +1,6 @@
+;; Tests for the main module. `nest test` loads src/ first, so we can call
+;; main directly — and since `hello` is on the load-path, its defs are too.
+(require 'test)
+
+(describe "main"
+  (test "main is callable" (is (fn? main))))

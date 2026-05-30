@@ -1,0 +1,18 @@
+(def n (let (e (getenv "BENCH_N")) (if e (string->number e) 80)))
+(def md 1000000007)
+
+;; vectors of vectors — O(1) indexing via nth
+(def a (into [] (map (fn (i) (into [] (map (fn (j) (rem (+ i j) 100)) (range n)))) (range n))))
+(def b (into [] (map (fn (i) (into [] (map (fn (j) (rem (* i j) 100)) (range n)))) (range n))))
+
+(defn dot (rowa j k acc)
+  (if (>= k n) acc
+    (dot rowa j (+ k 1) (+ acc (* (nth rowa k) (nth (nth b k) j))))))
+
+(defn jloop (rowa j acc)
+  (if (>= j n) acc (jloop rowa (+ j 1) (+ acc (dot rowa j 0 0)))))
+
+(defn iloop (i acc)
+  (if (>= i n) acc (iloop (+ i 1) (+ acc (jloop (nth a i) 0 0)))))
+
+(println (rem (iloop 0 0) md))

@@ -1,0 +1,14 @@
+(def n (let (e (getenv "BENCH_N")) (if e (string->number e) 20000)))
+
+(defn divides-none? (m d)
+  (cond (> (* d d) m)     true
+        (= (rem m d) 0)   false
+        :else             (divides-none? m (+ d 1))))
+
+(defn prime? (m) (if (< m 2) false (divides-none? m 2)))
+
+(defn count-primes (k acc)
+  (if (>= k n) acc
+    (count-primes (+ k 1) (if (prime? k) (+ acc 1) acc))))
+
+(println (count-primes 2 0))
