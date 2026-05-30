@@ -2,7 +2,8 @@ const N = parseInt(process.env.BENCH_N || "20000", 10);
 
 function isPrime(n) {
   if (n < 2) return false;
-  for (let d = 2; d * d <= n; d++) {
+  const limit = Math.floor(Math.sqrt(n));   // once — no d*d in the loop
+  for (let d = 2; d <= limit; d++) {
     if (n % d === 0) return false;
   }
   return true;

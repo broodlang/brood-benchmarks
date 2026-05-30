@@ -1,5 +1,8 @@
 (def n (let (e (getenv "BENCH_N")) (if e (string->number e) 20000)))
 
+;; all-integer trial division: in Brood the (* d d) multiply is CHEAPER than
+;; comparing d to a float sqrt bound (mixed int/float compare coerces) — so we
+;; keep d*d here even though hoisting sqrt is the win in Python/Node.
 (defn divides-none? (m d)
   (cond (> (* d d) m)     true
         (= (rem m d) 0)   false
