@@ -1,6 +1,6 @@
-;; Tests for the main module. `nest test` loads src/ first, so we can call
-;; main directly — and since `hello` is on the load-path, its defs are too.
-(require 'test)
+;; Tests for the main module. `(:use main)` brings `main` into scope;
+;; `(:use test)` the describe/test/is macros. `nest test` loads src/ first.
+(defmodule main-test (:use main) (:use test))
 
 (describe "main"
   (test "main is callable" (is (fn? main))))

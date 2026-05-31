@@ -9,9 +9,11 @@ with project-specific guidance — commands, conventions, gotchas.
 - `nest run`    — invoke the entry point. Defaults to the `main` function in
   the `main` module; override in `project.blsp` with `:main`:
   `:main 'app` runs `app/main`; `:main '(app start)` runs `app/start`.
-  Names are flat across the whole project (ADR-019) — there is exactly one
-  of every global name, so don't define `main` in two modules (the runner
-  warns if you do).
+  Each module is a namespace (ADR-065, supersedes ADR-019): a fn `greeting`
+  defined in module `hello` is `hello/greeting`. To call it from another
+  module, either qualify it (`hello/greeting`) or import the module in your
+  `defmodule` header — `(defmodule main (:use hello))` refers its public
+  names bare; `(:use hello :refer [greeting])` imports just a subset.
 - `nest run --for 2s` — run a loop / full-screen TUI for a bounded time, then
   exit cleanly (`2s`, `500ms`, or a bare integer of ms). The way to exercise
   a never-returning program end-to-end or in CI.

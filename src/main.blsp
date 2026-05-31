@@ -1,7 +1,7 @@
-(defmodule main "The benchmark project's entry-point module — wired up as
-the `nest run` entry by default (module `main`, fn `main`).")
-
-(require 'hello)
+(defmodule main
+  "The benchmark project's entry-point module — wired up as
+the `nest run` entry by default (module `main`, fn `main`)."
+  (:use hello))
 
 (defn main ()
   "Entry point: print the project's greeting."

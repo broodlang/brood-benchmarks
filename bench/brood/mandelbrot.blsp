@@ -4,19 +4,23 @@
 ;; carry xx=x*x and yy=y*y so each is computed once per iteration, not ~5×
 (defn esc (x y xx yy x0 y0 i)
   (if (and (<= (+ xx yy) 4.0) (< i maxi))
-    (let (ny (+ (* 2.0 (* x y)) y0)      ; uses old x, old y
-          nx (+ (- xx yy) x0))           ; uses old xx, yy
+    ;; ny uses the OLD x and y; nx uses the OLD xx and yy — bind both off the
+    ;; current values before stepping.
+    (let (ny (+ (* 2.0 (* x y)) y0)
+          nx (+ (- xx yy) x0))
       (esc nx ny (* nx nx) (* ny ny) x0 y0 (+ i 1)))
     i))
 
 (defn row-sum (px py acc)
-  (if (>= px n) acc
+  (if (>= px n)
+    acc
     (let (x0 (- (* (/ px n) 3.0) 2.0)
           y0 (- (* (/ py n) 3.0) 1.5))
       (row-sum (+ px 1) py (+ acc (esc 0.0 0.0 0.0 0.0 x0 y0 0))))))
 
 (defn grid-sum (py acc)
-  (if (>= py n) acc
+  (if (>= py n)
+    acc
     (grid-sum (+ py 1) (+ acc (row-sum 0 py 0)))))
 
 (println (grid-sum 0 0))

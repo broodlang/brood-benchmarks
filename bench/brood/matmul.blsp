@@ -6,7 +6,8 @@
 (def b (into [] (map (fn (i) (into [] (map (fn (j) (rem (* i j) 100)) (range n)))) (range n))))
 
 (defn dot (rowa j k acc)
-  (if (>= k n) acc
+  (if (>= k n)
+    acc
     (dot rowa j (+ k 1) (+ acc (* (nth rowa k) (nth (nth b k) j))))))
 
 (defn jloop (rowa j acc)
