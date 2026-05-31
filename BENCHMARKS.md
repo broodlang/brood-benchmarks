@@ -1,231 +1,175 @@
-# Brood vs Elixir vs Python vs Node — benchmark breakdown
+# What to expect from Brood — benchmark results
 
-A suite of 13 small programs, each implemented **four times** (once per language)
-and run under an identical harness, to see where the Brood runtime is faster
-or slower than the alternatives — on **startup**, **memory**, and **raw
-performance**.
+Fifteen small programs, each written **four times** — in Brood, Elixir, Python,
+and Node — and run under one identical harness. The goal isn't to crown a winner;
+it's to give an honest, realistic picture of what you get with Brood and where
+it costs you, measured against three well-known runtimes.
 
-> **Verified equivalent:** every program prints a checksum, and the harness
-> asserts all four languages produce the *same* checksum on every benchmark — so
-> these are apples-to-apples comparisons, not different amounts of work.
+> Every program prints a checksum, and the harness verifies **all four languages
+> produce the same answer** on every benchmark — so this is the same work, four
+> ways, not different amounts of it.
 
-> **Engine:** these numbers are the **bytecode VM** (ADR-076), now Brood's
-> default execution engine — the closure-compiling VM superseded the original
-> tree-walker and roughly **halved** every compute-bound wall time (~2× across
-> the board; see the progress log in [`OPTIMIZATION.md`](OPTIMIZATION.md)).
+> **Engine:** Brood runs on its bytecode VM (the closure-compiling engine that
+> replaced the original tree-walker and roughly halved compute-bound times). The
+> numbers below are that VM.
 
-**Environment:** Intel Raptor Lake-S (28 cores) · 61 GB RAM · Ubuntu 26.04 ·
-Brood 0.1.0 (bytecode VM) · Elixir 1.20.0-rc.6 / OTP 29 · Python 3.14.4 ·
-Node 24.15.0. Best of 3 runs each. Raw data:
-[`results/results.json`](results/results.json) · full tables:
-[`results/report.md`](results/report.md).
+## The honest summary
 
----
-
-## ⏱️ Total wall time (startup + compute)
-
-Best-of-3 wall time for the whole process. 🥇 marks the fastest in each row.
-
-| benchmark | N | brood | elixir | python | node | stresses |
-|-----------|--:|------:|-------:|-------:|-----:|----------|
-| startup | — | **9 ms** 🥇 | 302 ms | 12 ms | 23 ms | VM boot + base memory |
-| fib | 30 | 828 ms | 367 ms | 78 ms | **33 ms** 🥇 | recursion / call overhead |
-| loop | 3 M | 1.05 s | 353 ms | 184 ms | **26 ms** 🥇 | raw iteration |
-| reduce | 1 M | 1.78 s | 303 ms | **19 ms** 🥇 | 25 ms | higher-order fold |
-| primes | 20 k | 162 ms | 347 ms | **20 ms** 🥇 | 26 ms | integer arithmetic |
-| collatz | 30 k | 2.00 s | 369 ms | 233 ms | **31 ms** 🥇 | tight integer loop |
-| mandelbrot | 128 | 439 ms | 396 ms | 82 ms | **25 ms** 🥇 | floating-point math |
-| matmul | 80 | 1.18 s | 327 ms | 56 ms | **24 ms** 🥇 | nested loops + indexing |
-| strings | 50 k | 251 ms | 375 ms | **17 ms** 🥇 | 28 ms | string building |
-| wordcount | 100 k | 557 ms | 369 ms | 33 ms | **28 ms** 🥇 | hash-map build |
-| bintree | 40 | 691 ms | 394 ms | 29 ms | **27 ms** 🥇 | allocation / GC pressure |
-| sort | 50 k | 124 ms | 387 ms | **30 ms** 🥇 | 41 ms | sort + checksum walk |
-| spawn | 20 k | 622 ms | **370 ms** 🥇 | — | — | lightweight processes |
+- **Startup & memory — Brood's clear strengths.** ~11 ms cold start and a ~9 MB
+  base; it stays far lighter than Elixir and Node across most workloads.
+- **Raw single-threaded compute — expect to be slower.** As a bytecode
+  interpreter, tight loops and recursion run roughly 25–90× slower than Node's
+  JIT, and behind Python too. Short tasks still finish ahead of Elixir because
+  Brood starts instantly.
+- **Concurrency depends entirely on the workload.** Cheap, plentiful lightweight
+  processes and **concurrent I/O** are a genuine strength (it lands within ~9%
+  of Node on the HTTP test). **Parallel CPU crunching is not** — there it's slow *and*
+  memory-hungry. Both results are below; the difference is the point.
 
 ---
 
-## 🧠 Peak resident memory
+## Full results — total wall time
 
-| benchmark | brood | elixir | python | node |
-|-----------|------:|-------:|-------:|-----:|
-| startup | **9 MB** 🥇 | 91 MB | 10 MB | 45 MB |
-| _typical compute_ | 9–27 MB | 92–103 MB | 9–13 MB | 50–55 MB |
-| reduce (materialises a 1 M list) | ⚠️ 139 MB | 93 MB | **9 MB** 🥇 | 53 MB |
-| strings | 33 MB | 103 MB | **13 MB** 🥇 | 55 MB |
-| spawn (20 k processes) | **32 MB** 🥇 | 112 MB | — | — |
+The whole process, start to finish (startup + work). 🥇 marks the fastest in
+each row. `N` is the workload size.
 
-Brood stays at **9–27 MB** for nearly everything (and as low as **9 MB** on the
-tail-recursive loops that allocate nothing); Elixir sits at **90–112 MB**
-throughout, Node at **45–55 MB**. Python is the leanest on pure compute (~10 MB).
-
----
-
-## 🔬 Compute-only — the fair comparison
-
-At these sizes **Elixir's wall time is almost entirely the ~300 ms BEAM boot**.
-Subtract each runtime's own startup and the *execution* picture changes
-completely (milliseconds):
-
-| benchmark | brood | elixir | python | node |
-|-----------|------:|-------:|-------:|-----:|
-| fib | 819 | 65 | 65 | 10 |
-| loop | 1042 | 51 | 172 | 3 |
-| reduce | 1766 | ~1 | 7 | 2 |
-| primes | 153 | 45 | 8 | 3 |
-| collatz | 1995 | 67 | 221 | 8 |
-| mandelbrot | 430 | 94 | 70 | 2 |
-| matmul | 1174 | 25 | 44 | 1 |
-| strings | 242 | 73 | 5 | 6 |
-| wordcount | 548 | 67 | 20 | 5 |
-| bintree | 682 | 92 | 17 | 4 |
-| sort | 115 | 85 | 18 | 18 |
-| spawn | 613 | 68 | — | — |
-
-_(Competitor compute-only figures are small differences of two ~300 ms+
-measurements for Elixir and a few ms for Python/Node, so they're noise-dominated
-— `~1` means wall ≈ startup. The Brood column is the stable one.)_
-
-- **Node's JIT dominates** pure compute everywhere.
-- **Elixir's compute is excellent** — frequently faster than Python (loop,
-  collatz, strings, wordcount). Its large wall numbers are VM boot, not slow
-  code: a cost that amortises to zero for a long-running service but dominates a
-  one-shot script.
-- **Brood's gap collapses when work runs in a Rust builtin.** `sort` (115 ms
-  compute, on par with Python/Node and beating Elixir's wall) and `primes`
-  (153 ms) are its best results because that work isn't run instruction-by-
-  instruction in the VM.
-
-### 🎯 Brood optimization targets (by compute-only cost)
-
-Where the VM spends its time, worst first — the candidate list for optimization
-work:
-
-| rank | benchmark | brood compute | what's hot (likely cause) |
-|-----:|-----------|--------------:|---------------------------|
-| 1 | collatz | 1995 ms | tightest hot loop — `rem`/`quot`/`*` dispatch per step |
-| 2 | reduce | 1766 ms | 1 M-element `range` list + per-element closure call (also 139 MB) |
-| 3 | matmul | 1174 ms | `nth` indexing + arithmetic in the inner `dot` recursion |
-| 4 | loop | 1042 ms | bare tail-call + `+`/`>=` dispatch — pure VM overhead floor |
-| 5 | fib | 819 ms | function-call / frame setup per recursive call |
-| 6 | bintree | 682 ms | vector allocation + non-tail tree recursion (GC/alloc path) |
-| 7 | mandelbrot | 430 ms | f64 arithmetic dispatch in the escape loop |
-
-**Two source-level tweaks (same algorithm, identical checksums):**
-
-- **mandelbrot CSE** — carry `x*x`/`y*y` instead of recomputing them (~5 → 3
-  multiplies per iteration). Helped *everyone* a little: Brood, Elixir small
-  gains, Python/Node flat. Safe, kept.
-- **primes √n hoist** — replace the inner `d*d <= n` multiply with a precomputed
-  `d <= √n` bound. Sped up Python and Node — but **slowed Brood**: the bound is a
-  *float*, so `d <= limit` becomes a **mixed int/float comparison** that costs
-  more than the integer multiply it removes. Kept for Python/Node/Elixir,
-  **reverted for Brood** — the fastest non-fancy form is language-dependent.
-
-**The bytecode VM (ADR-076)** is the change that moved the whole table at once:
-the closure-compiling engine replaced the tree-walker and **roughly halved every
-compute-bound wall time** — `loop` 2.22 s → 1.05 s, `collatz` 4.25 s → 2.00 s,
-`matmul` 2.63 s → 1.18 s, `fib` 1.71 s → 828 ms, `mandelbrot` 1.05 s → 439 ms
-(~1.8–2.4× each). `reduce` and the allocation-bound rows moved less (their cost
-is the 1 M-element list and GC pressure, not instruction dispatch), which is why
-they lead the target table above. The numbers shown are current.
-
-The remaining levers are **per-operation dispatch in the VM** (rows 1, 4, 5),
-**collection access / allocation** (rows 3, 6), **whole-collection
-materialisation** (row 2's 139 MB), and a general one an earlier round exposed:
-**integer ops are cheaper than float/mixed ops** — prefer integer arithmetic and
-avoid silent int→float coercion on hot paths.
-
-Cheap wins that aren't dispatch-bound: `sort`, `primes`, `strings` (≤ ~250 ms) —
-these already lean on builtins or do less per iteration, and `primes`, `strings`,
-and `sort` now all **beat Elixir end-to-end**.
-
-> Re-run any single benchmark in isolation while iterating:
-> `BENCH_N=30000 brood bench/brood/collatz.blsp` (or
-> `python3 bench/harness.py --only collatz,loop --langs brood --runs 5`).
+| benchmark | what it stresses | N | brood | elixir | python | node |
+|-----------|------------------|--:|------:|-------:|-------:|-----:|
+| startup | cold start + base memory | — | **11 ms** 🥇 | 353 ms | 12 ms | 27 ms |
+| fib | deep recursion | 30 | 824 ms | 447 ms | 73 ms | **33 ms** 🥇 |
+| loop | 3 M-iteration count | 3 M | 1.06 s | 333 ms | 184 ms | **24 ms** 🥇 |
+| reduce | fold over 1 M numbers | 1 M | 1.79 s | 321 ms | **18 ms** 🥇 | 27 ms |
+| primes | trial-division | 20 k | 160 ms | 395 ms | **20 ms** 🥇 | 24 ms |
+| collatz | tight integer loop | 30 k | 1.95 s | 383 ms | 229 ms | **33 ms** 🥇 |
+| mandelbrot | floating-point | 128 | 433 ms | 395 ms | 80 ms | **30 ms** 🥇 |
+| matmul | nested loops + indexing | 80 | 1.19 s | 332 ms | 54 ms | **24 ms** 🥇 |
+| strings | string building | 50 k | 249 ms | 326 ms | **16 ms** 🥇 | 31 ms |
+| wordcount | hash-map build | 100 k | 545 ms | 340 ms | **30 ms** 🥇 | 32 ms |
+| bintree | allocation / GC | 40 | 691 ms | 385 ms | 31 ms | **27 ms** 🥇 |
+| sort | sort + checksum walk | 50 k | 123 ms | 357 ms | **30 ms** 🥇 | 37 ms |
+| spawn | 20 k lightweight processes | 20 k | 613 ms | **378 ms** 🥇 | — | — |
+| pfib | 100 fibs **in parallel** | 28 | 3.99 s | 394 ms | 304 ms | **132 ms** 🥇 |
+| http | 500 **concurrent** HTTP GETs | 500 | 235 ms | 606 ms | 325 ms | **215 ms** 🥇 |
 
 ---
 
-## 🥊 vs the worst competitor (wall + memory)
+## Startup & memory — where Brood is strong
 
-A friendlier framing: for each benchmark, how does Brood do against the
-*slowest* / *heaviest* of the other three? (It's **Elixir on every row** — its
-~300 ms BEAM boot makes it the worst on wall, and its 90–112 MB resident set the
-worst on memory.)
+| | cold start | memory at rest |
+|---|---:|---:|
+| **Brood** | **11 ms** 🥇 | **9 MB** 🥇 |
+| Python | 12 ms | 10 MB |
+| Node | 27 ms | 45 MB |
+| Elixir | 353 ms | 92 MB |
 
-| benchmark | brood wall | worst wall | wall | brood mem | worst mem | mem |
-|-----------|-----------:|-----------:|:----:|----------:|----------:|:---:|
-| startup | 9 ms | 302 ms | ✅ 33× | 9 MB | 91 MB | ✅ 10× |
-| fib | 828 ms | 367 ms | 2.3× | 9 MB | 95 MB | ✅ 11× |
-| loop | 1.05 s | 353 ms | 3.0× | 9 MB | 95 MB | ✅ 10× |
-| reduce | 1.78 s | 303 ms | 5.9× | 139 MB | 93 MB | ❌ 1.5× |
-| primes | 162 ms | 347 ms | ✅ 2.1× | 9 MB | 94 MB | ✅ 10× |
-| collatz | 2.00 s | 369 ms | 5.4× | 17 MB | 97 MB | ✅ 6× |
-| mandelbrot | 439 ms | 396 ms | 1.1× | 9 MB | 95 MB | ✅ 11× |
-| matmul | 1.18 s | 327 ms | 3.6× | 18 MB | 92 MB | ✅ 5× |
-| strings | 251 ms | 375 ms | ✅ 1.5× | 33 MB | 103 MB | ✅ 3× |
-| wordcount | 557 ms | 369 ms | 1.5× | 27 MB | 92 MB | ✅ 3× |
-| bintree | 691 ms | 394 ms | 1.8× | 21 MB | 95 MB | ✅ 5× |
-| sort | 124 ms | 387 ms | ✅ 3.1× | 19 MB | 103 MB | ✅ 5× |
-| spawn | 622 ms | 370 ms | 1.7× | 32 MB | 112 MB | ✅ 3× |
+Brood boots in ~11 ms — edging out Python and ~32× faster than Elixir's BEAM,
+which spends a third of a second warming up. On memory it holds **9–27 MB** for
+most workloads, versus Elixir's 90–112 MB and Node's 45–56 MB. For short-lived
+work — CLI tools, scripts — this is the differentiator, and it's why Brood beats
+Elixir end-to-end on the short tasks (`startup`, `primes`, `sort`, `strings`):
+Elixir's compiled code is fast, but Brood has already finished before the BEAM is
+ready.
 
-**Scorecard vs the worst competitor — wall: 4 / 13 · memory: 12 / 13.**
+The exception is **`reduce`** (139 MB): `(range 1_000_000)` builds the whole
+list in memory, where the others stream it. It's the one workload where Brood is
+heavier than every competitor — worth knowing if you materialize large
+sequences.
 
-On wall Brood now wins `startup`, `sort`, `primes`, and `strings` — Elixir's
-compiled execution is fast once booted, but Brood's instant start beats it on the
-short tasks, and the VM brought `mandelbrot` to within a hair (1.1×). On
-**memory the picture flips** entirely: Brood is lighter than the heaviest
-competitor on **12 of 13** benchmarks, usually by **3–11×**. Even where it loses
-on wall it wins big on memory — `collatz` is 5.4× slower yet uses **6× less**
-memory.
+## Raw compute — where Brood is slow
 
-The lone memory loss is **`reduce` (139 MB vs 93 MB)**, same root cause as its
-slowness: `(range 1_000_000)` materialises a full 1 M-element list. A
-lazy/fused range would fix the *only* benchmark where Brood loses on memory
-*and* dent the wall gap — which is why it's high on the target list.
+When the work is a tight loop running inside the language, expect Brood to trail
+badly: `collatz` ≈ 1.9 s, `matmul` ≈ 1.2 s, `loop` ≈ 1.0 s — roughly **25–90×
+slower than Node**, whose JIT compiles to native code, and behind Python too.
+The bytecode VM roughly halved this versus the old engine, but an interpreter
+won't catch a JIT. Note that most of **Elixir's** numbers here are just BEAM
+boot (~325 ms); its actual compute is fast — its wall time is the price of
+starting, which amortizes away in a long-running service.
+
+If your hot path is number-crunching, Brood is the wrong tool — or push that
+work into a Rust-backed builtin (`sort` is Brood's best compute result, 123 ms,
+because the sorting isn't interpreted).
+
+## Parallel CPU work (`pfib`) — slow *and* memory-hungry
+
+`pfib` computes `fib(28)` **100 times at once**, each language using its
+idiomatic parallelism (Brood/Elixir spawn lightweight processes; Node uses
+`worker_threads`; Python uses `multiprocessing`).
+
+| lang | wall | peak RSS |
+|---|---:|---:|
+| node | **132 ms** 🥇 | 319 MB |
+| python | 304 ms | **22 MB** 🥇 |
+| elixir | 394 ms | 96 MB |
+| brood | 3.99 s | 954 MB |
+
+Two honest takeaways. **Parallelism does help Brood** — 100×`fib(28)` in 4 s
+versus ~32 s sequential is a ~7× speedup across cores; the multicore scheduler
+works. But **each `fib` is interpreter-bound**, so Brood starts from a per-task
+cost two orders of magnitude above a JIT, and parallelism can't close that. And
+because Brood processes are share-nothing — each carries its own ~9 MB heap —
+**100 compute-heavy processes cost ~950 MB**. Parallel number-crunching is not
+what Brood is for.
+
+## Concurrent I/O (`http`) — Brood ties Node
+
+`http` fires **500 concurrent GETs** at a local server that sleeps 20 ms per
+request, so it measures how well each runtime overlaps in-flight requests — pure
+I/O concurrency, where raw compute speed barely matters.
+
+| lang | wall | peak RSS |
+|---|---:|---:|
+| node | **215 ms** 🥇 | 69 MB |
+| **brood** | 235 ms | 65 MB |
+| python | 325 ms | 49 MB |
+| elixir | 606 ms | 782 MB |
+
+This is the mirror image of `pfib`. Brood's green processes **park** on the
+response (its TCP is message-based), so all 500 requests are genuinely in flight
+at once — and it lands **within a hair of Node** (235 ms vs 215 ms), the runtime
+whose event loop is built for exactly this. Python's thread pool is solid; Elixir's *stdlib* `:httpc` is
+slow and heavy here (real Elixir services use a third-party client like Finch).
+When your work is waiting on I/O, Brood's concurrency model pays off.
+
+## Lightweight processes (`spawn`)
+
+Fanning out 20,000 processes that each send one message: Elixir is faster
+end-to-end (378 ms vs 613 ms), but Brood does it in **31 MB vs Elixir's 110 MB**.
+Cheap, plentiful processes are a real part of the runtime — note how different
+this is from `pfib`: 20,000 *tiny* processes are cheap; 100 *compute-heavy* ones
+are not.
 
 ---
 
-## 📌 Verdict: where Brood is faster, and where it's slower
+## So when should I use Brood?
 
-### ✅ Brood wins
-- **Startup** — 9 ms, **~33× faster than the BEAM** and even edging out Python.
-- **Memory** — 5–11× lighter than Elixir on every compute workload; smallest
-  base footprint of the four (9 MB), and as low as 9 MB on allocation-free loops.
-- **Short tasks end-to-end** — `startup`, `primes`, `strings`, and `sort` all
-  beat Elixir's wall outright; fast start + a builtin-bound hot path wins.
-- **Concurrency on a budget** — spawns and message-passes 20 k green processes in
-  the same order of magnitude as the BEAM while using **~3.5× less memory**
-  (32 MB vs 112 MB).
+**A good fit:**
 
-### ❌ Brood loses
-- **Raw compute** — even as a bytecode VM it runs **~25–90× slower** than Node's
-  JIT on interpreted loops and recursion (`collatz` ≈ 2.0 s, `reduce` ≈ 1.8 s).
-  The VM roughly halved this gap vs the old tree-walker, but a JIT is still a
-  JIT.
-- **Whole-collection materialisation** — `(range 1_000_000)` cost **139 MB**;
-  a transducer or tail-recursive counter avoids the allocation.
+- Command-line tools and short-lived scripts — instant start, tiny footprint.
+- Memory-constrained environments — a fraction of the BEAM's or Node's RAM.
+- I/O-bound concurrency — many simultaneous requests/connections, where it's
+  competitive with Node and far lighter than stdlib Elixir.
 
-### 🆚 Brood vs Elixir specifically
-Brood wins startup and memory by a wide margin, now beats Elixir end-to-end on
-four short benchmarks, and is competitive on concurrency; Elixir wins raw
-execution once its VM is warm. They optimise for different points — **Brood for
-fast, light, short-lived work** (CLI tools, scripts, memory-bounded concurrency);
-**the BEAM for long-running concurrent services** where the boot cost amortises
-away.
+**A poor fit:**
+
+- CPU-bound number crunching — interpreted loops are 1–2 orders of magnitude off
+  a JIT, parallel or not.
+- Parallel compute fan-out — slow per task *and* heavy (one heap per process).
+- Materializing huge in-memory collections — see `reduce`.
+
+**Versus Elixir specifically:** they optimize for different moments. Brood wins
+the sprint (startup, memory, short tasks, I/O concurrency on a budget); the BEAM
+wins the marathon (long-running services where boot cost amortizes and warm
+compute and battle-tested libraries matter).
 
 ---
 
-## How to reproduce
+## The fine print
 
-```sh
-python3 bench/harness.py            # full suite, best of 3  → results/
-python3 bench/harness.py --quick    # smaller sizes, smoke test
-python3 bench/harness.py --only fib,sort --runs 5
-```
+- **How it's measured, and why it's fair** → see the [README](README.md)
+  (methodology, identical algorithms, how to run it).
+- **Raw data** → [`results/report.md`](results/report.md) and
+  [`results/results.json`](results/results.json).
 
-The 50 source programs live under [`bench/`](bench/) (four per benchmark, except
-`spawn` which is Brood + Elixir only), named
-identically except the extension (`fib.blsp` / `fib.exs` / `fib.py` / `fib.js`)
-so the implementations diff side by side. Methodology and fairness notes are in
-the [README](README.md); Brood-specific optimization targets and the progress
-log are in [`OPTIMIZATION.md`](OPTIMIZATION.md).
+_Measured best-of-3 on: Intel Raptor Lake-S (28 cores) · 61 GB RAM · Ubuntu
+26.04 · Brood 0.1.0 (bytecode VM) · Elixir 1.20.0-rc.6 / OTP 29 · Python 3.14.4 ·
+Node 24.15.0._
