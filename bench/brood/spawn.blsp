@@ -9,7 +9,8 @@
 (defn fan (i) (if (>= i n) nil (do (spawn (worker i)) (fan (+ i 1)))))
 
 (defn collect (got acc)
-  (if (= got n) acc
+  (if (= got n)
+    acc
     (collect (+ got 1) (receive ([:done i] (+ acc i))))))
 
 (fan 0)

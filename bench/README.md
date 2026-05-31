@@ -57,9 +57,9 @@ concurrency model rather than raw single-thread speed.
   we're comparing the languages as used, not forcing one style on all.
 - Float results (`mandelbrot`) rely on IEEE-754 `f64` behaving identically
   across all four runtimes — confirmed by matching checksums.
-- Workload sizes are picked so the *slowest* runtime (the Brood tree-walking
-  interpreter) finishes in a few seconds; the compiled/JIT runtimes finish in
-  milliseconds. That spread is the result, not a problem.
+- Workload sizes are picked so the *slowest* runtime (the Brood bytecode VM)
+  finishes in a few seconds; the compiled/JIT runtimes finish in milliseconds.
+  That spread is the result, not a problem.
 
 ## Running it
 
