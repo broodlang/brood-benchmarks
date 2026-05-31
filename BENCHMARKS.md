@@ -15,6 +15,8 @@ it costs you, measured against three well-known runtimes.
 > `i64` operations instead of going through a dispatched call — plus a faster
 > per-call cache lookup. Together they cut the compute-bound times by a further
 > **~1.5–2× over the previous VM** (e.g. `fib` and `loop` more than halved). The
+> newest change is a **process-count-aware GC floor** that cut parallel
+> fan-out's peak memory ~10× (`pfib` ~980 MB → ~100 MB; see that section). The
 > numbers below are that engine.
 
 ## The honest summary
@@ -29,9 +31,11 @@ it costs you, measured against three well-known runtimes.
   the gap a lot: tight loops and recursion now run roughly **12–35× slower than
   Node** (down from 25–90×), and 2–15× behind Python.
 - **Concurrency depends entirely on the workload.** Cheap, plentiful lightweight
-  processes and **concurrent I/O** are a genuine strength (it lands within ~20%
-  of Node on the HTTP test, ahead of Python). **Parallel CPU crunching is not** — there it's slow
-  *and* memory-hungry. Both results are below; the difference is the point.
+  processes and **concurrent I/O** are a genuine strength (it lands within ~25%
+  of Node on the HTTP test, ahead of Python). **Parallel CPU crunching** is still
+  slow per task — an interpreter racing a JIT, 100 ways at once — but it's no
+  longer memory-hungry: a GC-floor fix (below) cut `pfib`'s peak from ~980 MB to
+  ~100 MB, in line with Elixir and a third of Node's. Both results are below.
 
 ---
 
@@ -42,26 +46,28 @@ each row. `N` is the workload size.
 
 | benchmark | what it stresses | N | brood | elixir | python | node |
 |-----------|------------------|--:|------:|-------:|-------:|-----:|
-| startup | cold start + base memory | — | 24 ms | 322 ms | **11 ms** 🥇 | 21 ms |
-| fib | deep recursion | 30 | 363 ms | 348 ms | 73 ms | **29 ms** 🥇 |
-| loop | 3 M-iteration count | 3 M | 425 ms | 353 ms | 191 ms | **28 ms** 🥇 |
-| reduce | fold over 1 M numbers | 1 M | 1.45 s | 328 ms | **18 ms** 🥇 | 26 ms |
-| primes | trial-division | 20 k | 87 ms | 358 ms | **19 ms** 🥇 | 26 ms |
-| collatz | tight integer loop | 30 k | 1.09 s | 387 ms | 233 ms | **29 ms** 🥇 |
-| mandelbrot | floating-point | 128 | 350 ms | 373 ms | 76 ms | **26 ms** 🥇 |
-| matmul | nested loops + indexing | 80 | 788 ms | 340 ms | 54 ms | **25 ms** 🥇 |
-| strings | string building | 50 k | 233 ms | 343 ms | **16 ms** 🥇 | 28 ms |
-| wordcount | hash-map build | 100 k | 617 ms | 361 ms | 30 ms | **28 ms** 🥇 |
-| bintree | allocation / GC | 40 | 466 ms | 358 ms | 28 ms | **26 ms** 🥇 |
-| sort | sort + checksum walk | 50 k | 123 ms | 335 ms | **31 ms** 🥇 | 43 ms |
-| spawn | 20 k lightweight processes | 20 k | 620 ms | **380 ms** 🥇 | — | — |
-| pfib | 100 fibs **in parallel** | 28 | 4.18 s | 358 ms | 298 ms | **130 ms** 🥇 |
-| http | 500 **concurrent** HTTP GETs | 500 | 200 ms | 647 ms | 312 ms | **168 ms** 🥇 |
+| startup | cold start + base memory | — | 22 ms | 308 ms | **12 ms** 🥇 | 21 ms |
+| fib | deep recursion | 30 | 361 ms | 415 ms | 74 ms | **32 ms** 🥇 |
+| loop | 3 M-iteration count | 3 M | 426 ms | 398 ms | 185 ms | **26 ms** 🥇 |
+| reduce | fold over 1 M numbers | 1 M | 1.45 s | 309 ms | **18 ms** 🥇 | 30 ms |
+| primes | trial-division | 20 k | 87 ms | 346 ms | **21 ms** 🥇 | 26 ms |
+| collatz | tight integer loop | 30 k | 1.10 s | 376 ms | 228 ms | **32 ms** 🥇 |
+| mandelbrot | floating-point | 128 | 352 ms | 386 ms | 76 ms | **26 ms** 🥇 |
+| matmul | nested loops + indexing | 80 | 795 ms | 333 ms | 53 ms | **24 ms** 🥇 |
+| strings | string building | 50 k | 237 ms | 331 ms | **17 ms** 🥇 | 29 ms |
+| wordcount | hash-map build | 100 k | 609 ms | 336 ms | **30 ms** 🥇 | 32 ms |
+| bintree | allocation / GC | 40 | 472 ms | 347 ms | 30 ms | **29 ms** 🥇 |
+| sort | sort + checksum walk | 50 k | 122 ms | 305 ms | **29 ms** 🥇 | 38 ms |
+| spawn | 20 k lightweight processes | 20 k | 613 ms | **344 ms** 🥇 | — | — |
+| pfib | 100 fibs **in parallel** | 28 | 3.84 s | 366 ms | 294 ms | **130 ms** 🥇 |
+| http | 500 **concurrent** HTTP GETs | 500 | 188 ms | 615 ms | 225 ms | **152 ms** 🥇 |
 
-The single-threaded compute rows are where this release moved: `fib` 824 → 363 ms,
-`loop` 1.06 s → 425 ms, `primes` 160 → 87 ms, `collatz` 1.95 → 1.09 s, `matmul`
-1.19 s → 788 ms, `bintree` 691 → 466 ms — all from running the hot arithmetic and
-comparison operators inline instead of dispatching a call for each one.
+The single-threaded compute rows are where the inlining release moved: `fib` 824
+→ 361 ms, `loop` 1.06 s → 426 ms, `primes` 160 → 87 ms, `collatz` 1.95 → 1.10 s,
+`matmul` 1.19 s → 795 ms, `bintree` 691 → 472 ms — all from running the hot
+arithmetic and comparison operators inline instead of dispatching a call for each
+one. The newest change is to **parallel** memory, not single-thread speed: a
+process-count-aware GC floor cut `pfib`'s peak ~10× (see below).
 
 ---
 
@@ -103,7 +109,7 @@ push that work into a Rust-backed builtin (`sort` is Brood's best compute result
 interpreter tax on ordinary arithmetic-heavy code is now a small-tens multiple of
 a JIT, not two orders of magnitude.
 
-## Parallel CPU work (`pfib`) — slow *and* memory-hungry
+## Parallel CPU work (`pfib`) — slow, but no longer memory-hungry
 
 `pfib` computes `fib(28)` **100 times at once**, each language using its
 idiomatic parallelism (Brood/Elixir spawn lightweight processes; Node uses
@@ -111,18 +117,28 @@ idiomatic parallelism (Brood/Elixir spawn lightweight processes; Node uses
 
 | lang | wall | peak RSS |
 |---|---:|---:|
-| node | **130 ms** 🥇 | 307 MB |
-| python | 298 ms | **22 MB** 🥇 |
-| elixir | 358 ms | 96 MB |
-| brood | 4.18 s | 979 MB |
+| node | **130 ms** 🥇 | 315 MB |
+| python | 294 ms | **22 MB** 🥇 |
+| elixir | 366 ms | 96 MB |
+| brood | 3.84 s | 102 MB |
 
 Two honest takeaways. **Parallelism does help Brood** — the multicore scheduler
 genuinely spreads the work across cores. But **each `fib` is interpreter-bound**,
 so Brood starts from a per-task cost well above a JIT, and parallelism can't close
-that. And because Brood processes are share-nothing — each carries its own ~9 MB
-heap — **100 compute-heavy processes cost ~980 MB**. Parallel number-crunching is
-not what Brood is for. (This row is also the most load-sensitive in the suite,
-since it saturates every core.)
+that: it's last on wall time and that's inherent to racing a JIT 100 ways at once.
+
+**The memory, though, used to be the bigger embarrassment — and it's now fixed.**
+This row peaked at **~980 MB** in earlier rounds: each share-nothing process built
+up to its single-process GC floor (~64K objects) before its first collection, so
+100 churny processes each climbed to a multi-MB heap at once. A
+**process-count-aware GC floor** (the runtime now divides that object budget
+across the live processes, so a wide fan-out collects earlier) brought the peak
+down to **~102 MB — in line with Elixir (96 MB) and a third of Node's (315 MB)** —
+with no wall-time cost (it's actually slightly faster, since the collections that
+were happening anyway now keep working sets cache-resident). A lone process is
+unchanged. So: still the wrong tool for parallel number-crunching on *speed*, but
+no longer a memory outlier. (This row is also the most load-sensitive in the
+suite, since it saturates every core.)
 
 ## Concurrent I/O (`http`) — Brood close behind Node
 
@@ -132,14 +148,14 @@ I/O concurrency, where raw compute speed barely matters.
 
 | lang | wall | peak RSS |
 |---|---:|---:|
-| node | **168 ms** 🥇 | 69 MB |
-| **brood** | 200 ms | 63 MB |
-| python | 312 ms | 47 MB |
-| elixir | 647 ms | 802 MB |
+| node | **152 ms** 🥇 | 70 MB |
+| **brood** | 188 ms | 64 MB |
+| python | 225 ms | 53 MB |
+| elixir | 615 ms | 777 MB |
 
 This is the mirror image of `pfib`. Brood's green processes **park** on the
 response (its TCP is message-based), so all 500 requests are genuinely in flight
-at once — and it lands **within ~20% of Node** (200 ms vs 168 ms), the runtime
+at once — and it lands **within ~25% of Node** (188 ms vs 152 ms), the runtime
 whose event loop is built for exactly this, while using less memory, and ahead
 of Python's thread pool. Elixir's *stdlib* `:httpc` is slow and heavy here (real
 Elixir services use a third-party client like Finch). When your work is waiting
@@ -148,7 +164,7 @@ on I/O, Brood's concurrency model pays off.
 ## Lightweight processes (`spawn`)
 
 Fanning out 20,000 processes that each send one message: Elixir is faster
-end-to-end (380 ms vs 620 ms), but Brood does it in **37 MB vs Elixir's 114 MB**.
+end-to-end (344 ms vs 613 ms), but Brood does it in **37 MB vs Elixir's 108 MB**.
 Cheap, plentiful processes are a real part of the runtime — note how different
 this is from `pfib`: 20,000 *tiny* processes are cheap; 100 *compute-heavy* ones
 are not.
@@ -167,8 +183,9 @@ are not.
 **A poor fit:**
 
 - CPU-bound number crunching — interpreted loops are still a small-tens multiple
-  off a JIT (better than before, but not close), parallel or not.
-- Parallel compute fan-out — slow per task *and* heavy (one heap per process).
+  off a JIT (better than before, but not close), parallel or not. Parallel
+  fan-out is now memory-competitive (the `pfib` GC-floor fix), but still slow per
+  task — use it for *I/O* concurrency, not *compute* fan-out.
 - Materializing huge in-memory collections — see `reduce`.
 
 **Versus Elixir specifically:** they optimize for different moments. Brood wins
@@ -186,8 +203,9 @@ compute and battle-tested libraries matter).
   [`results/results.json`](results/results.json).
 
 _Measured on: Intel Raptor Lake-S (28 cores) · 61 GB RAM · Ubuntu 26.04 · Brood
-0.1.0 (bytecode VM + primitive inlining) · Elixir 1.20.0-rc.6 / OTP 29 · Python
-3.14.4 · Node 24.15.0. Compute rows are best-of-3 from the full suite; the
-latency-sensitive `startup` and `http` rows are best-of-5 measured in isolation
-so neighbouring benchmarks' load doesn't inflate them. `pfib` saturates every
-core and remains the most load-sensitive row in the suite._
+0.1.0 (bytecode VM + primitive inlining + process-count-aware GC floor) · Elixir
+1.20.0-rc.6 / OTP 29 · Python 3.14.4 · Node 24.15.0. Compute rows are best-of-3
+from the full suite; the latency-sensitive `startup` and `http` rows are
+best-of-5–7 measured in isolation so neighbouring benchmarks' load doesn't
+inflate them. `pfib` saturates every core and remains the most load-sensitive
+row in the suite._

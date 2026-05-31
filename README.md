@@ -6,9 +6,11 @@ where the Brood runtime is faster or slower than the alternatives — on
 **startup**, **memory**, **raw performance**, and **concurrency**.
 
 > **Engine:** Brood runs on its **bytecode VM** — the closure-compiling engine
-> that superseded the original tree-walker — now with **primitive inlining**: the
+> that superseded the original tree-walker — with **primitive inlining**: the
 > core arithmetic/comparison ops run inline as native `i64` operations rather than
-> dispatched calls, cutting compute-bound wall times a further ~1.5–2×.
+> dispatched calls, cutting compute-bound wall times a further ~1.5–2×. A newer
+> **process-count-aware GC floor** cut parallel fan-out's peak memory ~10×
+> (`pfib` ~980 MB → ~100 MB).
 
 ## Results
 
@@ -22,8 +24,9 @@ lighter than Elixir/Node on most workloads) and **fast-enough startup** (~24 ms,
 ~13× ahead of the BEAM); it beats Elixir end-to-end on the short tasks and **runs
 close behind Node on concurrent I/O**. Its weaknesses are **raw compute**
 (interpreted loops run ~12–35× slower than Node's JIT — much closer since
-primitive inlining, but still behind) and **parallel CPU work** (slow *and*
-memory-heavy). See [BENCHMARKS.md](BENCHMARKS.md) for the honest, full picture.
+primitive inlining, but still behind) and **parallel CPU work** (still slow per
+task, though no longer memory-heavy after the GC-floor fix). See
+[BENCHMARKS.md](BENCHMARKS.md) for the honest, full picture.
 
 ## The benchmarks (15)
 
@@ -114,5 +117,5 @@ and checksum).
 ## Environment
 
 Numbers in the docs were measured on: Intel Raptor Lake-S (28 cores) · 61 GB RAM
-· Ubuntu 26.04 · Brood 0.1.0 (bytecode VM) · Elixir 1.20.0-rc.6 / OTP 29 ·
+· Ubuntu 26.04 · Brood 0.1.0 (bytecode VM, process-count-aware GC floor) · Elixir 1.20.0-rc.6 / OTP 29 ·
 Python 3.14.4 · Node 24.15.0. Best of 3 runs each.
