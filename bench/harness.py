@@ -30,6 +30,7 @@ LANGS = {
     "elixir": {"dir": "elixir", "ext": "exs",  "cmd": lambda p: ["elixir", p]},
     "python": {"dir": "python", "ext": "py",   "cmd": lambda p: ["python3", p]},
     "node":   {"dir": "node",   "ext": "js",   "cmd": lambda p: ["node", p]},
+    "ruby":   {"dir": "ruby",   "ext": "rb",   "cmd": lambda p: ["ruby", p]},
 }
 
 # name -> (default N, [langs]). "what" is the dimension each one stresses.
@@ -136,7 +137,7 @@ def main():
     ap.add_argument("--runs", type=int, default=3)
     ap.add_argument("--timeout", type=int, default=300, help="per-run timeout (s)")
     ap.add_argument("--only", default="", help="comma list of benchmark names")
-    ap.add_argument("--langs", default="brood,elixir,python,node")
+    ap.add_argument("--langs", default="brood,elixir,python,node,ruby")
     ap.add_argument("--quick", action="store_true")
     args = ap.parse_args()
 
@@ -192,7 +193,7 @@ def build_report(results, args):
     L.append(f"_Best of {args.runs} runs per program; {mode} sizes. "
              f"Wall = total process time (startup + compute). RSS = peak resident memory._")
     L.append("")
-    order = ["brood", "elixir", "python", "node"]
+    order = ["brood", "elixir", "python", "node", "ruby"]
     for name, data in results.items():
         langs = data["langs"]
         if not langs:
