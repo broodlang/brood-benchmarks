@@ -44,12 +44,14 @@ BENCHES = [
     ("bintree",    40,     "all", "allocation / GC pressure (build+walk trees)"),
     ("sort",       50000,  "all", "sort a list of ints + checksum walk"),
     ("spawn",      20000,  ["brood", "elixir"], "lightweight processes + messaging"),
+    ("pfib",       28,     "all", "parallel fib — 100 computed at once across cores"),
+    ("http",       500,    "all", "concurrent HTTP — N in-flight GETs to a local server"),
 ]
 
 QUICK = {  # smaller sizes for a fast smoke run
     "fib": 25, "loop": 300000, "reduce": 100000, "primes": 5000, "collatz": 5000,
     "mandelbrot": 48, "matmul": 40, "strings": 10000, "wordcount": 20000,
-    "bintree": 8, "sort": 10000, "spawn": 5000,
+    "bintree": 8, "sort": 10000, "spawn": 5000, "pfib": 24, "http": 100,
 }
 
 RSS_RE = re.compile(r"Maximum resident set size \(kbytes\):\s*(\d+)")
@@ -90,6 +92,39 @@ def bench_lang(lang, name, n, runs, timeout):
     return {"wall_ms": round(best_wall, 1), "rss_kb": rss_peak, "checksum": checksum}
 
 
+# Benchmarks that need a local HTTP server running while they execute. The
+# server (bench/httpserver.py) is started before the benchmark's languages run
+# and torn down after, so the `http` clients have something to call.
+HTTP_PORT = 8089
+SERVER_FOR = {"http"}
+
+
+def start_http_server():
+    """Launch the local HTTP server and wait until it accepts connections."""
+    import socket
+    proc = subprocess.Popen(
+        [sys.executable, str(ROOT / "httpserver.py"), str(HTTP_PORT)],
+        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+    )
+    deadline = time.perf_counter() + 10.0
+    while time.perf_counter() < deadline:
+        try:
+            with socket.create_connection(("127.0.0.1", HTTP_PORT), timeout=0.5):
+                return proc
+        except OSError:
+            time.sleep(0.05)
+    proc.terminate()
+    raise RuntimeError("http server failed to start on :%d" % HTTP_PORT)
+
+
+def stop_http_server(proc):
+    proc.terminate()
+    try:
+        proc.wait(timeout=5)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--runs", type=int, default=3)
@@ -110,15 +145,20 @@ def main():
         run_langs = langs if where == "all" else [l for l in langs if l in where]
         results[name] = {"n": n, "what": what, "langs": {}}
         print(f"\n## {name}  (N={n}) — {what}")
-        for lang in run_langs:
-            r = bench_lang(lang, name, n, args.runs, args.timeout)
-            if r is None:
-                continue
-            results[name]["langs"][lang] = r
-            if "error" in r:
-                print(f"  {lang:8} ERROR  {r['error']}")
-            else:
-                print(f"  {lang:8} {r['wall_ms']:9.1f} ms   {r['rss_kb']:>8} KB   = {r['checksum']}")
+        server = start_http_server() if name in SERVER_FOR else None
+        try:
+            for lang in run_langs:
+                r = bench_lang(lang, name, n, args.runs, args.timeout)
+                if r is None:
+                    continue
+                results[name]["langs"][lang] = r
+                if "error" in r:
+                    print(f"  {lang:8} ERROR  {r['error']}")
+                else:
+                    print(f"  {lang:8} {r['wall_ms']:9.1f} ms   {r['rss_kb']:>8} KB   = {r['checksum']}")
+        finally:
+            if server:
+                stop_http_server(server)
         verify_checksums(name, results[name])
 
     RESULTS.mkdir(exist_ok=True)
