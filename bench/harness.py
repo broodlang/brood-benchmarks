@@ -21,9 +21,12 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent          # .../bench
 RESULTS = ROOT.parent / "results"
 
-# ext + how to invoke a single source file
+# ext + how to invoke a single source file. `env` is merged on top of the
+# inherited environment for that language's child process.
+#   brood: pin BROOD_VM=1 so an inherited BROOD_VM=0 can't silently drop us onto
+#   the (≈2× slower) tree-walker and make the numbers unreproducible.
 LANGS = {
-    "brood":  {"dir": "brood",  "ext": "blsp", "cmd": lambda p: ["brood", p]},
+    "brood":  {"dir": "brood",  "ext": "blsp", "cmd": lambda p: ["brood", p], "env": {"BROOD_VM": "1"}},
     "elixir": {"dir": "elixir", "ext": "exs",  "cmd": lambda p: ["elixir", p]},
     "python": {"dir": "python", "ext": "py",   "cmd": lambda p: ["python3", p]},
     "node":   {"dir": "node",   "ext": "js",   "cmd": lambda p: ["node", p]},
@@ -57,9 +60,11 @@ QUICK = {  # smaller sizes for a fast smoke run
 RSS_RE = re.compile(r"Maximum resident set size \(kbytes\):\s*(\d+)")
 
 
-def run_once(cmd, n, timeout):
+def run_once(cmd, n, timeout, extra_env=None):
     """Run `cmd` under /usr/bin/time -v with BENCH_N=n. Returns (ok, wall_ms, rss_kb, out)."""
     env = dict(os.environ, BENCH_N=str(n))
+    if extra_env:
+        env.update(extra_env)
     full = ["/usr/bin/time", "-v"] + cmd
     t0 = time.perf_counter()
     try:
@@ -80,9 +85,10 @@ def bench_lang(lang, name, n, runs, timeout):
     if not Path(path).exists():
         return None
     cmd = spec["cmd"](path)
+    extra_env = spec.get("env")
     best_wall, rss_peak, checksum, err = float("inf"), 0, None, None
     for _ in range(runs):
-        ok, wall, rss, out = run_once(cmd, n, timeout)
+        ok, wall, rss, out = run_once(cmd, n, timeout, extra_env)
         if not ok:
             return {"error": out, "wall_ms": wall, "rss_kb": rss}
         best_wall = min(best_wall, wall)          # best = least-noisy run
