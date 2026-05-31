@@ -227,5 +227,5 @@ The 50 source programs live under [`bench/`](bench/) (four per benchmark, except
 `spawn` which is Brood + Elixir only), named
 identically except the extension (`fib.blsp` / `fib.exs` / `fib.py` / `fib.js`)
 so the implementations diff side by side. Methodology and fairness notes are in
-[`bench/README.md`](bench/README.md); the longer writeup is in
-[`results/ANALYSIS.md`](results/ANALYSIS.md).
+the [README](README.md); Brood-specific optimization targets and the progress
+log are in [`OPTIMIZATION.md`](OPTIMIZATION.md).
