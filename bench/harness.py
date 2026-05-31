@@ -188,10 +188,12 @@ def fmt_ms(ms):
 
 
 def build_report(results, args):
-    L = ["# Brood vs Elixir vs Python vs Node — benchmark results", ""]
+    L = ["# Brood vs Elixir vs Python vs Node vs Ruby — benchmark results", ""]
     mode = "quick" if args.quick else "full"
     L.append(f"_Best of {args.runs} runs per program; {mode} sizes. "
-             f"Wall = total process time (startup + compute). RSS = peak resident memory._")
+             f"Wall = total process time (startup + compute). RSS = peak resident "
+             f"memory. `pos` = rank by wall, `mem` = rank by RSS (1 = best), out of "
+             f"the languages with a port._")
     L.append("")
     order = ["brood", "elixir", "python", "node", "ruby"]
     for name, data in results.items():
@@ -200,20 +202,26 @@ def build_report(results, args):
             continue
         L.append(f"## {name} — {data['what']}  (N={data['n']})")
         L.append("")
-        L.append("| lang | wall | vs fastest | peak RSS | checksum |")
-        L.append("|------|------|-----------|----------|----------|")
+        L.append("| lang | wall | vs fastest | pos | peak RSS | mem | checksum |")
+        L.append("|------|------|-----------|-----|----------|-----|----------|")
         oks = {l: d for l, d in langs.items() if "wall_ms" in d and "error" not in d}
         fastest = min((d["wall_ms"] for d in oks.values()), default=None)
+        n = len(oks)
+        # Rank by wall time and by peak RSS (1 = best/lowest); only the langs that
+        # actually ran this benchmark are ranked, so `k/n` reflects the real field.
+        wall_rank = {l: i + 1 for i, l in enumerate(sorted(oks, key=lambda l: oks[l]["wall_ms"]))}
+        mem_rank = {l: i + 1 for i, l in enumerate(sorted(oks, key=lambda l: oks[l]["rss_kb"]))}
         for l in order:
             if l not in langs:
                 continue
             d = langs[l]
             if "error" in d:
-                L.append(f"| {l} | — | — | — | ERROR |")
+                L.append(f"| {l} | — | — | — | — | — | ERROR |")
                 continue
             ratio = d["wall_ms"] / fastest if fastest else 1
             L.append(f"| {l} | {fmt_ms(d['wall_ms'])} | {ratio:.1f}× | "
-                     f"{d['rss_kb']/1024:.1f} MB | {d['checksum']} |")
+                     f"{wall_rank[l]}/{n} | {d['rss_kb']/1024:.1f} MB | "
+                     f"{mem_rank[l]}/{n} | {d['checksum']} |")
         L.append("")
     return "\n".join(L)
 

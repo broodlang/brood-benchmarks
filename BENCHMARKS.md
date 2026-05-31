@@ -72,6 +72,27 @@ And **`pfib` peak ~980 MB → ~100 MB**: a process-count-aware GC floor (see tha
 section). Single-threaded compute is unchanged — that's the VM's standing speed,
 and where Brood still trails the others.
 
+## Biggest gaps — where to focus next
+
+Ranked by how far Brood trails the **fastest other** language (wall) and the
+**lightest other** (memory). Worst first — these are the optimization targets;
+everything not listed is already within ~2× on at least one axis.
+
+| benchmark | wall gap | mem gap | what it points at |
+|-----------|---------:|--------:|-------------------|
+| `reduce` | **77×** | **14×** | `(range 1M)` **materializes** the whole list (130 MB) before folding. A lazy / streaming range would fix *both* axes at once — the single highest-leverage change in the suite. |
+| `collatz` | 36× | 1.9× | tight integer loop — raw per-iteration VM dispatch overhead. |
+| `matmul` | 28× | 2.0× | nested loops + `vector` indexing — the index path and loop trampoline. |
+| `wordcount` | 22× | 2.9× | immutable hash-map **insert churn** — the persistent-map (HAMT) build/copy cost. |
+| `loop` / `bintree` | ~17× | 1.1–1.5× | per-iteration VM overhead / allocation pressure. |
+
+The through-line is **single-thread compute** plus the one **materialization
+outlier (`reduce`)**. `reduce` stands alone — bad on *both* speed and memory and
+the clearest win. After that it's general VM loop/dispatch throughput
+(`collatz`, `matmul`, `loop`) and the immutable-map build (`wordcount`). The
+concurrency and startup rows are already close (`http` 1.2×, `spawn` 1.6×,
+`startup` 1.7×, `pfib` 6×) — not where the distance is.
+
 ---
 
 ## Memory & startup — where Brood is light
