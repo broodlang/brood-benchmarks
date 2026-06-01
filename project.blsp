@@ -1,5 +1,6 @@
 ;; benchmark — a Brood project.
+;; net/* lives in the internal brood-net package; put its src on the load-path
+;; directly (no package manager needed for in-workspace packages — ADR-085).
 (project :name "benchmark"
   :version "0.1.0"
-  :dependencies
-  [[brood-net :path "../brood-net"]])
+  :source-paths ["src" "../brood-net/src"])
