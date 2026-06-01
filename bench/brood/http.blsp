@@ -2,7 +2,7 @@
 ;; server-side), one green process per request, and count the 200s. Brood's TCP
 ;; is message-based — `http-get` parks its process on a `receive`, so all N
 ;; requests are in flight at once rather than serialising. Checksum = N.
-(require 'http)
+(require 'net/http)
 
 (def n (let (e (getenv "BENCH_N")) (if e (string->number e) 500)))
 (def url "http://127.0.0.1:8089/")
@@ -11,7 +11,7 @@
 (def me (self))
 
 ;; `http/http-get` must run inside a process (it `receive`s the response).
-(defn worker () (send me [:r (if (= (get (http/http-get url) :status) 200) 1 0)]))
+(defn worker () (send me [:r (if (= (get (net/http/http-get url) :status) 200) 1 0)]))
 
 (defn fan (i) (if (>= i n) nil (do (spawn (worker)) (fan (+ i 1)))))
 
