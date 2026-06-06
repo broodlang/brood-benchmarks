@@ -2,6 +2,12 @@
 ;; server-side), one green process per request, and count the 200s. Brood's TCP
 ;; is message-based — `http-get` parks its process on a `receive`, so all N
 ;; requests are in flight at once rather than serialising. Checksum = N.
+;;
+;; net/http lives in the in-workspace brood-net package (ADR-085). `nest` reads
+;; project.blsp's :source-paths, but the harness runs the raw `brood` binary,
+;; which doesn't — so put brood-net/src on the load-path here (path is relative
+;; to the project root, where the harness runs).
+(def *load-path* (cons "../brood-net/src" *load-path*))
 (require 'net/http)
 
 (def n (let (e (getenv "BENCH_N")) (if e (string->number e) 500)))
