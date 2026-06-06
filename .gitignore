@@ -8,3 +8,7 @@ _deps/
 # Python bytecode caches (anywhere in the tree)
 __pycache__/
 *.py[cod]
+
+# Crash dumps (BEAM / Brood) — regenerable, not source
+erl_crash.dump
+.brood_crash_dump
