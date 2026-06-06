@@ -25,13 +25,33 @@ RESULTS = ROOT.parent / "results"
 # inherited environment for that language's child process.
 #   brood: pin BROOD_VM=1 so an inherited BROOD_VM=0 can't silently drop us onto
 #   the (≈2× slower) tree-walker and make the numbers unreproducible.
+# .NET needs compilation, so unlike the others we don't "run the source": the
+# project (bench/dotnet/) is built once to a native apphost (see DOTNET_APP /
+# build_dotnet), and each benchmark runs as `brood-bench <name>` — measuring the
+# real runtime startup + RyuJIT, the fair analog to `node app.js`. The per-bench
+# .cs files still live one-per-benchmark so they diff side by side.
+DOTNET_DIR = ROOT / "dotnet"
+DOTNET_APP = DOTNET_DIR / "publish" / "brood-bench"
+
 LANGS = {
     "brood":  {"dir": "brood",  "ext": "blsp", "cmd": lambda p: ["brood", p], "env": {"BROOD_VM": "1"}},
     "elixir": {"dir": "elixir", "ext": "exs",  "cmd": lambda p: ["elixir", p]},
     "python": {"dir": "python", "ext": "py",   "cmd": lambda p: ["python3", p]},
     "node":   {"dir": "node",   "ext": "js",   "cmd": lambda p: ["node", p]},
     "ruby":   {"dir": "ruby",   "ext": "rb",   "cmd": lambda p: ["ruby", p]},
+    "dotnet": {"dir": "dotnet", "ext": "cs",   "cmd": lambda p: [str(DOTNET_APP), Path(p).stem]},
 }
+
+
+def build_dotnet():
+    """Build the .NET benchmark project once to a native apphost (Release)."""
+    print("building .NET project (Release)…")
+    r = subprocess.run(
+        ["dotnet", "build", "-c", "Release", "-o", "publish"],
+        cwd=str(DOTNET_DIR), capture_output=True, text=True,
+    )
+    if r.returncode != 0:
+        raise RuntimeError("dotnet build failed:\n" + r.stdout + r.stderr)
 
 # name -> (default N, [langs]). "what" is the dimension each one stresses.
 BENCHES = [
@@ -137,12 +157,15 @@ def main():
     ap.add_argument("--runs", type=int, default=3)
     ap.add_argument("--timeout", type=int, default=300, help="per-run timeout (s)")
     ap.add_argument("--only", default="", help="comma list of benchmark names")
-    ap.add_argument("--langs", default="brood,elixir,python,node,ruby")
+    ap.add_argument("--langs", default="brood,elixir,python,node,ruby,dotnet")
     ap.add_argument("--quick", action="store_true")
     args = ap.parse_args()
 
     only = set(filter(None, args.only.split(",")))
     langs = [l for l in args.langs.split(",") if l in LANGS]
+
+    if "dotnet" in langs:
+        build_dotnet()
 
     results = {}
     for name, default_n, where, what in BENCHES:
@@ -188,22 +211,29 @@ def fmt_ms(ms):
 
 
 def build_report(results, args):
-    L = ["# Brood vs Elixir vs Python vs Node vs Ruby — benchmark results", ""]
+    L = ["# Brood vs Elixir vs Python vs Node vs Ruby vs .NET — benchmark results", ""]
     mode = "quick" if args.quick else "full"
     L.append(f"_Best of {args.runs} runs per program; {mode} sizes. "
-             f"Wall = total process time (startup + compute). RSS = peak resident "
+             f"Wall = total process time (startup + compute). `compute` ≈ "
+             f"wall − that language's own `startup` (so a slow-booting runtime's "
+             f"real compute speed is visible — e.g. the BEAM). RSS = peak resident "
              f"memory. `pos` = rank by wall, `mem` = rank by RSS (1 = best), out of "
              f"the languages with a port._")
     L.append("")
-    order = ["brood", "elixir", "python", "node", "ruby"]
+    order = ["brood", "elixir", "python", "node", "ruby", "dotnet"]
+    # Per-language startup wall (from the `startup` row, if it ran) for the
+    # `compute` column = wall − startup. Absent → the column shows "—".
+    startup = {l: d["wall_ms"]
+               for l, d in results.get("startup", {}).get("langs", {}).items()
+               if "wall_ms" in d and "error" not in d}
     for name, data in results.items():
         langs = data["langs"]
         if not langs:
             continue
         L.append(f"## {name} — {data['what']}  (N={data['n']})")
         L.append("")
-        L.append("| lang | wall | vs fastest | pos | peak RSS | mem | checksum |")
-        L.append("|------|------|-----------|-----|----------|-----|----------|")
+        L.append("| lang | wall | compute | vs fastest | pos | peak RSS | mem | checksum |")
+        L.append("|------|------|---------|-----------|-----|----------|-----|----------|")
         oks = {l: d for l, d in langs.items() if "wall_ms" in d and "error" not in d}
         fastest = min((d["wall_ms"] for d in oks.values()), default=None)
         n = len(oks)
@@ -216,10 +246,15 @@ def build_report(results, args):
                 continue
             d = langs[l]
             if "error" in d:
-                L.append(f"| {l} | — | — | — | — | — | ERROR |")
+                L.append(f"| {l} | — | — | — | — | — | — | ERROR |")
                 continue
             ratio = d["wall_ms"] / fastest if fastest else 1
-            L.append(f"| {l} | {fmt_ms(d['wall_ms'])} | {ratio:.1f}× | "
+            # compute ≈ wall − startup (only meaningful off the startup row).
+            if name == "startup" or l not in startup:
+                comp = "—"
+            else:
+                comp = fmt_ms(max(0.0, d["wall_ms"] - startup[l]))
+            L.append(f"| {l} | {fmt_ms(d['wall_ms'])} | {comp} | {ratio:.1f}× | "
                      f"{wall_rank[l]}/{n} | {d['rss_kb']/1024:.1f} MB | "
                      f"{mem_rank[l]}/{n} | {d['checksum']} |")
         L.append("")

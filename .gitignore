@@ -12,3 +12,8 @@ __pycache__/
 # Crash dumps (BEAM / Brood) — regenerable, not source
 erl_crash.dump
 .brood_crash_dump
+
+# .NET build artifacts (regenerable; the harness rebuilds via `dotnet build`)
+bench/dotnet/bin/
+bench/dotnet/obj/
+bench/dotnet/publish/
