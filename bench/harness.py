@@ -8,11 +8,20 @@ Usage:
     python3 bench/harness.py --only fib,sort,mandelbrot
     python3 bench/harness.py --langs brood,python
     python3 bench/harness.py --quick         # smaller sizes (smoke test)
+    python3 bench/harness.py --label whklat  # write results.whklat.json + report.whklat.md
+    python3 bench/harness.py --out /tmp/run   # write the result files into /tmp/run
+
+A missing runtime is skipped with a warning rather than aborting the run — e.g.
+without the .NET SDK installed (`sudo apt install dotnet-sdk-10.0`), the suite
+still runs the other languages.
 """
 import argparse
 import json
 import os
+import platform
 import re
+import shutil
+import socket
 import subprocess
 import sys
 import time
@@ -20,6 +29,10 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent          # .../bench
 RESULTS = ROOT.parent / "results"
+
+# Display names for report headers/titles, in the canonical column order.
+NICE = {"brood": "Brood", "elixir": "Elixir", "python": "Python",
+        "node": "Node", "ruby": "Ruby", "dotnet": ".NET"}
 
 # ext + how to invoke a single source file. `env` is merged on top of the
 # inherited environment for that language's child process.
@@ -52,6 +65,42 @@ def build_dotnet():
     )
     if r.returncode != 0:
         raise RuntimeError("dotnet build failed:\n" + r.stdout + r.stderr)
+
+
+def probe_version(lang):
+    """The runtime's `--version` first line (for elixir, the `Elixir …` line), or
+    None if the binary isn't on PATH. Stamped into the report so a result file
+    says which machine + toolchain produced it."""
+    cmd = {
+        "brood":  ["brood", "--version"],
+        "elixir": ["elixir", "--version"],
+        "python": ["python3", "--version"],
+        "node":   ["node", "--version"],
+        "ruby":   ["ruby", "--version"],
+        "dotnet": ["dotnet", "--version"],
+    }.get(lang)
+    if not cmd or shutil.which(cmd[0]) is None:
+        return None
+    try:
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
+    except Exception:
+        return None
+    lines = [ln.strip() for ln in (r.stdout or r.stderr).splitlines() if ln.strip()]
+    if not lines:
+        return None
+    # `elixir --version` leads with the Erlang/OTP banner; the Elixir line is what we want.
+    return next((ln for ln in lines if ln.startswith("Elixir")), lines[0])
+
+
+def collect_meta(langs):
+    """Provenance for the report header: host, core count, OS, date, runtime versions."""
+    return {
+        "host": socket.gethostname(),
+        "cores": os.cpu_count(),
+        "platform": platform.platform(),
+        "date": time.strftime("%Y-%m-%d %H:%M"),
+        "versions": {l: probe_version(l) for l in langs},
+    }
 
 # name -> (default N, [langs]). "what" is the dimension each one stresses.
 BENCHES = [
@@ -159,10 +208,24 @@ def main():
     ap.add_argument("--only", default="", help="comma list of benchmark names")
     ap.add_argument("--langs", default="brood,elixir,python,node,ruby,dotnet")
     ap.add_argument("--quick", action="store_true")
+    ap.add_argument("--out", default="", help="directory to write result files into (default: results/)")
+    ap.add_argument("--label", default="", help="filename suffix, e.g. --label whklat -> results.whklat.json")
     args = ap.parse_args()
 
     only = set(filter(None, args.only.split(",")))
     langs = [l for l in args.langs.split(",") if l in LANGS]
+
+    # A missing runtime is skipped (with a warning), not fatal — so the default
+    # invocation works on a machine that lacks one of the toolchains.
+    for l in list(langs):
+        binary = LANGS[l]["cmd"]("x")[0]
+        if l != "dotnet" and shutil.which(binary) is None:
+            print(f"warning: `{binary}` not found on PATH — skipping {l}.", file=sys.stderr)
+            langs.remove(l)
+    if "dotnet" in langs and shutil.which("dotnet") is None:
+        print("warning: `dotnet` not found on PATH — skipping the .NET column. "
+              "Install it with `sudo apt install dotnet-sdk-10.0`.", file=sys.stderr)
+        langs.remove("dotnet")
 
     if "dotnet" in langs:
         build_dotnet()
@@ -191,11 +254,17 @@ def main():
                 stop_http_server(server)
         verify_checksums(name, results[name])
 
-    RESULTS.mkdir(exist_ok=True)
-    (RESULTS / "results.json").write_text(json.dumps(results, indent=2))
-    report = build_report(results, args)
-    (RESULTS / "report.md").write_text(report)
-    print(f"\nWrote {RESULTS/'results.json'} and {RESULTS/'report.md'}")
+    meta = collect_meta(langs)
+    out_dir = Path(args.out) if args.out else RESULTS
+    out_dir.mkdir(parents=True, exist_ok=True)
+    suffix = f".{args.label}" if args.label else ""
+    json_path = out_dir / f"results{suffix}.json"
+    report_path = out_dir / f"report{suffix}.md"
+
+    json_path.write_text(json.dumps({**results, "_meta": meta}, indent=2))
+    report = build_report(results, args, meta)
+    report_path.write_text(report)
+    print(f"\nWrote {json_path} and {report_path}")
     print("\n" + report)
 
 
@@ -210,8 +279,18 @@ def fmt_ms(ms):
     return f"{ms/1000:.3f}s" if ms >= 1000 else f"{ms:.1f}ms"
 
 
-def build_report(results, args):
-    L = ["# Brood vs Elixir vs Python vs Node vs Ruby vs .NET — benchmark results", ""]
+def build_report(results, args, meta=None):
+    order = ["brood", "elixir", "python", "node", "ruby", "dotnet"]
+    # Title names only the languages that actually produced a result this run.
+    present = [l for l in order if any(l in d["langs"] for d in results.values())]
+    title = " vs ".join(NICE[l] for l in present) + " — benchmark results"
+    L = [f"# {title}", ""]
+    if meta:
+        vers = "; ".join(f"{NICE[l]} {v}" for l, v in meta["versions"].items() if v)
+        L.append(f"> **Machine:** `{meta['host']}` ({meta['cores']} cores), "
+                 f"{meta['platform']} — {meta['date']}.")
+        L.append(f"> **Runtimes:** {vers}.")
+        L.append("")
     mode = "quick" if args.quick else "full"
     L.append(f"_Best of {args.runs} runs per program; {mode} sizes. "
              f"Wall = total process time (startup + compute). `compute` ≈ "
@@ -220,7 +299,6 @@ def build_report(results, args):
              f"memory. `pos` = rank by wall, `mem` = rank by RSS (1 = best), out of "
              f"the languages with a port._")
     L.append("")
-    order = ["brood", "elixir", "python", "node", "ruby", "dotnet"]
     # Per-language startup wall (from the `startup` row, if it ran) for the
     # `compute` column = wall − startup. Absent → the column shows "—".
     startup = {l: d["wall_ms"]

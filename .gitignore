@@ -17,3 +17,9 @@ erl_crash.dump
 bench/dotnet/bin/
 bench/dotnet/obj/
 bench/dotnet/publish/
+
+# Per-machine benchmark runs (harness --label X). The canonical reference
+# numbers live in results/results.json + results/report.md; machine-specific
+# runs are not comparable across hardware, so they stay out of history.
+results/results.*.json
+results/report.*.md
