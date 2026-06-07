@@ -23,3 +23,6 @@ bench/dotnet/publish/
 # runs are not comparable across hardware, so they stay out of history.
 results/results.*.json
 results/report.*.md
+# …except this machine's run, which we do track.
+!results/results.whklat.json
+!results/report.whklat.md
