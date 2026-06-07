@@ -3,11 +3,9 @@
 ;; is message-based — `http-get` parks its process on a `receive`, so all N
 ;; requests are in flight at once rather than serialising. Checksum = N.
 ;;
-;; net/http lives in the in-workspace brood-net package (ADR-085). `nest` reads
-;; project.blsp's :source-paths, but the harness runs the raw `brood` binary,
-;; which doesn't — so put brood-net/src on the load-path here (path is relative
-;; to the project root, where the harness runs).
-(def *load-path* (cons "../brood-net/src" *load-path*))
+;; net/* ships in the default install — net/http is a bundled std module
+;; (ADR-097, amends ADR-085 Move 2), so `require` resolves it straight from the
+;; `brood` binary with no load-path setup.
 (require 'net/http)
 
 (def n (let (e (getenv "BENCH_N")) (if e (string->number e) 500)))
