@@ -278,7 +278,7 @@ the work is *waiting*. Brood's green processes **park** on the response (its TCP
 is message-based), so all 500 requests are genuinely in flight at once — and it
 lands **2nd, ~22% behind Node** (256 ms vs 209 ms), ahead of .NET's async
 `HttpClient`, Python's thread pool, and Ruby. The one cost is memory: with
-`net/http` from the brood-net package, peak RSS is ~85 MB here — heavier than
+the bundled `net/http` std module, peak RSS is ~85 MB here — heavier than
 .NET/Python/Ruby (~46–50 MB), though still a fraction of Elixir's 724 MB (its
 *stdlib* `:httpc` is slow and heavy; real Elixir services use a client like
 Finch). When your work is waiting on I/O, Brood's concurrency model pays off.
