@@ -204,6 +204,8 @@ def stop_http_server(proc):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--runs", type=int, default=3)
+    ap.add_argument("--startup-runs", type=int, default=None,
+                    help="override --runs for the startup benchmark only (default: same as --runs)")
     ap.add_argument("--timeout", type=int, default=300, help="per-run timeout (s)")
     ap.add_argument("--only", default="", help="comma list of benchmark names")
     ap.add_argument("--langs", default="brood,elixir,python,node,ruby,dotnet")
@@ -230,18 +232,20 @@ def main():
     if "dotnet" in langs:
         build_dotnet()
 
+    startup_runs = args.startup_runs if args.startup_runs is not None else args.runs
     results = {}
     for name, default_n, where, what in BENCHES:
         if only and name not in only:
             continue
         n = QUICK.get(name, default_n) if args.quick else default_n
+        runs = startup_runs if name == "startup" else args.runs
         run_langs = langs if where == "all" else [l for l in langs if l in where]
         results[name] = {"n": n, "what": what, "langs": {}}
         print(f"\n## {name}  (N={n}) — {what}")
         server = start_http_server() if name in SERVER_FOR else None
         try:
             for lang in run_langs:
-                r = bench_lang(lang, name, n, args.runs, args.timeout)
+                r = bench_lang(lang, name, n, runs, args.timeout)
                 if r is None:
                     continue
                 results[name]["langs"][lang] = r
@@ -292,13 +296,17 @@ def build_report(results, args, meta=None):
         L.append(f"> **Runtimes:** {vers}.")
         L.append("")
     mode = "quick" if args.quick else "full"
-    L.append(f"_Best of {args.runs} runs per program; {mode} sizes. "
-             f"**wall = startup + compute.** `startup` is that language's own boot "
-             f"time (its `startup`-row wall); `compute` = wall − startup, so a "
-             f"slow-booting runtime's real work speed is visible (e.g. the BEAM "
-             f"boots ~400ms but computes fast). On the `startup` row itself compute "
-             f"is ~0 by definition. RSS = peak resident memory. `pos` = rank by "
-             f"wall, `mem` = rank by RSS (1 = best), out of the languages with a port._")
+    startup_runs = getattr(args, "startup_runs", None) or args.runs
+    runs_note = (f"startup: best of {startup_runs}; others: best of {args.runs} runs"
+                 if startup_runs != args.runs else f"best of {args.runs} runs per program")
+    L.append(f"_{runs_note}; {mode} sizes. "
+             f"**compute = wall − startup** (startup is that language's own boot time "
+             f"from its `startup`-row wall). Rankings and ratios are by **compute** so "
+             f"a slow-booting runtime's real work speed is visible (e.g. the BEAM "
+             f"boots ~400ms but computes fast). On the `startup` row itself rankings "
+             f"are by wall (compute ≈ 0). RSS = peak resident memory. "
+             f"`pos` = rank by compute, `mem` = rank by RSS (1 = best), out of the "
+             f"languages with a port._")
     L.append("")
     # Per-language startup wall (from the `startup` row, if it ran) for the
     # `compute` column = wall − startup. Absent → the column shows "—".
@@ -311,14 +319,28 @@ def build_report(results, args, meta=None):
             continue
         L.append(f"## {name} — {data['what']}  (N={data['n']})")
         L.append("")
-        L.append("| lang | wall | startup | compute | vs fastest | pos | peak RSS | mem | checksum |")
-        L.append("|------|------|---------|---------|-----------|-----|----------|-----|----------|")
+        L.append("| lang | compute | vs fastest | pos | wall | startup | peak RSS | mem | checksum |")
+        L.append("|------|---------|------------|-----|------|---------|----------|-----|----------|")
         oks = {l: d for l, d in langs.items() if "wall_ms" in d and "error" not in d}
-        fastest = min((d["wall_ms"] for d in oks.values()), default=None)
         n = len(oks)
-        # Rank by wall time and by peak RSS (1 = best/lowest); only the langs that
-        # actually ran this benchmark are ranked, so `k/n` reflects the real field.
-        wall_rank = {l: i + 1 for i, l in enumerate(sorted(oks, key=lambda l: oks[l]["wall_ms"]))}
+        # For the startup benchmark itself compute ≈ 0 for everyone, so rank by wall.
+        # For all other benchmarks rank by compute (wall − startup) so slow-starting
+        # runtimes aren't penalised for boot time in compute-heavy comparisons.
+        is_startup_bench = (name == "startup")
+        compute_ms = {}
+        for l in oks:
+            if is_startup_bench:
+                compute_ms[l] = oks[l]["wall_ms"]
+            elif startup.get(l) is not None:
+                compute_ms[l] = max(0.0, oks[l]["wall_ms"] - startup[l])
+            else:
+                compute_ms[l] = oks[l]["wall_ms"]
+        fastest_compute = min(compute_ms.values(), default=None)
+        # Floor the denominator at 1ms: when fast runtimes have compute < 0 due to
+        # startup-measurement variance (wall < startup), avoid collapsing all ratios
+        # to 1× via division-by-zero. Ratios < 1× are shown as "< 1×".
+        ratio_denom = max(fastest_compute, 1.0) if fastest_compute is not None else 1.0
+        compute_rank = {l: i + 1 for i, l in enumerate(sorted(compute_ms, key=lambda l: compute_ms[l]))}
         mem_rank = {l: i + 1 for i, l in enumerate(sorted(oks, key=lambda l: oks[l]["rss_kb"]))}
         for l in order:
             if l not in langs:
@@ -327,17 +349,24 @@ def build_report(results, args, meta=None):
             if "error" in d:
                 L.append(f"| {l} | — | — | — | — | — | — | — | ERROR |")
                 continue
-            ratio = d["wall_ms"] / fastest if fastest else 1
+            r = compute_ms[l] / ratio_denom
+            ratio_str = f"< 1×" if r < 1.0 else f"{r:.1f}×"
             # Break wall into startup (the lang's `startup`-row wall) + compute.
             # No startup row (e.g. --only without it) → both show "—".
             s = startup.get(l)
-            if s is None:
-                start_str = comp = "—"
+            if is_startup_bench:
+                # Startup benchmark: the wall time IS the useful metric; showing
+                # "compute = 0" would be circular, so show wall in the compute column.
+                comp_str = fmt_ms(d["wall_ms"])
+                start_str = "—"
+            elif s is None:
+                comp_str = start_str = "—"
             else:
                 start_str = fmt_ms(s)
-                comp = fmt_ms(max(0.0, d["wall_ms"] - s))
-            L.append(f"| {l} | {fmt_ms(d['wall_ms'])} | {start_str} | {comp} | {ratio:.1f}× | "
-                     f"{wall_rank[l]}/{n} | {d['rss_kb']/1024:.1f} MB | "
+                comp_str = fmt_ms(max(0.0, d["wall_ms"] - s))
+            L.append(f"| {l} | {comp_str} | {ratio_str} | "
+                     f"{compute_rank[l]}/{n} | {fmt_ms(d['wall_ms'])} | {start_str} | "
+                     f"{d['rss_kb']/1024:.1f} MB | "
                      f"{mem_rank[l]}/{n} | {d['checksum']} |")
         L.append("")
     return "\n".join(L)
