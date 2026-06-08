@@ -1,11 +1,22 @@
 {
+  "startup": {
+    "n": 0,
+    "what": "interpreter/VM startup + base memory",
+    "langs": {
+      "brood": {
+        "wall_ms": 28.1,
+        "rss_kb": 12612,
+        "checksum": "0"
+      }
+    }
+  },
   "fib": {
     "n": 30,
     "what": "naive recursion / function-call overhead",
     "langs": {
       "brood": {
-        "wall_ms": 280.1,
-        "rss_kb": 12164,
+        "wall_ms": 263.4,
+        "rss_kb": 12736,
         "checksum": "832040"
       }
     }
@@ -15,9 +26,31 @@
     "what": "raw iteration (tail recursion vs for-loop)",
     "langs": {
       "brood": {
-        "wall_ms": 240.7,
-        "rss_kb": 12208,
+        "wall_ms": 183.9,
+        "rss_kb": 12768,
         "checksum": "3000000"
+      }
+    }
+  },
+  "reduce": {
+    "n": 1000000,
+    "what": "higher-order fold over a range",
+    "langs": {
+      "brood": {
+        "wall_ms": 134.7,
+        "rss_kb": 12864,
+        "checksum": "499999500000"
+      }
+    }
+  },
+  "primes": {
+    "n": 20000,
+    "what": "integer arithmetic (trial division)",
+    "langs": {
+      "brood": {
+        "wall_ms": 53.4,
+        "rss_kb": 12772,
+        "checksum": "2262"
       }
     }
   },
@@ -26,9 +59,108 @@
     "what": "integer arithmetic + tight inner loop",
     "langs": {
       "brood": {
-        "wall_ms": 381.0,
-        "rss_kb": 21456,
+        "wall_ms": 322.4,
+        "rss_kb": 21948,
         "checksum": "307"
+      }
+    }
+  },
+  "mandelbrot": {
+    "n": 128,
+    "what": "floating-point math (escape iterations)",
+    "langs": {
+      "brood": {
+        "wall_ms": 124.4,
+        "rss_kb": 12724,
+        "checksum": "345426"
+      }
+    }
+  },
+  "matmul": {
+    "n": 80,
+    "what": "nested loops + indexing (integer NxN)",
+    "langs": {
+      "brood": {
+        "wall_ms": 826.5,
+        "rss_kb": 24392,
+        "checksum": "229499993"
+      }
+    }
+  },
+  "strings": {
+    "n": 50000,
+    "what": "string building (join) + length",
+    "langs": {
+      "brood": {
+        "wall_ms": 193.9,
+        "rss_kb": 43400,
+        "checksum": "288889"
+      }
+    }
+  },
+  "wordcount": {
+    "n": 100000,
+    "what": "hash-map build (immutable vs mutable)",
+    "langs": {
+      "brood": {
+        "wall_ms": 245.2,
+        "rss_kb": 28492,
+        "checksum": "50038280"
+      }
+    }
+  },
+  "bintree": {
+    "n": 40,
+    "what": "allocation / GC pressure (build+walk trees)",
+    "langs": {
+      "brood": {
+        "wall_ms": 505.0,
+        "rss_kb": 17148,
+        "checksum": "327640"
+      }
+    }
+  },
+  "sort": {
+    "n": 50000,
+    "what": "sort a list of ints + checksum walk",
+    "langs": {
+      "brood": {
+        "wall_ms": 68.0,
+        "rss_kb": 19776,
+        "checksum": "102632633"
+      }
+    }
+  },
+  "spawn": {
+    "n": 20000,
+    "what": "lightweight concurrent units + result collection",
+    "langs": {
+      "brood": {
+        "wall_ms": 1180.0,
+        "rss_kb": 168600,
+        "checksum": "12200000"
+      }
+    }
+  },
+  "pfib": {
+    "n": 28,
+    "what": "parallel fib \u2014 100 computed at once across cores",
+    "langs": {
+      "brood": {
+        "wall_ms": 2428.0,
+        "rss_kb": 12792,
+        "checksum": "31781100"
+      }
+    }
+  },
+  "http": {
+    "n": 500,
+    "what": "concurrent HTTP \u2014 N in-flight GETs to a local server",
+    "langs": {
+      "brood": {
+        "wall_ms": 221.4,
+        "rss_kb": 92780,
+        "checksum": "500"
       }
     }
   },
@@ -36,7 +168,7 @@
     "host": "whklat",
     "cores": 12,
     "platform": "Linux-7.0.0-22-generic-x86_64-with-glibc2.43",
-    "date": "2026-06-08 20:56",
+    "date": "2026-06-08 22:41",
     "versions": {
       "brood": "brood 0.1.0"
     }
