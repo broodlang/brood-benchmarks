@@ -18,9 +18,9 @@ Based on the whklat benchmark run (2026-06-08). Numbers are compute time (wall �
 
 ## Priority improvement areas
 
-### 1. Tight loop / per-instruction overhead — collatz 124×, loop 302×, matmul 615×
+### 1. Tight loop / per-instruction overhead — collatz 73×, loop 199×, matmul 614×
 
-The three worst compute results all share the same root cause: the VM pays a fixed overhead per operation that compounds over many iterations. Collatz (484ms vs .NET's 4ms), plain loop (302ms vs .NET's sub-ms), and matmul (615ms vs .NET's sub-ms) are dominated by raw bytecode dispatch cost, not algorithmic complexity.
+The three worst compute results all share the same root cause: the VM pays a fixed overhead per operation that compounds over many iterations. Collatz (327ms vs .NET's 5ms), plain loop (199ms vs .NET's sub-ms), and matmul (614ms vs .NET's sub-ms) are dominated by raw bytecode dispatch cost, not algorithmic complexity.
 
 **Suggestions:**
 - Profile the dispatch loop. Even reducing the per-instruction overhead by 30–40% would move all three benchmarks materially.
@@ -45,20 +45,20 @@ Matmul is the worst result. 80×80 matrix multiply is ~1 M index lookups and sto
 - Verify that the work-stealing scheduler is actually migrating processes to idle OS threads. A simple diagnostic: run pfib and check CPU utilisation — if only 1 core is hot, the processes are running on a single thread.
 - If processes are pinned to a single OS thread, enabling multi-threaded scheduling is the highest-leverage change available. This would likely bring pfib from 2.24s to ~200ms in one step.
 
-### 4. Function call overhead — fib 92×, reduce 87×
+### 4. Function call overhead — fib 68×, reduce 94×
 
-Recursive fib(30) is 92× behind .NET. The call stack for fib(30) is ~1.5 M recursive calls; at 92× the per-call overhead is roughly 180ns vs .NET's ~2ns. This is inline with an unoptimised interpreter call frame.
+Recursive fib(30) is 68× behind .NET. The call stack for fib(30) is ~1.5 M recursive calls; at 68× the per-call overhead is roughly 135ns vs .NET's ~2ns. This is inline with an unoptimised interpreter call frame.
 
-`reduce` (fold over 1 M elements with a lambda) at 87× shows that higher-order calls compound this further.
+`reduce` (fold over 1 M elements with a lambda) at 94× shows that higher-order calls compound this further.
 
 **Suggestions:**
 - Reduce call frame allocation cost. Reusing frames for non-escaping calls (common case) avoids heap pressure.
 - Inline small known functions at the call site (basic inlining). fib's two arms are tiny — inlining the recursive call once would cut the call count in half.
 - These improvements also benefit collatz and loop.
 
-### 5. GC / allocation throughput — bintree 343×
+### 5. GC / allocation throughput — bintree 71×
 
-Building and walking `2^40` binary tree nodes stresses allocation rate and GC pause. Brood's 343ms vs Elixir's sub-ms (Elixir is mostly below measurement noise here) and Node's 5ms suggests either allocation is slow or GC pauses are large.
+Building and walking `2^40` binary tree nodes stresses allocation rate and GC pause. Brood's 369ms vs Node's 7ms suggests either allocation is slow or GC pauses are large.
 
 **Suggestions:**
 - Check whether tree nodes are heap-allocated one-by-one through the generic allocator. A bump-pointer nursery for small, short-lived objects would reduce allocation cost substantially.
@@ -78,9 +78,9 @@ Building and walking `2^40` binary tree nodes stresses allocation rate and GC pa
 
 | area | representative benchmark | current vs fastest | likely cause | estimated impact of fix |
 |------|--------------------------|--------------------|--------------|------------------------|
-| tight loops | collatz, loop, matmul | 124–615× | per-instruction VM overhead | very high |
-| array indexing | matmul | 615× | no O(1) array type | high |
-| parallel scheduling | pfib, spawn | 48–55× | processes not distributed across cores | high |
-| function call | fib, reduce | 87–92× | call frame cost | medium |
-| GC / allocation | bintree | 343× | allocation rate or GC pause | medium |
+| tight loops | collatz, loop, matmul | 73–614× | per-instruction VM overhead | very high |
+| array indexing | matmul | 614× | no O(1) array type | high |
+| parallel scheduling | pfib, spawn | 48–57× | processes not distributed across cores | high |
+| function call | fib, reduce | 68–94× | call frame cost | medium |
+| GC / allocation | bintree | 71× | allocation rate or GC pause | medium |
 | string ops | strings | 128× | non-linear join | medium |
