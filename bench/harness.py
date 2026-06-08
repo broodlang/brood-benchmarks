@@ -212,7 +212,23 @@ def main():
     ap.add_argument("--quick", action="store_true")
     ap.add_argument("--out", default="", help="directory to write result files into (default: results/)")
     ap.add_argument("--label", default="", help="filename suffix, e.g. --label whklat -> results.whklat.json")
+    ap.add_argument("--focus", default="", help="only print this language's rows (ranks still reflect full field)")
+    ap.add_argument("--report-from", default="", metavar="JSON",
+                    help="skip running; regenerate the report from an existing results JSON")
     args = ap.parse_args()
+
+    if args.report_from:
+        data = json.loads(Path(args.report_from).read_text())
+        meta = data.pop("_meta", None)
+        out_dir = Path(args.out) if args.out else RESULTS
+        out_dir.mkdir(parents=True, exist_ok=True)
+        suffix = f".{args.label}" if args.label else ""
+        report_path = out_dir / f"report{suffix}.md"
+        report = build_report(data, args, meta)
+        report_path.write_text(report)
+        print(f"Wrote {report_path}")
+        print("\n" + report)
+        return
 
     only = set(filter(None, args.only.split(",")))
     langs = [l for l in args.langs.split(",") if l in LANGS]
@@ -285,6 +301,7 @@ def fmt_ms(ms):
 
 def build_report(results, args, meta=None):
     order = ["brood", "elixir", "python", "node", "ruby", "dotnet"]
+    focus = getattr(args, "focus", "") or ""
     # Title names only the languages that actually produced a result this run.
     present = [l for l in order if any(l in d["langs"] for d in results.values())]
     title = " vs ".join(NICE[l] for l in present) + " — benchmark results"
@@ -344,6 +361,8 @@ def build_report(results, args, meta=None):
         mem_rank = {l: i + 1 for i, l in enumerate(sorted(oks, key=lambda l: oks[l]["rss_kb"]))}
         for l in order:
             if l not in langs:
+                continue
+            if focus and l != focus:
                 continue
             d = langs[l]
             if "error" in d:
