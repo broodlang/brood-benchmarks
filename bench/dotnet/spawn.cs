@@ -1,13 +1,15 @@
-// Fan out N tasks, each returning its index; WhenAll and sum.
-// Task.Run schedules work on the ThreadPool — .NET's lightweight concurrent
-// unit. Checksum = N*(N-1)/2.
+// Fan out N tasks; each computes fib(15) and returns the result.
+// Tests thread-pool task fan-out under real CPU work per unit.
+// Checksum = N * fib(15) = N * 610.
 namespace Bench;
 static class Spawn
 {
+    static long Fib(int n) => n < 2 ? n : Fib(n - 1) + Fib(n - 2);
+
     public static async Task Run(int n)
     {
         var tasks = Enumerable.Range(0, n)
-            .Select(i => Task.Run(() => (long)i))
+            .Select(_ => Task.Run(() => Fib(15)))
             .ToArray();
         var results = await Task.WhenAll(tasks);
         Console.WriteLine(results.Sum());
