@@ -116,7 +116,7 @@ BENCHES = [
     ("wordcount",  100000, "all", "hash-map build (immutable vs mutable)"),
     ("bintree",    40,     "all", "allocation / GC pressure (build+walk trees)"),
     ("sort",       50000,  "all", "sort a list of ints + checksum walk"),
-    ("spawn",      20000,  ["brood", "elixir"], "lightweight processes + messaging"),
+    ("spawn",      20000,  "all", "lightweight concurrent units + result collection"),
     ("pfib",       28,     "all", "parallel fib — 100 computed at once across cores"),
     ("http",       500,    "all", "concurrent HTTP — N in-flight GETs to a local server"),
 ]

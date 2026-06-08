@@ -21,6 +21,7 @@ switch (name)
     case "bintree":    Bench.Bintree.Run(N(40)); break;
     case "sort":       Bench.Sort.Run(N(50000)); break;
     case "pfib":       Bench.Pfib.Run(N(28)); break;
+    case "spawn":      await Bench.Spawn.Run(N(20000)); break;
     case "http":       await Bench.Http.Run(N(500)); break;
     default:
         Console.Error.WriteLine($"unknown benchmark: {name}");
