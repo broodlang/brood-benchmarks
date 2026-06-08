@@ -293,11 +293,12 @@ def build_report(results, args, meta=None):
         L.append("")
     mode = "quick" if args.quick else "full"
     L.append(f"_Best of {args.runs} runs per program; {mode} sizes. "
-             f"Wall = total process time (startup + compute). `compute` ≈ "
-             f"wall − that language's own `startup` (so a slow-booting runtime's "
-             f"real compute speed is visible — e.g. the BEAM). RSS = peak resident "
-             f"memory. `pos` = rank by wall, `mem` = rank by RSS (1 = best), out of "
-             f"the languages with a port._")
+             f"**wall = startup + compute.** `startup` is that language's own boot "
+             f"time (its `startup`-row wall); `compute` = wall − startup, so a "
+             f"slow-booting runtime's real work speed is visible (e.g. the BEAM "
+             f"boots ~400ms but computes fast). On the `startup` row itself compute "
+             f"is ~0 by definition. RSS = peak resident memory. `pos` = rank by "
+             f"wall, `mem` = rank by RSS (1 = best), out of the languages with a port._")
     L.append("")
     # Per-language startup wall (from the `startup` row, if it ran) for the
     # `compute` column = wall − startup. Absent → the column shows "—".
@@ -310,8 +311,8 @@ def build_report(results, args, meta=None):
             continue
         L.append(f"## {name} — {data['what']}  (N={data['n']})")
         L.append("")
-        L.append("| lang | wall | compute | vs fastest | pos | peak RSS | mem | checksum |")
-        L.append("|------|------|---------|-----------|-----|----------|-----|----------|")
+        L.append("| lang | wall | startup | compute | vs fastest | pos | peak RSS | mem | checksum |")
+        L.append("|------|------|---------|---------|-----------|-----|----------|-----|----------|")
         oks = {l: d for l, d in langs.items() if "wall_ms" in d and "error" not in d}
         fastest = min((d["wall_ms"] for d in oks.values()), default=None)
         n = len(oks)
@@ -324,15 +325,18 @@ def build_report(results, args, meta=None):
                 continue
             d = langs[l]
             if "error" in d:
-                L.append(f"| {l} | — | — | — | — | — | — | ERROR |")
+                L.append(f"| {l} | — | — | — | — | — | — | — | ERROR |")
                 continue
             ratio = d["wall_ms"] / fastest if fastest else 1
-            # compute ≈ wall − startup (only meaningful off the startup row).
-            if name == "startup" or l not in startup:
-                comp = "—"
+            # Break wall into startup (the lang's `startup`-row wall) + compute.
+            # No startup row (e.g. --only without it) → both show "—".
+            s = startup.get(l)
+            if s is None:
+                start_str = comp = "—"
             else:
-                comp = fmt_ms(max(0.0, d["wall_ms"] - startup[l]))
-            L.append(f"| {l} | {fmt_ms(d['wall_ms'])} | {comp} | {ratio:.1f}× | "
+                start_str = fmt_ms(s)
+                comp = fmt_ms(max(0.0, d["wall_ms"] - s))
+            L.append(f"| {l} | {fmt_ms(d['wall_ms'])} | {start_str} | {comp} | {ratio:.1f}× | "
                      f"{wall_rank[l]}/{n} | {d['rss_kb']/1024:.1f} MB | "
                      f"{mem_rank[l]}/{n} | {d['checksum']} |")
         L.append("")
