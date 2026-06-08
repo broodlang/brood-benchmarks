@@ -1,17 +1,19 @@
+;; Fan out N processes; each computes fib(15) and sends the result back.
+;; Tests green-process spawn + messaging under real CPU work per unit.
+;; Checksum = N * fib(15) = N * 610.
 (def n (let (e (getenv "BENCH_N")) (if e (string->number e) 20000)))
-
-;; parent pid captured here (top level) — NOT inside the spawned child, where
-;; (self) would be the child's own pid.
 (def me (self))
 
-(defn worker (i) (send me [:done i]))
+(defn fib (m) (if (< m 2) m (+ (fib (- m 1)) (fib (- m 2)))))
 
-(defn fan (i) (if (>= i n) nil (do (spawn (worker i)) (fan (+ i 1)))))
+(defn worker () (send me [:done (fib 15)]))
+
+(defn fan (i) (if (>= i n) nil (do (spawn (worker)) (fan (+ i 1)))))
 
 (defn collect (got acc)
   (if (= got n)
     acc
-    (collect (+ got 1) (receive ([:done i] (+ acc i))))))
+    (collect (+ got 1) (receive ([:done v] (+ acc v))))))
 
 (fan 0)
 (println (collect 0 0))
