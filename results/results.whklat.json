@@ -4,18 +4,18 @@
     "what": "interpreter/VM startup + base memory",
     "langs": {
       "brood": {
-        "wall_ms": 28.7,
-        "rss_kb": 14428,
+        "wall_ms": 28.2,
+        "rss_kb": 14496,
         "checksum": "0"
       },
       "elixir": {
-        "wall_ms": 258.6,
-        "rss_kb": 79208,
+        "wall_ms": 255.6,
+        "rss_kb": 80468,
         "checksum": "0"
       },
       "python": {
-        "wall_ms": 10.6,
-        "rss_kb": 10048,
+        "wall_ms": 9.7,
+        "rss_kb": 10020,
         "checksum": "0"
       },
       "node": {
@@ -24,13 +24,13 @@
         "checksum": "0"
       },
       "ruby": {
-        "wall_ms": 43.9,
+        "wall_ms": 42.6,
         "rss_kb": 24092,
         "checksum": "0"
       },
       "dotnet": {
-        "wall_ms": 22.9,
-        "rss_kb": 26312,
+        "wall_ms": 21.5,
+        "rss_kb": 26320,
         "checksum": "0"
       }
     }
@@ -40,33 +40,33 @@
     "what": "naive recursion / function-call overhead",
     "langs": {
       "brood": {
-        "wall_ms": 257.1,
-        "rss_kb": 14432,
+        "wall_ms": 258.2,
+        "rss_kb": 14400,
         "checksum": "832040"
       },
       "elixir": {
-        "wall_ms": 298.7,
-        "rss_kb": 83680,
+        "wall_ms": 320.4,
+        "rss_kb": 82640,
         "checksum": "832040"
       },
       "python": {
-        "wall_ms": 79.2,
-        "rss_kb": 9960,
+        "wall_ms": 76.2,
+        "rss_kb": 10012,
         "checksum": "832040"
       },
       "node": {
-        "wall_ms": 25.0,
+        "wall_ms": 26.6,
         "rss_kb": 49624,
         "checksum": "832040"
       },
       "ruby": {
-        "wall_ms": 96.1,
-        "rss_kb": 24076,
+        "wall_ms": 96.6,
+        "rss_kb": 24068,
         "checksum": "832040"
       },
       "dotnet": {
-        "wall_ms": 26.0,
-        "rss_kb": 26280,
+        "wall_ms": 25.7,
+        "rss_kb": 26252,
         "checksum": "832040"
       }
     }
@@ -76,33 +76,33 @@
     "what": "raw iteration (tail recursion vs for-loop)",
     "langs": {
       "brood": {
-        "wall_ms": 175.8,
-        "rss_kb": 14328,
+        "wall_ms": 170.7,
+        "rss_kb": 14644,
         "checksum": "3000000"
       },
       "elixir": {
-        "wall_ms": 307.0,
-        "rss_kb": 85736,
+        "wall_ms": 313.9,
+        "rss_kb": 83140,
         "checksum": "3000000"
       },
       "python": {
-        "wall_ms": 202.9,
+        "wall_ms": 203.9,
         "rss_kb": 9936,
         "checksum": "3000000"
       },
       "node": {
-        "wall_ms": 20.5,
+        "wall_ms": 21.3,
         "rss_kb": 49524,
         "checksum": "3000000"
       },
       "ruby": {
-        "wall_ms": 102.7,
-        "rss_kb": 24092,
+        "wall_ms": 103.3,
+        "rss_kb": 24068,
         "checksum": "3000000"
       },
       "dotnet": {
-        "wall_ms": 22.7,
-        "rss_kb": 26644,
+        "wall_ms": 23.9,
+        "rss_kb": 26764,
         "checksum": "3000000"
       }
     }
@@ -112,33 +112,33 @@
     "what": "higher-order fold over a range",
     "langs": {
       "brood": {
-        "wall_ms": 50.0,
-        "rss_kb": 14304,
+        "wall_ms": 49.1,
+        "rss_kb": 14444,
         "checksum": "499999500000"
       },
       "elixir": {
-        "wall_ms": 263.3,
-        "rss_kb": 79724,
+        "wall_ms": 267.2,
+        "rss_kb": 80536,
         "checksum": "499999500000"
       },
       "python": {
-        "wall_ms": 16.7,
-        "rss_kb": 9996,
+        "wall_ms": 16.9,
+        "rss_kb": 10016,
         "checksum": "499999500000"
       },
       "node": {
-        "wall_ms": 21.0,
-        "rss_kb": 51520,
+        "wall_ms": 20.7,
+        "rss_kb": 51492,
         "checksum": "499999500000"
       },
       "ruby": {
-        "wall_ms": 42.4,
-        "rss_kb": 24092,
+        "wall_ms": 43.2,
+        "rss_kb": 24076,
         "checksum": "499999500000"
       },
       "dotnet": {
-        "wall_ms": 23.6,
-        "rss_kb": 26728,
+        "wall_ms": 23.2,
+        "rss_kb": 26640,
         "checksum": "499999500000"
       }
     }
@@ -148,33 +148,33 @@
     "what": "integer arithmetic (trial division)",
     "langs": {
       "brood": {
-        "wall_ms": 53.0,
-        "rss_kb": 14420,
+        "wall_ms": 53.6,
+        "rss_kb": 14568,
         "checksum": "2262"
       },
       "elixir": {
-        "wall_ms": 301.4,
-        "rss_kb": 86236,
+        "wall_ms": 307.3,
+        "rss_kb": 82664,
         "checksum": "2262"
       },
       "python": {
-        "wall_ms": 19.4,
-        "rss_kb": 10104,
+        "wall_ms": 19.5,
+        "rss_kb": 10128,
         "checksum": "2262"
       },
       "node": {
-        "wall_ms": 19.5,
-        "rss_kb": 50224,
+        "wall_ms": 20.1,
+        "rss_kb": 50324,
         "checksum": "2262"
       },
       "ruby": {
-        "wall_ms": 50.1,
-        "rss_kb": 24080,
+        "wall_ms": 49.2,
+        "rss_kb": 24092,
         "checksum": "2262"
       },
       "dotnet": {
-        "wall_ms": 24.1,
-        "rss_kb": 26740,
+        "wall_ms": 23.7,
+        "rss_kb": 26736,
         "checksum": "2262"
       }
     }
@@ -184,33 +184,33 @@
     "what": "integer arithmetic + tight inner loop",
     "langs": {
       "brood": {
-        "wall_ms": 309.7,
-        "rss_kb": 27280,
+        "wall_ms": 329.4,
+        "rss_kb": 27432,
         "checksum": "307"
       },
       "elixir": {
-        "wall_ms": 317.0,
-        "rss_kb": 85620,
+        "wall_ms": 312.9,
+        "rss_kb": 83848,
         "checksum": "307"
       },
       "python": {
-        "wall_ms": 254.7,
-        "rss_kb": 10020,
+        "wall_ms": 241.9,
+        "rss_kb": 9984,
         "checksum": "307"
       },
       "node": {
-        "wall_ms": 25.9,
+        "wall_ms": 26.2,
         "rss_kb": 49716,
         "checksum": "307"
       },
       "ruby": {
-        "wall_ms": 126.2,
+        "wall_ms": 124.2,
         "rss_kb": 24092,
         "checksum": "307"
       },
       "dotnet": {
-        "wall_ms": 26.2,
-        "rss_kb": 26640,
+        "wall_ms": 26.4,
+        "rss_kb": 26644,
         "checksum": "307"
       }
     }
@@ -220,33 +220,33 @@
     "what": "floating-point math (escape iterations)",
     "langs": {
       "brood": {
-        "wall_ms": 102.9,
-        "rss_kb": 14352,
+        "wall_ms": 102.1,
+        "rss_kb": 14496,
         "checksum": "345426"
       },
       "elixir": {
-        "wall_ms": 323.7,
-        "rss_kb": 85880,
+        "wall_ms": 311.4,
+        "rss_kb": 82488,
         "checksum": "345426"
       },
       "python": {
-        "wall_ms": 83.6,
-        "rss_kb": 10204,
+        "wall_ms": 92.0,
+        "rss_kb": 10304,
         "checksum": "345426"
       },
       "node": {
-        "wall_ms": 20.9,
-        "rss_kb": 51464,
+        "wall_ms": 22.9,
+        "rss_kb": 51844,
         "checksum": "345426"
       },
       "ruby": {
-        "wall_ms": 68.8,
+        "wall_ms": 73.0,
         "rss_kb": 24220,
         "checksum": "345426"
       },
       "dotnet": {
-        "wall_ms": 24.0,
-        "rss_kb": 26636,
+        "wall_ms": 24.5,
+        "rss_kb": 26624,
         "checksum": "345426"
       }
     }
@@ -256,33 +256,33 @@
     "what": "nested loops + indexing (integer NxN)",
     "langs": {
       "brood": {
-        "wall_ms": 181.2,
-        "rss_kb": 29004,
+        "wall_ms": 181.1,
+        "rss_kb": 28964,
         "checksum": "229499993"
       },
       "elixir": {
-        "wall_ms": 294.1,
-        "rss_kb": 80024,
+        "wall_ms": 282.9,
+        "rss_kb": 81996,
         "checksum": "229499993"
       },
       "python": {
-        "wall_ms": 57.6,
-        "rss_kb": 10148,
+        "wall_ms": 52.5,
+        "rss_kb": 10140,
         "checksum": "229499993"
       },
       "node": {
-        "wall_ms": 21.3,
-        "rss_kb": 50328,
+        "wall_ms": 20.9,
+        "rss_kb": 50356,
         "checksum": "229499993"
       },
       "ruby": {
-        "wall_ms": 72.7,
-        "rss_kb": 24220,
+        "wall_ms": 69.8,
+        "rss_kb": 24268,
         "checksum": "229499993"
       },
       "dotnet": {
-        "wall_ms": 23.6,
-        "rss_kb": 26764,
+        "wall_ms": 23.7,
+        "rss_kb": 26748,
         "checksum": "229499993"
       }
     }
@@ -292,33 +292,33 @@
     "what": "string building (join) + length",
     "langs": {
       "brood": {
-        "wall_ms": 91.4,
-        "rss_kb": 30476,
+        "wall_ms": 91.7,
+        "rss_kb": 30420,
         "checksum": "288889"
       },
       "elixir": {
-        "wall_ms": 279.2,
-        "rss_kb": 88288,
+        "wall_ms": 281.1,
+        "rss_kb": 88664,
         "checksum": "288889"
       },
       "python": {
-        "wall_ms": 14.5,
-        "rss_kb": 13160,
+        "wall_ms": 14.9,
+        "rss_kb": 13136,
         "checksum": "288889"
       },
       "node": {
-        "wall_ms": 24.1,
-        "rss_kb": 53740,
+        "wall_ms": 24.7,
+        "rss_kb": 53776,
         "checksum": "288889"
       },
       "ruby": {
-        "wall_ms": 47.8,
+        "wall_ms": 50.1,
         "rss_kb": 26396,
         "checksum": "288889"
       },
       "dotnet": {
-        "wall_ms": 26.8,
-        "rss_kb": 30760,
+        "wall_ms": 27.2,
+        "rss_kb": 30712,
         "checksum": "288889"
       }
     }
@@ -328,33 +328,33 @@
     "what": "hash-map build (immutable vs mutable)",
     "langs": {
       "brood": {
-        "wall_ms": 237.9,
-        "rss_kb": 39116,
+        "wall_ms": 190.2,
+        "rss_kb": 54860,
         "checksum": "50038280"
       },
       "elixir": {
-        "wall_ms": 288.8,
-        "rss_kb": 80192,
+        "wall_ms": 297.2,
+        "rss_kb": 80120,
         "checksum": "50038280"
       },
       "python": {
         "wall_ms": 33.1,
-        "rss_kb": 10132,
+        "rss_kb": 10176,
         "checksum": "50038280"
       },
       "node": {
-        "wall_ms": 24.5,
-        "rss_kb": 51656,
+        "wall_ms": 25.2,
+        "rss_kb": 51616,
         "checksum": "50038280"
       },
       "ruby": {
-        "wall_ms": 52.1,
-        "rss_kb": 24116,
+        "wall_ms": 50.7,
+        "rss_kb": 24092,
         "checksum": "50038280"
       },
       "dotnet": {
-        "wall_ms": 32.0,
-        "rss_kb": 27784,
+        "wall_ms": 31.4,
+        "rss_kb": 27852,
         "checksum": "50038280"
       }
     }
@@ -364,33 +364,33 @@
     "what": "allocation / GC pressure (build+walk trees)",
     "langs": {
       "brood": {
-        "wall_ms": 364.4,
-        "rss_kb": 22952,
+        "wall_ms": 366.9,
+        "rss_kb": 22636,
         "checksum": "327640"
       },
       "elixir": {
-        "wall_ms": 304.7,
-        "rss_kb": 83040,
+        "wall_ms": 315.5,
+        "rss_kb": 82744,
         "checksum": "327640"
       },
       "python": {
-        "wall_ms": 30.1,
-        "rss_kb": 10272,
+        "wall_ms": 31.2,
+        "rss_kb": 10260,
         "checksum": "327640"
       },
       "node": {
-        "wall_ms": 24.7,
-        "rss_kb": 53692,
+        "wall_ms": 24.9,
+        "rss_kb": 53568,
         "checksum": "327640"
       },
       "ruby": {
-        "wall_ms": 62.8,
+        "wall_ms": 61.5,
         "rss_kb": 24348,
         "checksum": "327640"
       },
       "dotnet": {
-        "wall_ms": 25.5,
-        "rss_kb": 31520,
+        "wall_ms": 26.4,
+        "rss_kb": 31388,
         "checksum": "327640"
       }
     }
@@ -400,33 +400,33 @@
     "what": "sort a list of ints + checksum walk",
     "langs": {
       "brood": {
-        "wall_ms": 64.3,
-        "rss_kb": 21772,
+        "wall_ms": 64.2,
+        "rss_kb": 21860,
         "checksum": "102632633"
       },
       "elixir": {
-        "wall_ms": 277.5,
-        "rss_kb": 87840,
+        "wall_ms": 285.2,
+        "rss_kb": 88512,
         "checksum": "102632633"
       },
       "python": {
-        "wall_ms": 27.8,
-        "rss_kb": 12444,
+        "wall_ms": 28.4,
+        "rss_kb": 12452,
         "checksum": "102632633"
       },
       "node": {
-        "wall_ms": 34.6,
-        "rss_kb": 52596,
+        "wall_ms": 33.6,
+        "rss_kb": 52692,
         "checksum": "102632633"
       },
       "ruby": {
-        "wall_ms": 49.8,
-        "rss_kb": 24604,
+        "wall_ms": 51.4,
+        "rss_kb": 24732,
         "checksum": "102632633"
       },
       "dotnet": {
-        "wall_ms": 34.2,
-        "rss_kb": 27660,
+        "wall_ms": 35.4,
+        "rss_kb": 27792,
         "checksum": "102632633"
       }
     }
@@ -436,33 +436,33 @@
     "what": "lightweight concurrent units + result collection",
     "langs": {
       "brood": {
-        "wall_ms": 1364.3,
-        "rss_kb": 188288,
+        "wall_ms": 1359.8,
+        "rss_kb": 187004,
         "checksum": "12200000"
       },
       "elixir": {
-        "wall_ms": 343.9,
-        "rss_kb": 92936,
+        "wall_ms": 339.0,
+        "rss_kb": 92544,
         "checksum": "12200000"
       },
       "python": {
-        "wall_ms": 1098.2,
-        "rss_kb": 36740,
+        "wall_ms": 1072.5,
+        "rss_kb": 36852,
         "checksum": "12200000"
       },
       "node": {
-        "wall_ms": 124.6,
-        "rss_kb": 57044,
+        "wall_ms": 123.4,
+        "rss_kb": 57200,
         "checksum": "12200000"
       },
       "ruby": {
-        "wall_ms": 4980.0,
-        "rss_kb": 252960,
+        "wall_ms": 4975.0,
+        "rss_kb": 252620,
         "checksum": "12200000"
       },
       "dotnet": {
-        "wall_ms": 50.1,
-        "rss_kb": 32828,
+        "wall_ms": 42.3,
+        "rss_kb": 32740,
         "checksum": "12200000"
       }
     }
@@ -472,33 +472,33 @@
     "what": "parallel fib \u2014 100 computed at once across cores",
     "langs": {
       "brood": {
-        "wall_ms": 2563.9,
-        "rss_kb": 14956,
+        "wall_ms": 2297.5,
+        "rss_kb": 14816,
         "checksum": "31781100"
       },
       "elixir": {
-        "wall_ms": 379.2,
-        "rss_kb": 84964,
+        "wall_ms": 384.5,
+        "rss_kb": 87104,
         "checksum": "31781100"
       },
       "python": {
-        "wall_ms": 784.8,
-        "rss_kb": 22844,
+        "wall_ms": 767.5,
+        "rss_kb": 22840,
         "checksum": "31781100"
       },
       "node": {
-        "wall_ms": 144.7,
-        "rss_kb": 186752,
+        "wall_ms": 146.6,
+        "rss_kb": 186076,
         "checksum": "31781100"
       },
       "ruby": {
-        "wall_ms": 536.7,
+        "wall_ms": 536.4,
         "rss_kb": 24260,
         "checksum": "31781100"
       },
       "dotnet": {
-        "wall_ms": 62.9,
-        "rss_kb": 28640,
+        "wall_ms": 61.6,
+        "rss_kb": 28732,
         "checksum": "31781100"
       }
     }
@@ -508,33 +508,33 @@
     "what": "concurrent HTTP \u2014 N in-flight GETs to a local server",
     "langs": {
       "brood": {
-        "wall_ms": 203.0,
-        "rss_kb": 98944,
+        "wall_ms": 214.7,
+        "rss_kb": 103424,
         "checksum": "500"
       },
       "elixir": {
-        "wall_ms": 972.4,
-        "rss_kb": 580776,
+        "wall_ms": 1003.1,
+        "rss_kb": 556012,
         "checksum": "500"
       },
       "python": {
-        "wall_ms": 196.3,
-        "rss_kb": 50380,
+        "wall_ms": 191.4,
+        "rss_kb": 48092,
         "checksum": "500"
       },
       "node": {
-        "wall_ms": 142.2,
-        "rss_kb": 66960,
+        "wall_ms": 144.8,
+        "rss_kb": 66896,
         "checksum": "500"
       },
       "ruby": {
-        "wall_ms": 260.8,
-        "rss_kb": 51300,
+        "wall_ms": 242.9,
+        "rss_kb": 51152,
         "checksum": "500"
       },
       "dotnet": {
-        "wall_ms": 175.2,
-        "rss_kb": 50304,
+        "wall_ms": 173.0,
+        "rss_kb": 49152,
         "checksum": "500"
       }
     }
@@ -543,7 +543,7 @@
     "host": "whklat",
     "cores": 12,
     "platform": "Linux-7.0.0-22-generic-x86_64-with-glibc2.43",
-    "date": "2026-06-10 18:16",
+    "date": "2026-06-10 19:10",
     "versions": {
       "brood": "brood 0.1.0",
       "elixir": "Elixir 1.20.0 (compiled with Erlang/OTP 28)",
