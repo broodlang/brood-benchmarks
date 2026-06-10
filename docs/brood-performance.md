@@ -77,9 +77,43 @@ Compute time (Brood); the "× vs fastest" multiple swings run-to-run because the
 |------|--------------------------|---------------|------------------------|
 | tight loops | loop, collatz, matmul | 142 / 301 / 153 ms | open — per-op VM overhead; JIT subset gaps (Global, back-edge tiering) |
 | array indexing | matmul | 153 ms | **addressed** — `nth`/`vector-ref` inlined; residual is per-op overhead |
-| parallel scheduling | pfib, spawn | 2.3 s / 1.3 s | open — processes likely not spread across cores |
-| function call | fib | 230 ms | open — non-tail dispatch cost; JIT tier-2 call lowering may help |
-| GC / allocation | bintree | 339 ms | open — per-node allocation / GC pauses |
+| parallel scheduling | pfib, spawn | 2.3 s / 1.3 s | open — but NOT the scheduler (pfib runs at 1147% CPU ≈ 11.5 cores); it's the per-core call cost ×100 |
+| function call | fib | 230 ms | open — non-tail dispatch cost; the core bottleneck (see below) |
+| GC / allocation | bintree | 339 ms | open — but NOT allocation (build-only is 0.06 s of 0.35 s); the `check` *walk* is two-call recursion, i.e. call cost |
 | string ops | strings | 64 ms | **addressed** — native `%string-join`; residual is `number->string` |
 | higher-order fold | reduce | 21 ms | **addressed** — primitive-reducer fast path |
 | immutable map churn | wordcount | 162 ms | **addressed** — fixed-arity `get`/`assoc`; residual is CHAMP rebuild |
+
+---
+
+## The one remaining bottleneck: non-tail call dispatch
+
+With the data-structure fixes in, profiling collapses **every** remaining open
+benchmark onto a single root cause — the cost of a non-tail function call (~237 ns
+each in the VM):
+
+- **`fib`** is ~1 M non-tail calls; the body is trivial.
+- **`bintree`** is walk-bound, not alloc-bound: build-only is 0.06 s of the 0.35 s
+  run; the `check` walk is two non-tail recursive calls per node.
+- **`pfib`** is *not* a scheduler problem — it runs at **1147 % CPU** (~11.5 of 12
+  cores), so green processes already spread across cores. It's slow only because the
+  per-core work is 100 × `fib(28)` at the per-call cost. Elixir finishes in 0.40 s
+  using *fewer* cores because each core's JIT'd `fib` is far faster.
+- **`loop`/`collatz`/`matmul`** residuals are the per-op/per-iteration VM overhead of
+  the same family (tight dispatch), gated on JIT-subset coverage.
+
+What is **not** the bottleneck (measured): the scheduler (spreads fine), the
+allocator/GC (bintree build is cheap), and the VM call-site IC (already caches the
+resolved `(arm, env)` per site, epoch-guarded — no redundant resolution per call).
+
+**What would move it.** The tier-2 JIT lowers call-shaped bodies, but a JIT'd arm's
+recursive calls still round-trip through `brood_rt_call_slow → jit_dispatch_call →`
+full VM `dispatch` — so lowering the body doesn't remove the call cost. A spike that
+lets two-call recursion lower (spilling the live result handle into reserved
+GC-visible frame slots across the second call's safepoint) is **correct but neutral**
+(`fib` 287→293 ms, `bintree` 367→378 ms) for exactly this reason — see the
+`perf/jit-twocall-spill` branch (`DO NOT MERGE`). The real unlock is **native-to-native
+call linking** (a JIT'd caller invoking a JIT'd callee directly, no VM round-trip),
+or reducing the VM's per-call frame-push/arg-bind cost (frame reuse for non-escaping
+calls). Both are runtime-core changes for the maintainer; the data-structure /
+scheduler / allocator fronts are exhausted.
