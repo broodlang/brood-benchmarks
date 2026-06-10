@@ -7,6 +7,8 @@ static class Http
     // analog of node's agent:false). Checksum = N.
     public static async Task Run(int n)
     {
+        var port = Environment.GetEnvironmentVariable("BENCH_HTTP_PORT") ?? "8089";
+        var url = $"http://127.0.0.1:{port}/";
         var handler = new SocketsHttpHandler { MaxConnectionsPerServer = n };
         using var client = new HttpClient(handler);
         var tasks = new Task<int>[n];
@@ -16,7 +18,7 @@ static class Http
             {
                 try
                 {
-                    using var resp = await client.GetAsync("http://127.0.0.1:8089/");
+                    using var resp = await client.GetAsync(url);
                     return resp.IsSuccessStatusCode ? 1 : 0;
                 }
                 catch { return 0; }
