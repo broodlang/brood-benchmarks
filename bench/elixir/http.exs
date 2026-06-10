@@ -7,7 +7,8 @@
 n = String.to_integer(System.get_env("BENCH_N") || "500")
 :httpc.set_options(max_sessions: n, max_keep_alive_length: 0, max_pipeline_length: 0)
 
-url = ~c"http://127.0.0.1:8089/"
+port = System.get_env("BENCH_HTTP_PORT") || "8089"
+url = ~c"http://127.0.0.1:#{port}/"
 
 total =
   1..n

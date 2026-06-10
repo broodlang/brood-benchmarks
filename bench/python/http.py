@@ -14,13 +14,19 @@ import urllib.request
 from concurrent.futures import ThreadPoolExecutor
 
 N = int(os.environ.get("BENCH_N", "500"))
-URL = "http://127.0.0.1:8089/"
+PORT = os.environ.get("BENCH_HTTP_PORT", "8089")
+URL = f"http://127.0.0.1:{PORT}/"
 
 
 def fetch(_):
-    with urllib.request.urlopen(URL, timeout=30) as r:
-        r.read()
-        return 1 if r.status == 200 else 0
+    # Count only 200s; swallow per-request failures (count 0) so one bad request
+    # doesn't abort the whole run — matches the other languages' clients.
+    try:
+        with urllib.request.urlopen(URL, timeout=30) as r:
+            r.read()
+            return 1 if r.status == 200 else 0
+    except Exception:
+        return 0
 
 
 if __name__ == "__main__":

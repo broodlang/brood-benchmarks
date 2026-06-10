@@ -9,7 +9,8 @@
 (require 'net/http)
 
 (def n (let (e (getenv "BENCH_N")) (if e (string->number e) 500)))
-(def url "http://127.0.0.1:8089/")
+(def port (let (e (getenv "BENCH_HTTP_PORT")) (if e e "8089")))
+(def url (str "http://127.0.0.1:" port "/"))
 
 ;; parent pid captured at top level (inside the child (self) would differ).
 (def me (self))

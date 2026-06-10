@@ -25,6 +25,7 @@ import socket
 import subprocess
 import sys
 import time
+import urllib.request
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent          # .../bench
@@ -121,6 +122,12 @@ BENCHES = [
     ("http",       500,    "all", "concurrent HTTP — N in-flight GETs to a local server"),
 ]
 
+# The concurrency benchmarks bounce 15–45% run-to-run with scheduler / CPU
+# contention. Since we report the best (least-noisy) run, taking more samples
+# tightens the floor — so these run more times than the steady compute benches.
+NOISY = {"spawn", "pfib", "http"}
+NOISY_RUNS = 7
+
 QUICK = {  # smaller sizes for a fast smoke run
     "fib": 25, "loop": 300000, "reduce": 100000, "primes": 5000, "collatz": 5000,
     "mandelbrot": 48, "matmul": 40, "strings": 10000, "wordcount": 20000,
@@ -170,27 +177,43 @@ def bench_lang(lang, name, n, runs, timeout):
 
 # Benchmarks that need a local HTTP server running while they execute. The
 # server (bench/httpserver.py) is started before the benchmark's languages run
-# and torn down after, so the `http` clients have something to call.
-HTTP_PORT = 8089
+# and torn down after, so the `http` clients have something to call. The port is
+# chosen fresh each time (see pick_free_port) so a process squatting on a fixed
+# port can't be mistaken for our server; the clients read it from BENCH_HTTP_PORT.
 SERVER_FOR = {"http"}
 
 
-def start_http_server():
-    """Launch the local HTTP server and wait until it accepts connections."""
-    import socket
+def pick_free_port():
+    """An OS-assigned free TCP port on the loopback interface."""
+    with socket.socket() as s:
+        s.bind(("127.0.0.1", 0))
+        return s.getsockname()[1]
+
+
+def start_http_server(port):
+    """Launch the local HTTP server on `port` and wait until *our* server
+    answers correctly — a GET returning 200 with the body `ok`. A bare connect
+    check isn't enough: a foreign listener (or a stale server) on the port would
+    satisfy it, and the benchmark would then silently measure the wrong server
+    (e.g. counting zero 200s). If our process dies on bind, surface its stderr."""
     proc = subprocess.Popen(
-        [sys.executable, str(ROOT / "httpserver.py"), str(HTTP_PORT)],
-        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        [sys.executable, str(ROOT / "httpserver.py"), str(port)],
+        stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True,
     )
     deadline = time.perf_counter() + 10.0
     while time.perf_counter() < deadline:
+        if proc.poll() is not None:                      # exited (e.g. bind failed)
+            err = (proc.stderr.read() if proc.stderr else "").strip()
+            raise RuntimeError(f"http server exited before serving on :{port}\n{err}")
         try:
-            with socket.create_connection(("127.0.0.1", HTTP_PORT), timeout=0.5):
-                return proc
-        except OSError:
+            with urllib.request.urlopen(f"http://127.0.0.1:{port}/", timeout=0.5) as r:
+                if r.status == 200 and r.read() == b"ok":
+                    return proc
+        except Exception:
             time.sleep(0.05)
     proc.terminate()
-    raise RuntimeError("http server failed to start on :%d" % HTTP_PORT)
+    raise RuntimeError(f"http server on :{port} never answered with a correct 200 — "
+                       "something else may be holding the port")
 
 
 def stop_http_server(proc):
@@ -254,11 +277,20 @@ def main():
         if only and name not in only:
             continue
         n = QUICK.get(name, default_n) if args.quick else default_n
-        runs = startup_runs if name == "startup" else args.runs
+        if name == "startup":
+            runs = startup_runs
+        elif name in NOISY:
+            runs = max(args.runs, NOISY_RUNS)
+        else:
+            runs = args.runs
         run_langs = langs if where == "all" else [l for l in langs if l in where]
         results[name] = {"n": n, "what": what, "langs": {}}
         print(f"\n## {name}  (N={n}) — {what}")
-        server = start_http_server() if name in SERVER_FOR else None
+        server = None
+        if name in SERVER_FOR:
+            port = pick_free_port()
+            server = start_http_server(port)
+            os.environ["BENCH_HTTP_PORT"] = str(port)
         try:
             for lang in run_langs:
                 r = bench_lang(lang, name, n, runs, args.timeout)
@@ -272,6 +304,7 @@ def main():
         finally:
             if server:
                 stop_http_server(server)
+                os.environ.pop("BENCH_HTTP_PORT", None)
         verify_checksums(name, results[name])
 
     meta = collect_meta(langs)
@@ -314,8 +347,13 @@ def build_report(results, args, meta=None):
         L.append("")
     mode = "quick" if args.quick else "full"
     startup_runs = getattr(args, "startup_runs", None) or args.runs
-    runs_note = (f"startup: best of {startup_runs}; others: best of {args.runs} runs"
-                 if startup_runs != args.runs else f"best of {args.runs} runs per program")
+    noisy_runs = max(args.runs, NOISY_RUNS)
+    bits = [f"best of {args.runs} runs"]
+    if startup_runs != args.runs:
+        bits.append(f"startup best of {startup_runs}")
+    if noisy_runs != args.runs:
+        bits.append(f"spawn/pfib/http best of {noisy_runs}")
+    runs_note = "; ".join(bits) + " per program"
     L.append(f"_{runs_note}; {mode} sizes. "
              f"**compute = wall − startup** (startup is that language's own boot time "
              f"from its `startup`-row wall). Rankings and ratios are by **compute** so "
