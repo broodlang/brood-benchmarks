@@ -7,14 +7,15 @@ where the Brood runtime is faster or slower than the alternatives — on
 interpreters (Python, Ruby) and JITs (Node/V8, Elixir/BeamAsm, .NET/RyuJIT).
 
 > **Engine:** Brood runs on its **bytecode VM** — the closure-compiling engine
-> that superseded the original tree-walker — with **primitive inlining**: the
-> core arithmetic/comparison ops run inline as native `i64` operations rather than
-> dispatched calls. Four runtime changes show in the numbers: a **reducible lazy
-> range** so `(range n)` folds without building a list (`reduce` 1.58 s → 0.27 s,
-> 130 MB → 20 MB); a **process-count-aware GC floor** that cut parallel fan-out's
-> peak memory ~35× (`pfib` ~980 MB → ~28 MB); **routing spawned processes through
-> the VM** (they were tree-walked even under the VM), cutting `pfib`'s wall time
-> ~4× (3.84 s → ~1 s); and a **leaner call path** (~3–4% across call-heavy code).
+> that superseded the original tree-walker — with **primitive inlining** (core
+> arithmetic/comparison ops run inline as native `i64` operations) and a **tier-1
+> template JIT** that compiles hot integer loops, and now Brood→Brood calls (with
+> tail-call TCO), to native code. A **process-count-aware GC floor** keeps parallel
+> fan-out's peak memory low (`pfib` peaks ~15 MB). Several rows moved on recent
+> **data-structure fast paths**: inlining `nth`/`vector-ref` to a bounds-checked
+> slab read (**matmul ~4.3×**), a primitive-reducer fold (**reduce ~4.7×**), a
+> single-pass native `join` (**strings ~2.2×**), and fixed-arity `get`/`assoc`
+> (**wordcount ~1.3×**) — all checksum-verified against the tree-walker.
 
 ## Results
 
@@ -25,17 +26,19 @@ interpreters (Python, Ruby) and JITs (Node/V8, Elixir/BeamAsm, .NET/RyuJIT).
 
 ![Where the languages land — compute speed (startup excluded) vs memory](results/positioning.svg)
 
-**The short version:** Brood's strengths are **memory** (~11 MB base, holding
-11–38 MB across *every* workload now that the `reduce` materialization outlier is
-gone — only Python is as light) and **fast-enough startup** (~28 ms, ties Node and
-.NET, ~12× ahead of the BEAM); it **wins the `spawn` row outright** and **runs 2nd
-on concurrent I/O** (just behind Node). Its main weakness is **raw single-threaded
-compute** — the young bytecode VM trails the JITs (.NET and Node lead, ~15–37×)
-and even the interpreters (Ruby ~5–16×, Python ~3–7×). Parallel CPU (`pfib`) was
-once a disaster (30× off, ~980 MB) and is now the lightest in the field at ~1 s —
-though .NET's RyuJIT + `Parallel.For` finish it in 46 ms. See
-[BENCHMARKS.md](BENCHMARKS.md) for the honest, full picture, a
-[positioning chart](results/positioning.svg), and the code side by side.
+**The short version:** Brood's strengths are **memory** (~14 MB base, holding
+14–38 MB across *every* workload — only Python is as light) and **fast-enough
+startup** (~28 ms, ahead of Ruby and ~9× ahead of the BEAM). On **concurrent I/O**
+(`http`) it lands a respectable 3rd of six (~1.5× behind Node, just behind .NET),
+and on **parallel CPU** (`pfib`) it holds the **lightest memory in the field**
+(~15 MB). Its main weakness is **raw single-threaded compute** — the young bytecode
+VM trails the JITs (.NET and Node lead) and the interpreters (Ruby, Python) on the
+tightest loops, though recent fast paths closed the gap sharply on `matmul`,
+`reduce`, `strings`, and `wordcount`. The remaining frontier is the tight integer
+loops (`loop`, `collatz`), naive recursion (`fib`), and spreading green processes
+across cores (`pfib`/`spawn`). See [BENCHMARKS.md](BENCHMARKS.md) for the honest,
+full picture, a [positioning chart](results/positioning.svg), and the code side by
+side.
 
 ## The benchmarks (15)
 
@@ -50,20 +53,23 @@ though .NET's RyuJIT + `Parallel.For` finish it in 46 ms. See
 | `mandelbrot` | floating-point math — escape iterations over a grid |
 | `matmul`     | nested loops + indexing — integer N×N multiply |
 | `strings`    | string building (`join`) + length |
-| `wordcount`  | hash-map build — **immutable** (Brood/Elixir) vs **mutable** (Python/Node/Ruby) |
+| `wordcount`  | hash-map build — **immutable** (Brood/Elixir) vs **mutable** (Python/Node/Ruby/.NET) |
 | `bintree`    | allocation / GC pressure — build & walk many binary trees |
 | `sort`       | sort a list of ints + an order-sensitive checksum walk |
-| `spawn`      | lightweight processes + messaging (**Brood & Elixir only**) |
+| `spawn`      | lightweight concurrent units + result collection |
 | `pfib`       | parallel CPU — 100 `fib`s computed at once across cores |
 | `http`       | concurrent I/O — 500 in-flight HTTP GETs to a local server |
 
-`spawn` has no Python/Node/Ruby/.NET port on purpose: green processes / actors
-are a first-class feature of Brood and the BEAM, and OS threads or an event loop
-aren't a like-for-like comparison. `pfib` and `http` *are* implemented in all
-six, each using that language's idiomatic concurrency (lightweight processes for
-Brood/Elixir; `worker_threads` for Node; `Parallel.For` / async `HttpClient` for
-.NET; a forked process pool for Python/Ruby on the CPU-bound `pfib`; a thread
-pool / thread-per-request for the I/O-bound `http`).
+`spawn`, `pfib`, and `http` are each implemented in all six languages, using that
+language's idiomatic concurrency. For `spawn` (20k lightweight units): green
+processes + messaging for Brood/Elixir; asyncio coroutines (Python), Promises
+(Node), OS threads (Ruby), thread-pool tasks (.NET). For the CPU-bound `pfib`:
+green processes (Brood/Elixir), `worker_threads` (Node), `Parallel.For` (.NET), a
+forked process pool (Python/Ruby). For the I/O-bound `http`: green processes
+(Brood/Elixir), an async client (Node/.NET), a thread pool / thread-per-request
+(Python/Ruby). Green processes / actors are a first-class Brood & BEAM feature, so
+`spawn` is where that model is exercised head-to-head against threads and event
+loops — the comparison is deliberate, not like-for-like machinery.
 
 ## What's measured
 
@@ -101,9 +107,10 @@ Because wall time includes startup, the dedicated `startup` benchmark (a bare
 - Workload sizes are picked so the *slowest* runtime (the Brood bytecode VM)
   finishes in a few seconds; the compiled/JIT runtimes finish in milliseconds.
   That spread is the result, not a problem.
-- The `http` benchmark hits a small local server the harness starts on
-  `127.0.0.1:8089` (a fixed 20 ms sleep per request, so it measures
-  I/O-concurrency, not the network); it's torn down afterwards.
+- The `http` benchmark hits a small local server the harness starts on a free
+  loopback port (a fixed 20 ms sleep per request, so it measures I/O-concurrency,
+  not the network); the harness verifies the server is its own — a GET returning
+  `200`/`ok` — before running, then tears it down afterwards.
 
 ## Running it
 
@@ -116,8 +123,8 @@ python3 bench/harness.py --langs brood,python # subset of languages
 python3 bench/chart.py                         # regenerate results/positioning.svg
 ```
 
-The source programs live under [`bench/`](bench/), six per benchmark (except
-`spawn`, Brood + Elixir only), named identically except the extension
+The source programs live under [`bench/`](bench/), six per benchmark, named
+identically except the extension
 (`fib.blsp` / `fib.exs` / `fib.py` / `fib.js` / `fib.rb` / `fib.cs`) so the
 implementations diff side by side. **.NET** needs compilation, so the harness
 builds `bench/dotnet/` once (`dotnet build -c Release`) and runs each benchmark as
@@ -136,9 +143,8 @@ peak RSS, checksum), and `positioning.svg` (the compute-vs-memory map).
 
 ## Environment
 
-Numbers in the docs were measured on: Intel Core i7-14700HX (20 cores / 28
-threads — 8 P-cores + 12 E-cores) · 61 GB RAM · Ubuntu 26.04 · Brood 0.1.0
-(bytecode VM, reducible lazy range, process-count-aware GC floor, VM-routed
-spawned processes, leaner call path) · Elixir 1.20.0 / OTP 29 (BeamAsm JIT) ·
-Python 3.14.4 · Node 24.15.0 (V8) · Ruby 3.3.8 · .NET 10.0.108 (RyuJIT). Best of
-3 runs each (latency-sensitive `startup`/`http` isolated, best of 5).
+Numbers in the docs were measured on `whklat`: a 12-core x86-64 Linux 7.0.0
+machine · Brood 0.1.0 (bytecode VM + tier-1 JIT, primitive inlining,
+process-count-aware GC floor) · Elixir 1.20.0 / OTP 28 (BeamAsm JIT) · Python
+3.14.4 · Node 22.21.0 (V8) · Ruby 3.3.8 · .NET 10.0.108 (RyuJIT). Best of 3 runs
+each; the concurrency benchmarks (`spawn`/`pfib`/`http`) take the best of 7.
