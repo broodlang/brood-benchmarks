@@ -14,9 +14,9 @@ Cold start to first instruction. Lower is better.
 |---------|------|
 | Python  | 10ms |
 | Node    | 18ms |
-| .NET    | 21ms |
+| .NET    | 22ms |
 | Brood   | 27ms |
-| Ruby    | 41ms |
+| Ruby    | 42ms |
 | Elixir  | 254ms |
 
 Brood is the fourth-fastest boot, ahead of Ruby and well ahead of the BEAM.
@@ -31,73 +31,73 @@ Wall time minus boot cost. `< 1ms` means the benchmark finished in less time tha
 
 | Brood | Elixir | Python | Node | Ruby | .NET |
 |-------|--------|--------|------|------|------|
-| 225ms | 54ms | 70ms | 8ms | 55ms | 5ms |
+| 224ms | 57ms | 68ms | 9ms | 55ms | 4ms |
 
 ### loop 3 M — raw iteration
 
 | Brood | Elixir | Python | Node | Ruby | .NET |
 |-------|--------|--------|------|------|------|
-| 26ms | 43ms | 193ms | 3ms | 62ms | 2ms |
+| 24ms | 57ms | 197ms | 3ms | 61ms | 2ms |
 
 ### reduce 1 M — higher-order fold
 
 | Brood | Elixir | Python | Node | Ruby | .NET |
 |-------|--------|--------|------|------|------|
-| 24ms | 15ms | 7ms | 2ms | < 1ms | 1ms |
+| 23ms | 21ms | 7ms | 3ms | < 1ms | 1ms |
 
 ### primes 20 k — trial division
 
 | Brood | Elixir | Python | Node | Ruby | .NET |
 |-------|--------|--------|------|------|------|
-| 25ms | 53ms | 10ms | 1ms | 9ms | 2ms |
+| 24ms | 58ms | 10ms | 2ms | 7ms | 2ms |
 
 ### collatz 30 k — tight integer loop
 
 | Brood | Elixir | Python | Node | Ruby | .NET |
 |-------|--------|--------|------|------|------|
-| 288ms | 57ms | 246ms | 7ms | 84ms | 5ms |
+| 289ms | 67ms | 254ms | 8ms | 92ms | 6ms |
 
 ### mandelbrot 128×128 — floating point
 
 | Brood | Elixir | Python | Node | Ruby | .NET |
 |-------|--------|--------|------|------|------|
-| 74ms | 67ms | 78ms | 3ms | 26ms | 2ms |
+| 75ms | 64ms | 81ms | 3ms | 25ms | 2ms |
 
 ### matmul 80×80 — nested loops + array indexing
 
 | Brood | Elixir | Python | Node | Ruby | .NET |
 |-------|--------|--------|------|------|------|
-| 108ms | 22ms | 43ms | 3ms | 27ms | 2ms |
+| 114ms | 32ms | 43ms | 4ms | 31ms | 1ms |
 
 ### strings 50 k — join + length
 
 | Brood | Elixir | Python | Node | Ruby | .NET |
 |-------|--------|--------|------|------|------|
-| 64ms | 22ms | 6ms | 6ms | 9ms | 5ms |
+| 68ms | 28ms | 5ms | 7ms | 10ms | 5ms |
 
 ### wordcount 100 k — hash-map build
 
 | Brood | Elixir | Python | Node | Ruby | .NET |
 |-------|--------|--------|------|------|------|
-| 161ms | 44ms | 22ms | 7ms | 10ms | 9ms |
+| 166ms | 36ms | 24ms | 8ms | 10ms | 10ms |
 
 ### bintree depth 40 — allocation + GC
 
 | Brood | Elixir | Python | Node | Ruby | .NET |
 |-------|--------|--------|------|------|------|
-| 391ms | 55ms | 21ms | 7ms | 20ms | 5ms |
+| 348ms | 60ms | 21ms | 7ms | 21ms | 4ms |
 
 ### sort 50 k — sort + walk
 
 | Brood | Elixir | Python | Node | Ruby | .NET |
 |-------|--------|--------|------|------|------|
-| 32ms | 34ms | 20ms | 15ms | 8ms | 15ms |
+| 31ms | 37ms | 21ms | 18ms | 13ms | 12ms |
 
 ### spawn 20 k — concurrent fan-out, each fib(15)
 
 | Brood | Elixir | Python | Node | Ruby | .NET |
 |-------|--------|--------|------|------|------|
-| 1394ms | 91ms | 1100ms | 105ms | 4907ms | 21ms |
+| 1447ms | 112ms | 1129ms | 111ms | 5052ms | 24ms |
 
 Brood uses green processes + message passing. Python uses asyncio coroutines. Node uses Promises. Ruby uses OS threads. .NET uses thread-pool tasks.
 
@@ -105,13 +105,13 @@ Brood uses green processes + message passing. Python uses asyncio coroutines. No
 
 | Brood | Elixir | Python | Node | Ruby | .NET |
 |-------|--------|--------|------|------|------|
-| 2182ms | 138ms | 764ms | 134ms | 490ms | 40ms |
+| 2342ms | 143ms | 784ms | 141ms | 518ms | 42ms |
 
 ### http 500 concurrent GETs — I/O concurrency
 
 | Brood | Elixir | Python | Node | Ruby | .NET |
 |-------|--------|--------|------|------|------|
-| 182ms | 734ms | 178ms | 127ms | 223ms | 154ms |
+| 194ms | 703ms | 188ms | 140ms | 223ms | 162ms |
 
 Brood is competitive on I/O-concurrent work: 1.4× behind Node, 3rd of six (behind
 Node and .NET). Note: earlier runs of this row were invalid — every client was
