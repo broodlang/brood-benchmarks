@@ -55,7 +55,9 @@ Wall time minus boot cost. `< 1ms` means the benchmark finished in less time tha
 
 | Brood | Elixir | Python | Node | Ruby | .NET |
 |-------|--------|--------|------|------|------|
-| 289ms | 67ms | 254ms | 8ms | 92ms | 6ms |
+| 77ms | 59ms | 241ms | 8ms | 87ms | 5ms |
+
+`collatz`'s `steps` is an all-integer self-tail loop. It now runs native: two JIT codegen bails that had kept it interpreted are fixed (an arg-map mismatch on `(* 3 m)`-style fused operands, and a dead `Jump` after a tail call), so **289 → 77 ms (~3.8×)** — now in the same range as Elixir, and ahead of Python and Ruby.
 
 ### mandelbrot 128×128 — floating point
 
@@ -67,7 +69,7 @@ Wall time minus boot cost. `< 1ms` means the benchmark finished in less time tha
 
 | Brood | Elixir | Python | Node | Ruby | .NET |
 |-------|--------|--------|------|------|------|
-| 114ms | 32ms | 43ms | 4ms | 31ms | 1ms |
+| 107ms | 32ms | 43ms | 4ms | 31ms | 1ms |
 
 ### strings 50 k — join + length
 
