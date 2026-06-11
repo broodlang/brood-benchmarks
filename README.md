@@ -12,7 +12,7 @@ interpreters (Python, Ruby) and JITs (Node/V8, Elixir/BeamAsm, .NET/RyuJIT).
 > template JIT**. With **back-edge tiering** the JIT now fires on self-tail integer
 > loops (which previously never reached the tier threshold) — a tight `loop` runs
 > native (**5.4×**; a bare 200M-iter loop 8 s → 0.55 s) — and `VectorRef` codegen
-> puts matmul's indexed inner loop on the native path too (**matmul 153 → 108 ms**).
+> puts matmul's indexed inner loop on the native path too (**matmul 153 → 114 ms**).
 > A **process-count-aware GC floor** keeps parallel fan-out's peak memory low
 > (`pfib` peaks ~15 MB). Earlier **data-structure fast paths** moved more rows:
 > inlining `nth`/`vector-ref` to a slab read, a primitive-reducer fold
@@ -36,12 +36,13 @@ and on **parallel CPU** (`pfib`) it holds the **lightest memory in the field**
 (~15 MB). Its main weakness is **raw single-threaded compute** — the young bytecode
 VM trails the JITs (.NET and Node lead) and the interpreters (Ruby, Python). Recent
 work closed several gaps: the JIT now compiles self-tail loops (`loop` 5.4×) and
-matmul's indexed loop (1.4×), and data-structure fast paths fixed `reduce`,
+matmul's indexed loop (1.3×), and data-structure fast paths fixed `reduce`,
 `strings`, and `wordcount`. The remaining frontier is **non-tail recursion**
 (`fib`, `bintree`, and so `pfib`'s per-core work) — gated on native-to-native call
-linking — plus extending the JIT subset to the `collatz`/`mandelbrot` shapes
-(float, division, `even?`). See [BENCHMARKS.md](BENCHMARKS.md) for the honest, full
-picture, a [positioning chart](results/positioning.svg), and the code side by side.
+linking — and **float** support for `mandelbrot` (the integer-only JIT can't yet
+tier it; `collatz` is a separate open puzzle). See [BENCHMARKS.md](BENCHMARKS.md)
+for the honest, full picture, a [positioning chart](results/positioning.svg), and
+the code side by side.
 
 ## The benchmarks (15)
 
