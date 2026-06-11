@@ -9,13 +9,15 @@ interpreters (Python, Ruby) and JITs (Node/V8, Elixir/BeamAsm, .NET/RyuJIT).
 > **Engine:** Brood runs on its **bytecode VM** — the closure-compiling engine
 > that superseded the original tree-walker — with **primitive inlining** (core
 > arithmetic/comparison ops run inline as native `i64` operations) and a **tier-1
-> template JIT** that compiles hot integer loops, and now Brood→Brood calls (with
-> tail-call TCO), to native code. A **process-count-aware GC floor** keeps parallel
-> fan-out's peak memory low (`pfib` peaks ~15 MB). Several rows moved on recent
-> **data-structure fast paths**: inlining `nth`/`vector-ref` to a bounds-checked
-> slab read (**matmul ~4.3×**), a primitive-reducer fold (**reduce ~4.7×**), a
-> single-pass native `join` (**strings ~2.2×**), and fixed-arity `get`/`assoc`
-> (**wordcount ~1.3×**) — all checksum-verified against the tree-walker.
+> template JIT**. With **back-edge tiering** the JIT now fires on self-tail integer
+> loops (which previously never reached the tier threshold) — a tight `loop` runs
+> native (**5.4×**; a bare 200M-iter loop 8 s → 0.55 s) — and `VectorRef` codegen
+> puts matmul's indexed inner loop on the native path too (**matmul 153 → 108 ms**).
+> A **process-count-aware GC floor** keeps parallel fan-out's peak memory low
+> (`pfib` peaks ~15 MB). Earlier **data-structure fast paths** moved more rows:
+> inlining `nth`/`vector-ref` to a slab read, a primitive-reducer fold
+> (**reduce ~4.7×**), a single-pass native `join` (**strings ~2.2×**), and
+> fixed-arity `get`/`assoc` (**wordcount ~1.3×**) — all checksum-verified.
 
 ## Results
 
@@ -28,17 +30,18 @@ interpreters (Python, Ruby) and JITs (Node/V8, Elixir/BeamAsm, .NET/RyuJIT).
 
 **The short version:** Brood's strengths are **memory** (~14 MB base, holding
 14–38 MB across *every* workload — only Python is as light) and **fast-enough
-startup** (~28 ms, ahead of Ruby and ~9× ahead of the BEAM). On **concurrent I/O**
-(`http`) it lands a respectable 3rd of six (~1.5× behind Node, just behind .NET),
+startup** (~27 ms, ahead of Ruby and ~9× ahead of the BEAM). On **concurrent I/O**
+(`http`) it lands a respectable 3rd of six (~1.4× behind Node, just behind .NET),
 and on **parallel CPU** (`pfib`) it holds the **lightest memory in the field**
 (~15 MB). Its main weakness is **raw single-threaded compute** — the young bytecode
-VM trails the JITs (.NET and Node lead) and the interpreters (Ruby, Python) on the
-tightest loops, though recent fast paths closed the gap sharply on `matmul`,
-`reduce`, `strings`, and `wordcount`. The remaining frontier is the tight integer
-loops (`loop`, `collatz`), naive recursion (`fib`), and spreading green processes
-across cores (`pfib`/`spawn`). See [BENCHMARKS.md](BENCHMARKS.md) for the honest,
-full picture, a [positioning chart](results/positioning.svg), and the code side by
-side.
+VM trails the JITs (.NET and Node lead) and the interpreters (Ruby, Python). Recent
+work closed several gaps: the JIT now compiles self-tail loops (`loop` 5.4×) and
+matmul's indexed loop (1.4×), and data-structure fast paths fixed `reduce`,
+`strings`, and `wordcount`. The remaining frontier is **non-tail recursion**
+(`fib`, `bintree`, and so `pfib`'s per-core work) — gated on native-to-native call
+linking — plus extending the JIT subset to the `collatz`/`mandelbrot` shapes
+(float, division, `even?`). See [BENCHMARKS.md](BENCHMARKS.md) for the honest, full
+picture, a [positioning chart](results/positioning.svg), and the code side by side.
 
 ## The benchmarks (15)
 
