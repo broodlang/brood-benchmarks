@@ -17,6 +17,7 @@ Based on the whklat benchmark run (2026-06-11). Numbers are compute time (wall �
 
 - **Back-edge tiering** — a self-tail loop is a single arm entry that loops via inline `SelfCall`, so it never reached the per-entry tier threshold and ran interpreted forever. Now `SelfCall` back-edges count toward the threshold and hand the loop to the driver to compile, then run native. **A pure 200M-iter loop went 8 s → 0.55 s (~14.5×); the `loop` benchmark 142 → 26 ms (5.4×).**
 - **`VectorRef` Cranelift codegen** (a slab read via `brood_rt_vector_ref`, deopting to the VM on non-vector/out-of-range). With back-edge tiering, matmul's `dot` k-loop now runs native. **matmul 153 → 114 ms (1.3×).** Also fixed a latent crash: the background compiler thread panicked (and silently disabled the JIT) if a `brood_rt_*` symbol wasn't registered in `Jit::new()`.
+- **Two codegen bails that kept `collatz` interpreted** (found by profiling — both general, not collatz-specific). (a) `chunk_ops_all_native` compared a `Prim2SlotInt`'s *stored* arg-map against `resolve_prim`'s *natural* map; a `(Const, Local)` fusion like `(* 3 m)` inverts the map (`swapped`), so a valid arm was spuriously marked BAILED and never compiled — now the swapped map is un-inverted before comparison. (b) `jit_lower_arm` failed an arm on a `Jump`-to-`Done` whose operand stack wasn't exactly 1, but that's dead code after a tail `SelfCall` (which never falls through) — now routed to `deopt`. With both fixed, `collatz`'s `steps` self-tail loop compiles and runs native. **collatz 289 → 77 ms (~3.8×).**
 
 ---
 
@@ -36,9 +37,7 @@ Based on the whklat benchmark run (2026-06-11). Numbers are compute time (wall �
 
 ### 1. JIT subset coverage (float) — mandelbrot 75 ms
 
-`mandelbrot`'s `esc` is a self-tail loop, but it bails immediately: it's floating-point and the JIT subset is integer-only (it bails on the first float constant). Float support needs **type-specialized tiering** — design in `docs/jit-float.md` (brood repo).
-
-`collatz` (289 ms) is a separate puzzle: `steps` is an all-integer self-tail loop using only in-subset prims (`=`, `rem`, `quot`, `*`, `+`), so it *should* tier like `loop` — yet `collatz` didn't move. Cause unconfirmed: likely the outer `scan` calling `steps`/`max` non-tail every iteration (call dispatch, §2), or `steps` not tiering for a reason worth tracing. Needs a profiling pass.
+`mandelbrot`'s `esc` is a self-tail loop, but it bails immediately: it's floating-point and the JIT subset is integer-only (it bails on the first float constant). Float support needs **type-specialized tiering** — design in `docs/jit-float.md` (brood repo). This is now the only integer-vs-float gap: `collatz`, the other self-tail loop that wasn't tiering, was an all-integer arm blocked by two codegen bugs (now fixed — see "Recently addressed").
 
 ### 2. Non-tail call dispatch — fib 224 ms, bintree 348 ms, pfib 2.3 s
 
@@ -66,13 +65,13 @@ Compute time (Brood); absolute ms is the stable measure (the "× vs fastest" mul
 
 | area | benchmark | Brood compute | status |
 |------|-----------|---------------|--------|
-| tight integer loop | loop | 24 ms | **addressed** — back-edge tiering; runs native |
-| array indexing | matmul | 114 ms | **addressed** — `VectorRef` codegen + tiering (153→114) |
-| higher-order fold | reduce | 23 ms | **addressed** — primitive-reducer fast path |
-| string build | strings | 68 ms | **addressed** — native `%string-join` |
-| immutable map churn | wordcount | 166 ms | **addressed** — fixed-arity `get`/`assoc` |
-| JIT subset gap (float) | mandelbrot | 75 ms | open — integer-only subset; needs float specialization (docs/jit-float.md) |
-| non-tail call dispatch | fib, bintree, pfib | 224 ms / 348 ms / 2.3 s | open — needs native-to-native call linking |
-| unexplained | collatz | 289 ms | open — in-subset self-tail loop that didn't tier; needs a profiling pass |
+| tight integer loop | loop | 26 ms | **addressed** — back-edge tiering; runs native |
+| integer self-tail loop | collatz | 77 ms | **addressed** — fixed two codegen bails (289→77, ~3.8×) |
+| array indexing | matmul | 107 ms | **addressed** — `VectorRef` codegen + tiering (153→107) |
+| higher-order fold | reduce | 22 ms | **addressed** — primitive-reducer fast path |
+| string build | strings | 63 ms | **addressed** — native `%string-join` |
+| immutable map churn | wordcount | 160 ms | **addressed** — fixed-arity `get`/`assoc` |
+| JIT subset gap (float) | mandelbrot | 73 ms | open — integer-only subset; needs float specialization (docs/jit-float.md) |
+| non-tail call dispatch | fib, bintree, pfib | 218 ms / 345 ms / 2.2 s | open — needs native-to-native call linking |
 
 What is **not** the bottleneck (measured): the scheduler (`pfib` spreads across cores), the allocator/GC (bintree build is cheap), and the VM call-site IC (already caches the resolved `(arm, env)` per site).
