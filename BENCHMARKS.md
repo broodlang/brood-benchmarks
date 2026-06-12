@@ -1,6 +1,6 @@
 # Brood Benchmarks
 
-Machine: `whklat`, 12-core x86-64, Linux 7.0.0, 2026-06-11.
+Machine: `whklat`, 12-core x86-64, Linux 7.0.0, 2026-06-12.
 Runtimes: Brood 0.1.0 · Elixir 1.20.0 / OTP 28 · Python 3.14.4 · Node 22.21.0 · Ruby 3.3.8 · .NET 10.0.108.
 Method: best of 3 runs per benchmark; the concurrency benchmarks (spawn, pfib, http) take the best of 7, since they bounce more run-to-run. Compute = wall − startup, so boot cost is not charged against compute-heavy benchmarks.
 
@@ -31,13 +31,15 @@ Wall time minus boot cost. `< 1ms` means the benchmark finished in less time tha
 
 | Brood | Elixir | Python | Node | Ruby | .NET |
 |-------|--------|--------|------|------|------|
-| 224ms | 57ms | 68ms | 9ms | 55ms | 4ms |
+| 136ms | 54ms | 69ms | 8ms | 56ms | 4ms |
+
+`fib` is the clearest non-tail-recursion case, and **native-to-native call linking** put it on the native path: a JIT'd arm calling a JIT'd callee now jumps directly to the callee's native entry instead of round-tripping through VM dispatch — **224 → 136 ms (1.6×)**.
 
 ### loop 3 M — raw iteration
 
 | Brood | Elixir | Python | Node | Ruby | .NET |
 |-------|--------|--------|------|------|------|
-| 24ms | 57ms | 197ms | 3ms | 61ms | 2ms |
+| 19ms | 58ms | 194ms | 3ms | 63ms | 2ms |
 
 ### reduce 1 M — higher-order fold
 
@@ -55,9 +57,9 @@ Wall time minus boot cost. `< 1ms` means the benchmark finished in less time tha
 
 | Brood | Elixir | Python | Node | Ruby | .NET |
 |-------|--------|--------|------|------|------|
-| 77ms | 59ms | 241ms | 8ms | 87ms | 5ms |
+| 63ms | 51ms | 243ms | 8ms | 86ms | 4ms |
 
-`collatz`'s `steps` is an all-integer self-tail loop. It now runs native: two JIT codegen bails that had kept it interpreted are fixed (an arg-map mismatch on `(* 3 m)`-style fused operands, and a dead `Jump` after a tail call), so **289 → 77 ms (~3.8×)** — now in the same range as Elixir, and ahead of Python and Ruby.
+`collatz`'s `steps` is an all-integer self-tail loop. It now runs native: two JIT codegen bails that had kept it interpreted are fixed (an arg-map mismatch on `(* 3 m)`-style fused operands, and a dead `Jump` after a tail call), so **289 → 77 ms (~3.8×)**; native-to-native call linking then lowered the outer `scan`'s per-step calls too (**→ 63 ms**) — now in Elixir's range and ahead of Python and Ruby.
 
 ### mandelbrot 128×128 — floating point
 
@@ -69,7 +71,7 @@ Wall time minus boot cost. `< 1ms` means the benchmark finished in less time tha
 
 | Brood | Elixir | Python | Node | Ruby | .NET |
 |-------|--------|--------|------|------|------|
-| 107ms | 32ms | 43ms | 4ms | 31ms | 1ms |
+| 102ms | 28ms | 46ms | 4ms | 33ms | 2ms |
 
 ### strings 50 k — join + length
 
@@ -87,7 +89,9 @@ Wall time minus boot cost. `< 1ms` means the benchmark finished in less time tha
 
 | Brood | Elixir | Python | Node | Ruby | .NET |
 |-------|--------|--------|------|------|------|
-| 348ms | 60ms | 21ms | 7ms | 21ms | 4ms |
+| 295ms | 49ms | 20ms | 6ms | 20ms | 4ms |
+
+`bintree` is walk-bound. Native-to-native call linking lowered the `run` driver loop and cut the two-call `check` walk's dispatch cost (**348 → 295 ms**); the residual is allocating/walking the short-lived nodes themselves.
 
 ### sort 50 k — sort + walk
 
@@ -99,7 +103,7 @@ Wall time minus boot cost. `< 1ms` means the benchmark finished in less time tha
 
 | Brood | Elixir | Python | Node | Ruby | .NET |
 |-------|--------|--------|------|------|------|
-| 1447ms | 112ms | 1129ms | 111ms | 5052ms | 24ms |
+| 1433ms | 115ms | 1121ms | 108ms | 5104ms | 22ms |
 
 Brood uses green processes + message passing. Python uses asyncio coroutines. Node uses Promises. Ruby uses OS threads. .NET uses thread-pool tasks.
 
@@ -107,13 +111,15 @@ Brood uses green processes + message passing. Python uses asyncio coroutines. No
 
 | Brood | Elixir | Python | Node | Ruby | .NET |
 |-------|--------|--------|------|------|------|
-| 2342ms | 143ms | 784ms | 141ms | 518ms | 42ms |
+| 1259ms | 151ms | 826ms | 140ms | 521ms | 47ms |
+
+`pfib` is 100 × `fib(28)` across cores — pure non-tail recursion, parallelised. Native-to-native call linking is the biggest single win in the suite here: **2342 → 1259 ms (1.8×)**. (`spawn`, which fans out 20 000 *short* processes, is dominated by spawn/teardown rather than fib compute, so it's neutral — linking neither helps nor hurts it once the compile-queue back-off is in place.)
 
 ### http 500 concurrent GETs — I/O concurrency
 
 | Brood | Elixir | Python | Node | Ruby | .NET |
 |-------|--------|--------|------|------|------|
-| 194ms | 703ms | 188ms | 140ms | 223ms | 162ms |
+| 210ms | 706ms | 192ms | 144ms | 216ms | 178ms |
 
 Brood is competitive on I/O-concurrent work: 1.4× behind Node, 3rd of six (behind
 Node and .NET). Note: earlier runs of this row were invalid — every client was
