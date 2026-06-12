@@ -9,12 +9,13 @@ interpreters (Python, Ruby) and JITs (Node/V8, Elixir/BeamAsm, .NET/RyuJIT).
 > **Engine:** Brood runs on its **bytecode VM** — the closure-compiling engine
 > that superseded the original tree-walker — with **primitive inlining** (core
 > arithmetic/comparison ops run inline as native `i64` operations) and a **tier-1
-> template JIT**. With **back-edge tiering** the JIT now fires on self-tail integer
-> loops (which previously never reached the tier threshold) — a tight `loop` runs
-> native (**5.4×**; a bare 200M-iter loop 8 s → 0.55 s), and fixing two codegen
-> bails put `collatz`'s inner loop on the native path too (**collatz 289 → 77 ms,
-> ~3.8×**) — while `VectorRef` codegen does the same for matmul's indexed inner
-> loop (**matmul 153 → 107 ms**).
+> template JIT**. With **back-edge tiering** the JIT fires on self-tail integer
+> loops (a tight `loop` runs native, **5.4×**; a bare 200M-iter loop 8 s → 0.55 s),
+> and **native-to-native call linking** now puts non-tail recursion on the native
+> path too — a JIT'd caller invokes a JIT'd callee directly instead of round-tripping
+> through the VM (**fib 1.6×, pfib 1.8×, bintree 1.2×**). `VectorRef` codegen handles
+> matmul's indexed loop (**153 → 102 ms**) and fixing two codegen bails did the same
+> for `collatz` (**289 → 63 ms**).
 > A **process-count-aware GC floor** keeps parallel fan-out's peak memory low
 > (`pfib` peaks ~15 MB). Earlier **data-structure fast paths** moved more rows:
 > inlining `nth`/`vector-ref` to a slab read, a primitive-reducer fold
@@ -38,11 +39,12 @@ and on **parallel CPU** (`pfib`) it holds the **lightest memory in the field**
 (~15 MB). Its main weakness is **raw single-threaded compute** — the young bytecode
 VM trails the JITs (.NET and Node lead) and the interpreters (Ruby, Python). Recent
 work closed several gaps: the JIT now compiles self-tail loops (`loop` 5.4×,
-`collatz` ~3.8×) and matmul's indexed loop (1.4×), and data-structure fast paths
-fixed `reduce`, `strings`, and `wordcount`. The remaining frontier is **non-tail
-recursion** (`fib`, `bintree`, and so `pfib`'s per-core work) — gated on
-native-to-native call linking — and **float** support for `mandelbrot` (the
-integer-only JIT can't yet tier it). See [BENCHMARKS.md](BENCHMARKS.md)
+`collatz`), matmul's indexed loop, and — via native-to-native call linking —
+**non-tail recursion** (`fib` 1.6×, `pfib` 1.8×, `bintree` 1.2×), and
+data-structure fast paths fixed `reduce`, `strings`, and `wordcount`. The
+remaining frontier is **float** support for `mandelbrot` (the integer-only JIT
+can't yet tier it) and **allocation** (`bintree`'s short-lived nodes). See
+[BENCHMARKS.md](BENCHMARKS.md)
 for the honest, full picture, a [positioning chart](results/positioning.svg), and
 the code side by side.
 
