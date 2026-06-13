@@ -4,13 +4,17 @@ Machine: `whklat`, 12-core x86-64, Linux 7.0.0, 2026-06-13.
 Runtimes: Brood 0.1.0 · Elixir 1.20.0 / OTP 28 · Python 3.14.4 · Node 22.21.0 · Ruby 3.3.8 · .NET 10.0.109.
 Method: best of 5 runs per benchmark (startup best of 15); the concurrency benchmarks (spawn, pfib, http) take the best of 7, since they bounce more run-to-run. Compute = wall − startup, so boot cost is not charged against compute-heavy benchmarks.
 
-> These tables were measured on the brood build at commit `939aba3`. Two fixes have
-> since landed (`32bbda7` transient GC-correctness + map combinators; `67c2ec2`
-> parallel-allocation: thread-local intern cache + sharded alloc counter). An
-> old-vs-new A/B (same machine; load-independent `perf stat -e instructions` + best-of-N
-> wall) confirms these numbers hold within noise on the new build — `spawn` improved
-> ~9 %, and a +2–4 % instruction-count bump on `loop`/`collatz` from the call-path
-> refactor is below the rounding here. A fresh clean-load full run is pending.
+> These tables were measured on the brood build at commit `939aba3`. Several wins
+> have since landed (`32bbda7` transient GC fix + map combinators; `67c2ec2`
+> parallel-allocation intern cache + sharded counter; `84d3315` type-of keyword
+> cache; `b99756d` JIT'd 2-element vector literals → bintree's `make` native). A
+> load-independent A/B (`perf stat -e instructions`, current main vs `939aba3`) puts
+> the **cumulative compute delta** at: **bintree −13.6 %, strings −4.6 %, sort
+> −4.2 %, wordcount −2.9 %**; collatz/matmul/primes/reduce/fib neutral; **loop +3.1 %**
+> (a tracked lazy-slot regression). Plus `spawn` ~−9 % (wall). So the tables below
+> slightly *overstate* current times (bintree most); a fresh clean-load full run is
+> pending (the run machine has stayed loaded — best-of-N wall inflates ~10 %, which
+> is why the instruction-count A/B above is the reliable measure).
 
 ---
 

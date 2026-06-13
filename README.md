@@ -25,7 +25,11 @@ interpreters (Python, Ruby) and JITs (Node/V8, Elixir/BeamAsm, .NET/RyuJIT).
 > ~1.3× → ~4× parallelism; `spawn` ~9 %**). A **transient GC-correctness fix**
 > (a tenured live transient no longer dangles across a collection) let the map
 > combinators (`merge`/`update-vals`/…) build through transients (**~1.4–1.6×**).
-> Earlier **data-structure fast paths** moved more rows:
+> Two more: **caching `type-of`'s per-tag keyword** (it was re-interning the tag
+> name on every seq-predicate call — `nil?`/`pair?` per element) cut **bintree,
+> strings, sort, wordcount, collatz, matmul** 2–7 %; and the JIT now **emits a
+> 2-element vector literal** so bintree's `make` runs native (**bintree −13.6 %
+> cumulative**, instruction count). Earlier **data-structure fast paths** moved more rows:
 > inlining `nth`/`vector-ref` to a slab read, a primitive-reducer fold
 > (**reduce ~4.7×**), a single-pass native `join` (**strings ~2.2×**), and
 > fixed-arity `get`/`assoc` (**wordcount ~1.3×**) — all checksum-verified.
