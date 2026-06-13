@@ -19,7 +19,13 @@ interpreters (Python, Ruby) and JITs (Node/V8, Elixir/BeamAsm, .NET/RyuJIT).
 > indexed loop (**153 → 104 ms**) and fixing two codegen bails did the same for
 > `collatz` (**289 → 63 ms**).
 > A **process-count-aware GC floor** keeps parallel fan-out's peak memory low
-> (`pfib` peaks ~15 MB). Earlier **data-structure fast paths** moved more rows:
+> (`pfib` peaks ~15 MB), and a **thread-local symbol-interner cache + a sharded
+> allocation counter** removed the global-lock contention that had made
+> allocation-heavy fan-out near-serial (**8 alloc-heavy processes 10.8 s → 3.4 s,
+> ~1.3× → ~4× parallelism; `spawn` ~9 %**). A **transient GC-correctness fix**
+> (a tenured live transient no longer dangles across a collection) let the map
+> combinators (`merge`/`update-vals`/…) build through transients (**~1.4–1.6×**).
+> Earlier **data-structure fast paths** moved more rows:
 > inlining `nth`/`vector-ref` to a slab read, a primitive-reducer fold
 > (**reduce ~4.7×**), a single-pass native `join` (**strings ~2.2×**), and
 > fixed-arity `get`/`assoc` (**wordcount ~1.3×**) — all checksum-verified.
