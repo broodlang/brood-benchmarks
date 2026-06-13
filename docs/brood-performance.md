@@ -2,21 +2,55 @@
 
 Based on the whklat benchmark run (2026-06-13). Numbers are compute time (wall − boot) unless noted.
 
-The numbers below were taken on the brood build at commit `939aba3` (the JIT
-call-path arc). Two further fixes have since landed on `main` (commits `32bbda7`,
-`67c2ec2`) — a transient GC-correctness fix and a parallel-allocation fix; an
-old-vs-new A/B (same machine, load-independent `perf stat -e instructions` plus
-best-of-N wall) confirms the suite numbers are **unchanged within noise** on the
-new build, with `spawn` improved ~9%. The single benchmark-visible movement is a
-+2–4% instruction-count bump on the JIT'd integer loops (`loop`, `collatz`) from
-the call-path/lazy-slot refactor — below the table's reporting threshold. So the
-tables stand; the new work is described under "Recently addressed" and is mostly
-exercised by paths the micro-suite doesn't isolate (transient map builds, parallel
-allocation). A fresh clean-load full run is pending (the run machine was loaded).
+The absolute tables below were measured on commit `939aba3` (the JIT call-path
+arc). Several wins have since landed on `main` (`32bbda7`, `67c2ec2`, `84d3315`,
+`b99756d`). A load-independent A/B (`perf stat -e instructions`, current main vs
+`939aba3`) gives the **cumulative compute delta** — the run machine has stayed
+loaded, so this instruction-count A/B, not a fresh wall-clock run, is the reliable
+"where we are":
+
+| benchmark | Δ instr vs `939aba3` | driver |
+|-----------|----------------------|--------|
+| **bintree**   | **−13.6 %** | type-of keyword cache + JIT'd `make` (2-elem vector literal) |
+| **strings**   | **−4.6 %**  | type-of keyword cache |
+| **sort**      | **−4.2 %**  | type-of keyword cache |
+| **wordcount** | **−2.9 %**  | type-of keyword cache |
+| collatz / matmul / primes / mandelbrot / reduce / fib | ±0.8 % | neutral |
+| **loop**      | **+3.1 %**  | lazy-slot tag-check regression (call-path refactor; tracked) |
+
+Not in this compute survey: **`spawn` ~−9 %** (the interner/parallel-alloc fix, a
+wall-clock/concurrency effect) and the **transient map combinators ~1.4–1.6×**
+(`merge`/`update-vals`/… — paths the micro-suite doesn't isolate). The `loop`
++3.1 % is a real but small regression from the lazy-slot rework (a redundant
+per-iteration tag-check on slot args), more than offset by the wins above and
+tracked for recovery. The absolute tables predate these and so slightly *overstate*
+the current times (bintree most); a fresh clean-load full run is pending.
 
 ---
 
 ## Recently addressed
+
+**`type-of` keyword cache** (`main`, commit `84d3315`) — `type-of` returned
+`value::kw(tag.name())`, re-interning the tag-name string on every call. The seq
+predicates (`nil?`/`pair?`/`empty?`/… are all `(%eq (type-of x) :kw)`) hit it once
+per element, so on list-heavy code it was *the* interning cost — a backtrace +
+counter showed `"pair"` was ~98 % of all interns (one per cons, via iteration's
+`nil?`/`pair?`). Caching the interned keyword per `Tag` (a fixed set of 19) made
+`type-of` intern-free. **bintree −6.9 %, strings −4.9 %, sort −4.4 %, wordcount
+−3.2 %, collatz −3.1 %, matmul −1.9 %** (instructions); reduce/primes/fib neutral.
+
+**JIT'd 2-element vector literals → bintree's `make` runs native** (`main`, commit
+`b99756d`) — the JIT already allocated (`cons`) and read vectors (`VectorRef`), but
+a `[a b]` literal (`MakeVector(2)`) bailed, so `make`
+(`(if (= d 0) nil [(make …) (make …)])`) stayed interpreted despite being a clean
+two-call recursion the spill path handles. No CFG-model change was needed: the
+nil/vector branches merge through `roots[base]` (handle-capable), so only two small
+additions — a `brood_rt_make_vector2` bump-allocate helper (mirroring `cons`) and
+admitting `Const(Nil)` to the JIT subset. **bintree −6.6 %** more (−13.6 %
+cumulative with the type-of cache); every other benchmark dead-neutral; VM-vs-JIT
+differential corpus agrees, GC_VERIFY clean. First time the JIT emits a
+heap-allocating vector literal. (`make`'s sibling `check`, the walk, is still
+interpreted — 3 calls + VectorRef, and the link benefit gate measured it neutral.)
 
 **Parallel allocation: thread-local intern cache + sharded alloc counter**
 (`main`, commit `67c2ec2`) — allocation-heavy green processes barely scaled (8 ran
@@ -87,7 +121,14 @@ Cumulative over the call-path arc: **fib 218 → 66 ms (3.3×), pfib 2342 → 46
 
 ### 2. GC / allocation — bintree 282 ms
 
-Now the largest single integer benchmark. `bintree` is walk-bound, and native-to-native linking plus call-head elision already lowered the `run` driver loop and cut the walk (`check`) cost (348 → 282 ms); the residual is building/walking many short-lived nodes. A bump-pointer nursery for small short-lived objects would cut per-node allocation. (`check` itself stays on the VM — a `VectorRef`-walking two-call arm regresses if linked, so the benefit gate excludes it.)
+Still the largest single integer benchmark, but **−13.6 % since this table** (type-of
+cache + JIT'd `make`). `bintree` is build + walk: `make` now runs native (the JIT
+emits its `[a b]` node literal — commit `b99756d`); the **walk (`check`) is the
+remaining interpreted half** — it's a two-call recursion + `VectorRef` + a `nil?`
+call (3 calls), and the link benefit gate measured it neutral, so it stays on the
+VM. Beyond that, a bump-pointer nursery for the many short-lived nodes would cut
+per-node allocation. The residual after `make` went native is the `check` walk and
+the node allocation.
 
 ### 3. String / map residuals — strings 64 ms, wordcount 163 ms
 
