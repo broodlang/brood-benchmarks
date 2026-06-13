@@ -4,6 +4,14 @@ Machine: `whklat`, 12-core x86-64, Linux 7.0.0, 2026-06-13.
 Runtimes: Brood 0.1.0 · Elixir 1.20.0 / OTP 28 · Python 3.14.4 · Node 22.21.0 · Ruby 3.3.8 · .NET 10.0.109.
 Method: best of 5 runs per benchmark (startup best of 15); the concurrency benchmarks (spawn, pfib, http) take the best of 7, since they bounce more run-to-run. Compute = wall − startup, so boot cost is not charged against compute-heavy benchmarks.
 
+> These tables were measured on the brood build at commit `939aba3`. Two fixes have
+> since landed (`32bbda7` transient GC-correctness + map combinators; `67c2ec2`
+> parallel-allocation: thread-local intern cache + sharded alloc counter). An
+> old-vs-new A/B (same machine; load-independent `perf stat -e instructions` + best-of-N
+> wall) confirms these numbers hold within noise on the new build — `spawn` improved
+> ~9 %, and a +2–4 % instruction-count bump on `loop`/`collatz` from the call-path
+> refactor is below the rounding here. A fresh clean-load full run is pending.
+
 ---
 
 ## Boot time
@@ -105,7 +113,7 @@ Wall time minus boot cost. `< 1ms` means the benchmark finished in less time tha
 |-------|--------|--------|------|------|------|
 | 1281ms | 83ms | 1101ms | 109ms | 5095ms | 22ms |
 
-Brood uses green processes + message passing. Python uses asyncio coroutines. Node uses Promises. Ruby uses OS threads. .NET uses thread-pool tasks.
+Brood uses green processes + message passing. Python uses asyncio coroutines. Node uses Promises. Ruby uses OS threads. .NET uses thread-pool tasks. (Spawning 20 k processes interns heavily; the thread-local intern cache in `67c2ec2` cut this ~9 % — and lifted the near-serial ceiling on allocation-heavy parallel work generally, ~6× → ~2× on an 8-process map-build microbench.)
 
 ### pfib 100 × fib(28) in parallel — CPU parallelism
 

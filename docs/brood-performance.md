@@ -2,9 +2,45 @@
 
 Based on the whklat benchmark run (2026-06-13). Numbers are compute time (wall − boot) unless noted.
 
+The numbers below were taken on the brood build at commit `939aba3` (the JIT
+call-path arc). Two further fixes have since landed on `main` (commits `32bbda7`,
+`67c2ec2`) — a transient GC-correctness fix and a parallel-allocation fix; an
+old-vs-new A/B (same machine, load-independent `perf stat -e instructions` plus
+best-of-N wall) confirms the suite numbers are **unchanged within noise** on the
+new build, with `spawn` improved ~9%. The single benchmark-visible movement is a
++2–4% instruction-count bump on the JIT'd integer loops (`loop`, `collatz`) from
+the call-path/lazy-slot refactor — below the table's reporting threshold. So the
+tables stand; the new work is described under "Recently addressed" and is mostly
+exercised by paths the micro-suite doesn't isolate (transient map builds, parallel
+allocation). A fresh clean-load full run is pending (the run machine was loaded).
+
 ---
 
 ## Recently addressed
+
+**Parallel allocation: thread-local intern cache + sharded alloc counter**
+(`main`, commit `67c2ec2`) — allocation-heavy green processes barely scaled (8 ran
+~6× one, near-serial). Profiling the fan-out showed the bottleneck was **not** the
+heap allocator (per-process heaps bump-allocate lock-free) but the **global
+symbol-interner mutex**, taken on every `intern` including hits (call heads,
+keywords, fields re-interned constantly): ~10 % `lock_contended` plus the futex
+waits behind it. A **thread-local intern cache** makes the hot path lock-free
+(ids are append-only + globally consistent, so a cached id is valid forever);
+sharding the global alloc byte-counter (a `fetch_add` + a `fetch_max` CAS loop per
+alloc) across 64 cache-padded counters removes the secondary point.
+**8 alloc-heavy processes 10.8 s → 3.4 s (effective parallelism ~1.3× → ~4×);
+`spawn` ~9 % faster.** This is the runtime ceiling `brood-life` flagged (its
+SIM/RENDERER split was a frame-time no-op because both are allocation-bound).
+
+**Transient GC fix + transient-built map combinators** (`main`, commit `32bbda7`)
+— a live `transient` tenured to the old gen, then mutated, created an OLD→YOUNG
+edge a minor flip skipped, dangling its root (silent corruption in release). Fixed
+with a `remembered_transients` write barrier. With the surface now GC-safe across
+safepoints, the prelude's multi-assoc combinators (`merge`, `merge-with`,
+`select-keys`, `update-vals`, `update-keys`) build through a transient instead of
+folding immutable `assoc` — **merge ~1.6×, update-vals ~1.4×** on large inputs.
+Not isolated by the micro-suite (`wordcount` uses `reduce`+`assoc`, not these),
+but it roughly halves `brood-life`'s `recolor` map-build cost.
 
 **Data-structure fixes** (in `main`; see `perf-investigation.md` for the root-cause analysis) — all preserve checksums and tree-walker parity:
 

@@ -100,3 +100,37 @@ The honest framing for the maintainer: the JIT exists and works for a narrow sha
 4. **JIT program (strategic, after 1-3).** Order: (a) extend the subset with `VectorRef` (done in Fix 1), division, then `Global`/`GlobalIc`; (b) back-edge tiering for self-tail loops; (c) the hard one — heap-rooted-slot spill for two-call recursion so fib/pfib/spawn can lower, building out `brood_rt_call_slow`. **Measure each** with `BROOD_JIT_TRACE` (look for a real native code pointer + `jit_native_run` > 0) and the per-benchmark wall, not just aggregate.
 
 Measurement hygiene throughout: best-of-N (N≥3, ideally 5), subtract ~28-30ms startup, and confirm checksums/outputs are unchanged before trusting any timing.
+---
+
+## 6. Follow-up findings (2026-06-13, post-JIT-arc)
+
+Two runtime fixes landed after the JIT call-path arc (brood `32bbda7`, `67c2ec2`),
+both root-caused by profiling rather than the initial hypothesis:
+
+- **Parallel allocation was serialized by the *symbol-interner mutex*, not the
+  allocator.** A microbench of N allocation-heavy green processes (each building a
+  ~200-entry map in a loop) scaled terribly — 8 procs ≈ 6× one. The natural guess
+  (and the brood roadmap's) was a global lock on the allocation/collection path.
+  Wrong: per-process heaps bump-allocate lock-free. `perf record` on the 8-proc run
+  showed ~45 % kernel/futex, **10 % `Mutex::lock_contended`, 9.5 % `value::intern`**
+  — every `intern` took the global `IDS` mutex *even on a hit*, and hot code
+  re-interns the same names constantly. Fix: a thread-local name→id cache (hot path
+  lock-free; the global mutex only mints new ids). Sharding the global alloc
+  byte-counter (`fetch_add` + a `fetch_max` CAS loop per alloc) across 64
+  cache-padded counters removed the *secondary* point. **8 procs 10.8 s → 3.4 s
+  (~1.3× → ~4× parallelism); `spawn` ~9 %.** Lesson: confirm the contended resource
+  with `perf` before sharding — the first sharding attempt (allocator only) moved
+  nothing because the interner mutex dominated.
+
+- **Transients corrupted across a *tenuring* collection.** `assoc!`-building a
+  transient whose values allocate panicked nondeterministically. Cause: once the
+  build crosses `min_tenure` the transient cell tenures to the old gen; a later
+  `assoc!` points its root at a young node (an OLD→YOUNG edge), and a minor *flip*
+  skips the old gen, dangling the root. Fixed with a `remembered_transients` write
+  barrier; the prelude's multi-assoc combinators (`merge`/`update-vals`/…) now build
+  through a transient (~1.4–1.6×).
+
+Regression check on the merge: an old-vs-new A/B (load-independent
+`perf stat -e instructions` + best-of-N wall) found the suite neutral within noise
+— `spawn` improved, a +2–4 % instruction bump on the JIT'd integer loops
+(`loop`/`collatz`) from the call-path/lazy-slot refactor, nothing else moved.
