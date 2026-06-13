@@ -11,11 +11,13 @@ interpreters (Python, Ruby) and JITs (Node/V8, Elixir/BeamAsm, .NET/RyuJIT).
 > arithmetic/comparison ops run inline as native `i64` operations) and a **tier-1
 > template JIT**. With **back-edge tiering** the JIT fires on self-tail integer
 > loops (a tight `loop` runs native, **5.4×**; a bare 200M-iter loop 8 s → 0.55 s),
-> and **native-to-native call linking** now puts non-tail recursion on the native
-> path too — a JIT'd caller invokes a JIT'd callee directly instead of round-tripping
-> through the VM (**fib 1.6×, pfib 1.8×, bintree 1.2×**). `VectorRef` codegen handles
-> matmul's indexed loop (**153 → 102 ms**) and fixing two codegen bails did the same
-> for `collatz` (**289 → 63 ms**).
+> and **native-to-native call linking** plus a **call-site inline cache + call-head
+> elision** now put non-tail recursion firmly on the native path — a JIT'd caller
+> invokes a JIT'd callee directly, the callee's compiled arm is cached per call-site,
+> and free-global calls no longer stage a head value at all (**fib 3.3×, pfib ~5×
+> and now ahead of Ruby, bintree 1.2×**). `VectorRef` codegen handles matmul's
+> indexed loop (**153 → 104 ms**) and fixing two codegen bails did the same for
+> `collatz` (**289 → 63 ms**).
 > A **process-count-aware GC floor** keeps parallel fan-out's peak memory low
 > (`pfib` peaks ~15 MB). Earlier **data-structure fast paths** moved more rows:
 > inlining `nth`/`vector-ref` to a slab read, a primitive-reducer fold
@@ -33,17 +35,19 @@ interpreters (Python, Ruby) and JITs (Node/V8, Elixir/BeamAsm, .NET/RyuJIT).
 
 **The short version:** Brood's strengths are **memory** (~14 MB base, holding
 14–38 MB across *every* workload — only Python is as light) and **fast-enough
-startup** (~27 ms, ahead of Ruby and ~9× ahead of the BEAM). On **concurrent I/O**
+startup** (~28 ms, ahead of Ruby and ~9× ahead of the BEAM). On **concurrent I/O**
 (`http`) it lands a respectable 3rd of six (~1.4× behind Node, just behind .NET),
-and on **parallel CPU** (`pfib`) it holds the **lightest memory in the field**
-(~15 MB). Its main weakness is **raw single-threaded compute** — the young bytecode
-VM trails the JITs (.NET and Node lead) and the interpreters (Ruby, Python). Recent
-work closed several gaps: the JIT now compiles self-tail loops (`loop` 5.4×,
-`collatz`), matmul's indexed loop, and — via native-to-native call linking —
-**non-tail recursion** (`fib` 1.6×, `pfib` 1.8×, `bintree` 1.2×), and
-data-structure fast paths fixed `reduce`, `strings`, and `wordcount`. The
-remaining frontier is **float** support for `mandelbrot` (the integer-only JIT
-can't yet tier it) and **allocation** (`bintree`'s short-lived nodes). See
+and on **parallel CPU** (`pfib`) it now finishes **ahead of Ruby** while holding the
+**lightest memory in the field** (~17 MB). Its main weakness is **raw single-threaded
+compute** — the young bytecode VM trails the JITs (.NET and Node lead) and the
+interpreters (Ruby, Python). Recent work closed several gaps: the JIT now compiles
+self-tail loops (`loop` 5.4×, `collatz`), matmul's indexed loop, and — via
+native-to-native call linking, a call-site inline cache and call-head elision —
+**non-tail recursion** (`fib` now matches Elixir/Python at 3.3×, `pfib` ~5× and past
+Ruby, `bintree` 1.2×), and data-structure fast paths fixed `reduce`, `strings`, and
+`wordcount`. The remaining frontier is **float** support for `mandelbrot` (the
+integer-only JIT can't yet tier it) and **allocation** (`bintree`'s short-lived
+nodes). See
 [BENCHMARKS.md](BENCHMARKS.md)
 for the honest, full picture, a [positioning chart](results/positioning.svg), and
 the code side by side.
@@ -154,5 +158,5 @@ peak RSS, checksum), and `positioning.svg` (the compute-vs-memory map).
 Numbers in the docs were measured on `whklat`: a 12-core x86-64 Linux 7.0.0
 machine · Brood 0.1.0 (bytecode VM + tier-1 JIT, primitive inlining,
 process-count-aware GC floor) · Elixir 1.20.0 / OTP 28 (BeamAsm JIT) · Python
-3.14.4 · Node 22.21.0 (V8) · Ruby 3.3.8 · .NET 10.0.108 (RyuJIT). Best of 3 runs
-each; the concurrency benchmarks (`spawn`/`pfib`/`http`) take the best of 7.
+3.14.4 · Node 22.21.0 (V8) · Ruby 3.3.8 · .NET 10.0.109 (RyuJIT). Best of 5 runs
+each (startup best of 15); the concurrency benchmarks (`spawn`/`pfib`/`http`) take the best of 7.
