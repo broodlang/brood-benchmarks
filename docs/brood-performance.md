@@ -1,6 +1,6 @@
 # Brood performance — findings and improvement areas
 
-Based on the whklat benchmark run (2026-06-12). Numbers are compute time (wall − boot) unless noted.
+Based on the whklat benchmark run (2026-06-13). Numbers are compute time (wall − boot) unless noted.
 
 ---
 
@@ -21,6 +21,14 @@ Based on the whklat benchmark run (2026-06-12). Numbers are compute time (wall �
 
 **Native-to-native call linking** (in `main`) — closes the non-tail-call gap that had been the largest remaining frontier. A JIT'd arm's non-tail Brood→Brood call used to round-trip through the full VM dispatch chain (`dispatch → vm_apply → vm_run_bc → jit_tier`) even when the callee already had native code. Now `jit_dispatch_call` links directly to a native callee — sets up its frame and calls its entry, skipping the chain. Pieces: a **handle spill** so two-call recursion (`fib`'s `(+ (fib …) (fib …))`) can lower at all; the **direct link** with a native-recursion depth cap that drains overflow onto the VM (so deep non-tail recursion stays at VM parity instead of aborting); and a **tiering back-off** when the compile queue saturates (without it, 20 000 short-lived `spawn` processes each tiering their own arm copy thrashed the queue with ~36 M redundant re-validations — found with `perf`). Result (vs the prior run): **fib 218 → 136 ms (1.6×), pfib 2246 → 1259 ms (1.8×), bintree 345 → 295 ms (1.2×), loop 26 → 19 ms (1.4×), collatz 77 → 63 ms (1.2×)**; `spawn`/`http` neutral (verified same-machine: no regression); everything else within noise. All checksums + tree-walker parity preserved.
 
+**Per-call cost: cache + eliminate the call target** (in `main`) — profiling the linked path showed the native fib arithmetic was <1 %; the rest was per-call dispatch, dominated by re-resolving the callee every call. Three cuts:
+
+- **Call-site inline cache.** `jit_dispatch_call` resolves the callee's compiled arm through the VM's existing per-site `vm_call_ic` (epoch-stamped) instead of a `compiled_arm_for` / `vm_cache_arm` lookup every call (~23 % of pfib). **fib/pfib −20 %.**
+- **In-place frame setup + JIT state on the heap.** The staged args become the callee frame in place (no temp copy, no re-push); the per-call JIT state (env / native-depth / force-VM / pending-error) moved from thread-locals to `Heap` fields (plain loads, ~4×/call) — also fixing a `force_vm`-loss bug under worker migration. **fib −12 %, pfib −15 %.**
+- **Call-head elision** (the deep simplification). A free-global call no longer emits a head `Global` to stage the callee — the `Inst::Call` carries `head`+`site` and owns resolution via the call IC, so the per-call call-head `env_get` is gone for **both** the VM and the JIT, and the bytecode is one inst shorter per call. **fib −30 %, pfib −38 %, spawn −11 %, bintree −10 %, wordcount −6 %**; loop/matmul neutral.
+
+Cumulative over the call-path arc: **fib 218 → 66 ms (3.3×), pfib 2342 → 460 ms (~5×, now ahead of Ruby), spawn 1447 → 1281 ms.** `fib` now matches Elixir/Python; `pfib` beats Ruby.
+
 ---
 
 ## Where Brood is already good
@@ -29,7 +37,7 @@ Based on the whklat benchmark run (2026-06-12). Numbers are compute time (wall �
 
 **I/O concurrency (http, 1.4× Node)** — 500 in-flight GETs complete in ~221 ms (wall), 3rd of six behind Node (158 ms) and .NET (184 ms), well ahead of Python/Ruby/Elixir.
 
-**Tight integer loops (now JIT'd)** — with back-edge tiering, `loop` runs at ~24 ms (native), close to the interpreters; the young VM finally has a native path for the most common hot-loop shape.
+**Tight integer loops (now JIT'd)** — with back-edge tiering, `loop` runs at ~18 ms (native), faster than every interpreter in the field; the young VM finally has a native path for the most common hot-loop shape.
 
 **Memory** — 14–38 MB across the compute and I/O benchmarks; only Python is as light.
 
@@ -41,11 +49,11 @@ Based on the whklat benchmark run (2026-06-12). Numbers are compute time (wall �
 
 `mandelbrot`'s `esc` is a self-tail loop, but it bails immediately: it's floating-point and the JIT subset is integer-only (it bails on the first float constant). Float support needs **type-specialized tiering** — design in `docs/jit-float.md` (brood repo). This is now the only integer-vs-float gap: `collatz`, the other self-tail loop that wasn't tiering, was an all-integer arm blocked by two codegen bugs (now fixed — see "Recently addressed").
 
-### 2. GC / allocation — bintree 295 ms
+### 2. GC / allocation — bintree 282 ms
 
-Now the largest single integer benchmark. `bintree` is walk-bound, and native-to-native linking already lowered the `run` driver loop and cut the walk (`check`) cost (345 → 295 ms); the residual is building/walking many short-lived nodes. A bump-pointer nursery for small short-lived objects would cut per-node allocation. (`check` itself stays on the VM — a `VectorRef`-walking two-call arm regresses if linked, so the benefit gate excludes it.)
+Now the largest single integer benchmark. `bintree` is walk-bound, and native-to-native linking plus call-head elision already lowered the `run` driver loop and cut the walk (`check`) cost (348 → 282 ms); the residual is building/walking many short-lived nodes. A bump-pointer nursery for small short-lived objects would cut per-node allocation. (`check` itself stays on the VM — a `VectorRef`-walking two-call arm regresses if linked, so the benefit gate excludes it.)
 
-### 3. String / map residuals — strings 62 ms, wordcount 157 ms
+### 3. String / map residuals — strings 64 ms, wordcount 163 ms
 
 `join`/`get`/`assoc` are addressed; the residuals are `map number->string` (~48 % of `strings`) and the CHAMP map rebuild per `assoc` (`wordcount`). Both measured as low-value / idiom-changing — deprioritised.
 
@@ -57,14 +65,14 @@ Compute time (Brood); absolute ms is the stable measure (the "× vs fastest" mul
 
 | area | benchmark | Brood compute | status |
 |------|-----------|---------------|--------|
-| tight integer loop | loop | 26 ms | **addressed** — back-edge tiering; runs native |
-| integer self-tail loop | collatz | 77 ms | **addressed** — fixed two codegen bails (289→77, ~3.8×) |
-| array indexing | matmul | 107 ms | **addressed** — `VectorRef` codegen + tiering (153→107) |
-| higher-order fold | reduce | 22 ms | **addressed** — primitive-reducer fast path |
-| string build | strings | 63 ms | **addressed** — native `%string-join` |
-| immutable map churn | wordcount | 157 ms | **addressed** — fixed-arity `get`/`assoc` |
-| non-tail call dispatch | fib, pfib | 136 ms / 1.26 s | **addressed** — native-to-native call linking (fib 1.6×, pfib 1.8×) |
-| allocation / walk | bintree | 295 ms | **partly addressed** — linking lowered the driver loop (345→295); residual is node alloc |
+| tight integer loop | loop | 18 ms | **addressed** — back-edge tiering; runs native |
+| integer self-tail loop | collatz | 63 ms | **addressed** — fixed two codegen bails (289→77, ~3.8×); linking → 63 |
+| array indexing | matmul | 104 ms | **addressed** — `VectorRef` codegen + tiering (153→104) |
+| higher-order fold | reduce | 20 ms | **addressed** — primitive-reducer fast path |
+| string build | strings | 64 ms | **addressed** — native `%string-join` |
+| immutable map churn | wordcount | 163 ms | **addressed** — fixed-arity `get`/`assoc` |
+| non-tail call dispatch | fib, pfib | 66 ms / 460 ms | **addressed** — linking + call-site IC + call-head elision (fib 3.3×, pfib ~5×; pfib now ahead of Ruby) |
+| allocation / walk | bintree | 282 ms | **partly addressed** — linking + elision lowered the driver/walk (348→282); residual is node alloc |
 | JIT subset gap (float) | mandelbrot | 75 ms | open — integer-only subset; needs float specialization (docs/jit-float.md) |
 
 What is **not** the bottleneck (measured): the scheduler (`pfib` spreads across cores) and the VM call-site IC (already caches the resolved `(arm, env)` per site). With non-tail dispatch addressed, the main open frontier is **float JIT** (mandelbrot) and **allocation** (bintree).
