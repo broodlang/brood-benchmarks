@@ -1,4 +1,4 @@
-const N = parseInt(process.env.BENCH_N || "40", 10);   // repetitions
+const N = parseInt(process.env.BENCH_N || "400", 10);   // repetitions
 const DEPTH = 12;
 
 function make(d) {

@@ -1,4 +1,4 @@
-(def n (let (e (getenv "BENCH_N")) (if e (string->number e) 128)))
+(def n (let (e (getenv "BENCH_N")) (if e (string->number e) 768)))
 (def maxi 100)
 
 ;; carry xx=x*x and yy=y*y so each is computed once per iteration, not ~5×

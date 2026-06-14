@@ -5,6 +5,6 @@ defmodule B do
   def check({l, r}), do: 1 + check(l) + check(r)
 end
 
-n = String.to_integer(System.get_env("BENCH_N") || "40")
+n = String.to_integer(System.get_env("BENCH_N") || "400")
 depth = 12
 IO.puts(Enum.reduce(1..n, 0, fn _, acc -> acc + B.check(B.make(depth)) end))

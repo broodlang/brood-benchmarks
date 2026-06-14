@@ -4,5 +4,5 @@ defmodule B do
   def steps(n, s), do: steps(3 * n + 1, s + 1)
 end
 
-n = String.to_integer(System.get_env("BENCH_N") || "30000")
+n = String.to_integer(System.get_env("BENCH_N") || "500000")
 IO.puts(Enum.reduce(1..(n - 1), 0, fn start, b -> max(b, B.steps(start, 0)) end))

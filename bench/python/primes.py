@@ -1,5 +1,5 @@
 import os, math
-N = int(os.environ.get("BENCH_N", "20000"))
+N = int(os.environ.get("BENCH_N", "300000"))
 
 def is_prime(n):
     if n < 2:

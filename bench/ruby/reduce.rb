@@ -1,4 +1,5 @@
-n = (ENV["BENCH_N"] || "1000000").to_i
+n = (ENV["BENCH_N"] || "10000000").to_i
 
-# idiomatic fast fold for addition over a range
-puts (0...n).sum
+# higher-order fold: + applied per element via a block. NOT (0...n).sum, which
+# Ruby evaluates with the Gauss closed form (O(1)) and so does no folding work.
+puts (0...n).reduce(0) { |a, b| a + b }

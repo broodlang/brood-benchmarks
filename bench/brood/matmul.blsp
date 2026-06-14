@@ -1,4 +1,4 @@
-(def n (let (e (getenv "BENCH_N")) (if e (string->number e) 80)))
+(def n (let (e (getenv "BENCH_N")) (if e (string->number e) 220)))
 (def md 1000000007)
 
 ;; vectors of vectors — O(1) indexing via nth

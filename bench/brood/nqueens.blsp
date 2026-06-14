@@ -1,0 +1,25 @@
+(def n (let (e (getenv "BENCH_N")) (if e (string->number e) 10)))
+
+;; Backtracking N-queens, counting solutions. `placed` is the columns chosen for
+;; the rows above (nearest row first); `dist` is the row distance to that nearest
+;; row. A queen at column c is safe if no placed queen shares its column or a
+;; diagonal (column delta == row delta). Checksum = number of full solutions.
+(defn safe? (c placed dist)
+  (if (empty? placed)
+    true
+    (let (p (first placed) d (- p c))
+      (if (or (= p c) (= d dist) (= d (- 0 dist)))
+        false
+        (safe? c (rest placed) (+ dist 1))))))
+
+(defn solve (row placed)
+  (if (= row n)
+    1
+    (reduce (fn (acc c)
+              (if (safe? c placed 1)
+                (+ acc (solve (+ row 1) (cons c placed)))
+                acc))
+            0
+            (range n))))
+
+(println (solve 0 nil))

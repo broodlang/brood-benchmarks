@@ -11,7 +11,7 @@ defmodule B do
   end
 end
 
-n = String.to_integer(System.get_env("BENCH_N") || "128")
+n = String.to_integer(System.get_env("BENCH_N") || "768")
 maxi = 100
 
 total =

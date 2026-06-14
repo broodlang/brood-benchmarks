@@ -1,6 +1,6 @@
 import os, sys
 sys.setrecursionlimit(100000)
-N = int(os.environ.get("BENCH_N", "40"))   # repetitions
+N = int(os.environ.get("BENCH_N", "400"))   # repetitions
 DEPTH = 12
 
 def make(d):

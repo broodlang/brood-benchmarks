@@ -1,6 +1,6 @@
 # benchmark — Brood vs Elixir vs Python vs Node vs Ruby vs .NET
 
-A cross-language micro-benchmark suite: **15 small programs, each implemented
+A cross-language micro-benchmark suite: **17 small programs, each implemented
 six times** (once per language) and run under one identical harness, to see
 where the Brood runtime is faster or slower than the alternatives — on
 **startup**, **memory**, **raw performance**, and **concurrency**. The field spans
@@ -62,12 +62,12 @@ nodes). See
 for the honest, full picture, a [positioning chart](results/positioning.svg), and
 the code side by side.
 
-## The benchmarks (15)
+## The benchmarks (17)
 
 | name | stresses |
 |------|----------|
 | `startup`    | interpreter/VM startup + base memory |
-| `fib`        | naive recursion / function-call overhead (`fib(30)`) |
+| `fib`        | naive recursion / function-call overhead (`fib(37)`) |
 | `loop`       | raw iteration — tail recursion vs a `for` loop |
 | `reduce`     | higher-order fold over a materialised range |
 | `primes`     | integer arithmetic — count primes by trial division |
@@ -78,9 +78,11 @@ the code side by side.
 | `wordcount`  | hash-map build — **immutable** (Brood/Elixir) vs **mutable** (Python/Node/Ruby/.NET) |
 | `bintree`    | allocation / GC pressure — build & walk many binary trees |
 | `sort`       | sort a list of ints + an order-sensitive checksum walk |
+| `nqueens`    | backtracking recursion — count N-queens solutions (`N=10`) |
+| `pipeline`   | a `filter → map → reduce` composition over a range |
 | `spawn`      | lightweight concurrent units + result collection |
 | `pfib`       | parallel CPU — 100 `fib`s computed at once across cores |
-| `http`       | concurrent I/O — 500 in-flight HTTP GETs to a local server |
+| `http`       | concurrent I/O — N in-flight HTTP GETs to a local server |
 
 `spawn`, `pfib`, and `http` are each implemented in all six languages, using that
 language's idiomatic concurrency. For `spawn` (20k lightweight units): green
@@ -101,7 +103,9 @@ For every (benchmark × language) pair the harness records:
   of N runs (least-noisy). Measured with `time.perf_counter()` around the child.
 - **Peak RSS** — maximum resident memory, from `/usr/bin/time -v`.
 - **Checksum** — each program prints one integer. The harness asserts all six
-  languages produce the **same** checksum, so we know they did equivalent work.
+  languages produce the **same** checksum, so we know they did equivalent work:
+  a mismatch flags the offending row in the report and fails the run (non-zero
+  exit), rather than silently publishing incomparable timings.
 - **`compute`** (in `results/report.md`) — wall − that language's own `startup`,
   so a slow-booting runtime's real compute speed is visible (e.g. the BEAM, whose
   warm compute beats Ruby/Python even though its boot buries it in the wall time).
@@ -124,11 +128,26 @@ Because wall time includes startup, the dedicated `startup` benchmark (a bare
   naturally write it in that language: tail recursion + immutable maps in
   Brood/Elixir, `for` loops + mutable dicts/hashes in Python/Node/Ruby/.NET.
   That's the point — we're comparing the languages as used, not forcing one style.
+  - One consequence worth naming: in `primes` the other five hoist the
+    trial-division bound out of the inner loop with an integer/float `sqrt`
+    (`isqrt` / `Integer.sqrt` / `Math.sqrt`), while Brood tests `(* d d) > m`
+    every step — a mixed int/float comparison coerces, so a multiply is the
+    cheaper Brood idiom. Same primes, same checksum, but Brood does marginally
+    *more* work per inner step; the asymmetry, if anything, counts against Brood.
 - Float results (`mandelbrot`) rely on IEEE-754 `f64` behaving identically
   across all six runtimes — confirmed by matching checksums.
-- Workload sizes are picked so the *slowest* runtime (the Brood bytecode VM)
-  finishes in a few seconds; the compiled/JIT runtimes finish in milliseconds.
-  That spread is the result, not a problem.
+- Workload sizes are picked so even the *fastest* runtime (.NET / Node) spends
+  at least ~100 ms of **compute** — below that, `wall − startup` is dominated by
+  startup-measurement noise and the ratios are meaningless — while the *slowest*
+  (the Brood VM) still finishes in a couple of seconds. That spread (a couple of
+  seconds vs ~100 ms) is the result, not a problem.
+  - The baked-in sizes also keep every checksum within exact-integer range. A
+    few implementations are only bit-exact *at these sizes*: Node's `collatz`
+    halves with float `/2` and its accumulators are `f64` (exact below `2^53`),
+    and the LCG / `reduce` / `loop` sums assume the documented N. Pushing
+    `BENCH_N` far above the defaults could carry a value past `2^53` (Node) or
+    overflow a `.NET` `int`, silently diverging a checksum — scale N with that
+    in mind (the checksum gate above will catch it if it happens).
 - The `http` benchmark hits a small local server the harness starts on a free
   loopback port (a fixed 20 ms sleep per request, so it measures I/O-concurrency,
   not the network); the harness verifies the server is its own — a GET returning

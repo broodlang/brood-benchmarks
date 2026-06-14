@@ -4,7 +4,7 @@
 # we raise max_sessions to N to let them all be in flight at once. Checksum = N.
 :inets.start()
 
-n = String.to_integer(System.get_env("BENCH_N") || "500")
+n = String.to_integer(System.get_env("BENCH_N") || "1000")
 :httpc.set_options(max_sessions: n, max_keep_alive_length: 0, max_pipeline_length: 0)
 
 port = System.get_env("BENCH_HTTP_PORT") || "8089"
