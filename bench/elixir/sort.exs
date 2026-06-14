@@ -1,5 +1,5 @@
 import Bitwise
-n = String.to_integer(System.get_env("BENCH_N") || "750000")
+n = String.to_integer(System.get_env("BENCH_N") || "375000")
 mod = 1_000_000_007
 
 {_, data} =

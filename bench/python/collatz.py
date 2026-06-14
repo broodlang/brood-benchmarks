@@ -1,5 +1,5 @@
 import os
-N = int(os.environ.get("BENCH_N", "500000"))
+N = int(os.environ.get("BENCH_N", "250000"))
 
 best = 0
 for start in range(1, N):

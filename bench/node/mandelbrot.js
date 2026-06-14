@@ -1,4 +1,4 @@
-const N = parseInt(process.env.BENCH_N || "768", 10);
+const N = parseInt(process.env.BENCH_N || "540", 10);
 const MAXITER = 100;
 
 let total = 0;

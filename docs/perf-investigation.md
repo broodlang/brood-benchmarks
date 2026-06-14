@@ -1,5 +1,11 @@
 # Brood Runtime Performance Investigation
 
+> **Rebased 2026-06-14.** Workload sizes were raised, runs are now CPU-pinned +
+> settled (`taskset`), `reduce` became a real higher-order fold, and
+> `nqueens`/`pipeline` were added. Absolute ms below are at the **old sizes**; the
+> root-cause analysis and relative leverage still apply. Current numbers:
+> [`../results/report.md`](../results/report.md), [`../BENCHMARKS.md`](../BENCHMARKS.md).
+
 Audited against `/home/whk/src/broodlang/brood` (runtime) and `brood-benchmarks` (`results/report.whklat.md`). All numbers below are measured on the installed JIT-enabled binary (`BROOD_VM=1 brood`), best-of-N wall, ~28-30ms startup subtracted where noted. Code citations verified against current source.
 
 ## 1. Executive Summary — highest leverage first

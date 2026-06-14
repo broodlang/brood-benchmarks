@@ -1,4 +1,4 @@
-n = String.to_integer(System.get_env("BENCH_N") || "220")
+n = String.to_integer(System.get_env("BENCH_N") || "175")
 mod = 1_000_000_007
 
 # A as rows; B stored transposed (bt[j] is column j) so a cell is a dot product

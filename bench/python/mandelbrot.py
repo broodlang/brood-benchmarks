@@ -1,5 +1,5 @@
 import os
-N = int(os.environ.get("BENCH_N", "768"))
+N = int(os.environ.get("BENCH_N", "540"))
 MAXITER = 100
 
 total = 0

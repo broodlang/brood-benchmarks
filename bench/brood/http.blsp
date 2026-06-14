@@ -8,7 +8,7 @@
 ;; `brood` binary with no load-path setup.
 (require 'net/http)
 
-(def n (let (e (getenv "BENCH_N")) (if e (string->number e) 1000)))
+(def n (let (e (getenv "BENCH_N")) (if e (string->number e) 500)))
 (def port (let (e (getenv "BENCH_HTTP_PORT")) (if e e "8089")))
 (def url (str "http://127.0.0.1:" port "/"))
 

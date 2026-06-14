@@ -1,4 +1,4 @@
-n = (ENV["BENCH_N"] || "400").to_i   # repetitions
+n = (ENV["BENCH_N"] || "200").to_i   # repetitions
 depth = 12
 
 def make(d)

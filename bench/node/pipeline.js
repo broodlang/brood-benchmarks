@@ -1,4 +1,4 @@
-const N = parseInt(process.env.BENCH_N || "200000", 10);
+const N = parseInt(process.env.BENCH_N || "100000", 10);
 
 // map / filter / reduce pipeline: square the multiples of 3 or 5, sum the squares.
 const total = Array.from({ length: N }, (_, i) => i)

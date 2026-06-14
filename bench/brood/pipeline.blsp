@@ -1,4 +1,4 @@
-(def n (let (e (getenv "BENCH_N")) (if e (string->number e) 200000)))
+(def n (let (e (getenv "BENCH_N")) (if e (string->number e) 100000)))
 
 ;; map / filter / reduce pipeline over a range: keep the multiples of 3 or 5,
 ;; square them, sum the squares. Exercises the sequence library and the ->>

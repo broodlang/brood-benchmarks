@@ -4,7 +4,7 @@
 import asyncio
 import os
 
-N = int(os.environ.get("BENCH_N", "20000"))
+N = int(os.environ.get("BENCH_N", "10000"))
 
 
 def fib(n):

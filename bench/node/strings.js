@@ -1,4 +1,4 @@
-const N = parseInt(process.env.BENCH_N || "1000000", 10);
+const N = parseInt(process.env.BENCH_N || "500000", 10);
 
 const parts = [];
 for (let i = 0; i < N; i++) parts.push(String(i));

@@ -1,4 +1,4 @@
-n = (ENV["BENCH_N"] || "500000").to_i
+n = (ENV["BENCH_N"] || "250000").to_i
 
 best = 0
 (1...n).each do |start|

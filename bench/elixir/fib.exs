@@ -3,5 +3,5 @@ defmodule B do
   def fib(n), do: fib(n - 1) + fib(n - 2)
 end
 
-n = String.to_integer(System.get_env("BENCH_N") || "37")
+n = String.to_integer(System.get_env("BENCH_N") || "35")
 IO.puts(B.fib(n))
