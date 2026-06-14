@@ -1,5 +1,5 @@
 import Bitwise
-n = String.to_integer(System.get_env("BENCH_N") || "100000")
+n = String.to_integer(System.get_env("BENCH_N") || "1500000")
 k = 1000
 
 {_, counts} =

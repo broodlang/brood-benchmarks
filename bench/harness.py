@@ -104,22 +104,28 @@ def collect_meta(langs):
     }
 
 # name -> (default N, [langs]). "what" is the dimension each one stresses.
+# Sizes are picked so even the fastest runtime (.NET / Node) spends ~100ms+ of
+# *compute* — below that, wall − startup is just startup-measurement noise — while
+# the slowest (the Brood VM) still finishes in a couple of seconds. `reduce` is
+# the freshest tune (it became a real higher-order fold; re-measure to settle N).
 BENCHES = [
-    ("startup",    0,      "all", "interpreter/VM startup + base memory"),
-    ("fib",        30,     "all", "naive recursion / function-call overhead"),
-    ("loop",       3000000,"all", "raw iteration (tail recursion vs for-loop)"),
-    ("reduce",     1000000,"all", "higher-order fold over a range"),
-    ("primes",     20000,  "all", "integer arithmetic (trial division)"),
-    ("collatz",    30000,  "all", "integer arithmetic + tight inner loop"),
-    ("mandelbrot", 128,    "all", "floating-point math (escape iterations)"),
-    ("matmul",     80,     "all", "nested loops + indexing (integer NxN)"),
-    ("strings",    50000,  "all", "string building (join) + length"),
-    ("wordcount",  100000, "all", "hash-map build (immutable vs mutable)"),
-    ("bintree",    40,     "all", "allocation / GC pressure (build+walk trees)"),
-    ("sort",       50000,  "all", "sort a list of ints + checksum walk"),
-    ("spawn",      20000,  "all", "lightweight concurrent units + result collection"),
-    ("pfib",       28,     "all", "parallel fib — 100 computed at once across cores"),
-    ("http",       500,    "all", "concurrent HTTP — N in-flight GETs to a local server"),
+    ("startup",    0,        "all", "interpreter/VM startup + base memory"),
+    ("fib",        37,       "all", "naive recursion / function-call overhead"),
+    ("loop",       60000000, "all", "raw iteration (tail recursion vs for-loop)"),
+    ("reduce",     10000000, "all", "higher-order fold over a range"),
+    ("primes",     300000,   "all", "integer arithmetic (trial division)"),
+    ("collatz",    500000,   "all", "integer arithmetic + tight inner loop"),
+    ("mandelbrot", 768,      "all", "floating-point math (escape iterations)"),
+    ("matmul",     220,      "all", "nested loops + indexing (integer NxN)"),
+    ("strings",    1000000,  "all", "string building (join) + length"),
+    ("wordcount",  1500000,  "all", "hash-map build (immutable vs mutable)"),
+    ("bintree",    400,      "all", "allocation / GC pressure (build+walk trees)"),
+    ("sort",       750000,   "all", "sort a list of ints + checksum walk"),
+    ("nqueens",    10,       "all", "backtracking recursion — count N-queens solutions"),
+    ("pipeline",   200000,   "all", "filter/map/reduce pipeline over a range"),
+    ("spawn",      20000,    "all", "lightweight concurrent units + result collection"),
+    ("pfib",       30,       "all", "parallel fib — 100 computed at once across cores"),
+    ("http",       1000,     "all", "concurrent HTTP — N in-flight GETs to a local server"),
 ]
 
 # The concurrency benchmarks bounce 15–45% run-to-run with scheduler / CPU
@@ -131,7 +137,8 @@ NOISY_RUNS = 7
 QUICK = {  # smaller sizes for a fast smoke run
     "fib": 25, "loop": 300000, "reduce": 100000, "primes": 5000, "collatz": 5000,
     "mandelbrot": 48, "matmul": 40, "strings": 10000, "wordcount": 20000,
-    "bintree": 8, "sort": 10000, "spawn": 5000, "pfib": 24, "http": 100,
+    "bintree": 8, "sort": 10000, "nqueens": 8, "pipeline": 50000,
+    "spawn": 5000, "pfib": 24, "http": 100,
 }
 
 RSS_RE = re.compile(r"Maximum resident set size \(kbytes\):\s*(\d+)")
@@ -273,6 +280,7 @@ def main():
 
     startup_runs = args.startup_runs if args.startup_runs is not None else args.runs
     results = {}
+    mismatched = []
     for name, default_n, where, what in BENCHES:
         if only and name not in only:
             continue
@@ -305,7 +313,8 @@ def main():
             if server:
                 stop_http_server(server)
                 os.environ.pop("BENCH_HTTP_PORT", None)
-        verify_checksums(name, results[name])
+        if verify_checksums(name, results[name]):
+            mismatched.append(name)
 
     meta = collect_meta(langs)
     out_dir = Path(args.out) if args.out else RESULTS
@@ -320,12 +329,26 @@ def main():
     print(f"\nWrote {json_path} and {report_path}")
     print("\n" + report)
 
+    if mismatched:
+        print(f"\n!! CHECKSUM MISMATCH in: {', '.join(mismatched)} — the languages "
+              "did not do equivalent work, so these timings are not comparable. "
+              "The affected rows are flagged in the report.", file=sys.stderr)
+        sys.exit(1)
+
 
 def verify_checksums(name, data):
+    """Assert the languages that produced a checksum all agree. On disagreement,
+    print it, record it on `data` (so the report flags the row), and return the
+    {lang: checksum} map; otherwise return None. The caller fails the run if any
+    benchmark mismatches — a differing checksum means the languages did NOT do
+    equivalent work, so the timings are not comparable."""
     sums = {l: d.get("checksum") for l, d in data["langs"].items() if "checksum" in d}
     uniq = set(sums.values())
     if len(uniq) > 1:
         print(f"  !! CHECKSUM MISMATCH: {sums}")
+        data["checksum_mismatch"] = sums
+        return sums
+    return None
 
 
 def fmt_ms(ms):
@@ -374,6 +397,11 @@ def build_report(results, args, meta=None):
             continue
         L.append(f"## {name} — {data['what']}  (N={data['n']})")
         L.append("")
+        if "checksum_mismatch" in data:
+            L.append(f"> ⚠️ **CHECKSUM MISMATCH** — the languages did not agree "
+                     f"(`{data['checksum_mismatch']}`); these rows are **not** "
+                     f"comparable.")
+            L.append("")
         L.append("| lang | compute | vs fastest | pos | wall | startup | peak RSS | mem | checksum |")
         L.append("|------|---------|------------|-----|------|---------|----------|-----|----------|")
         oks = {l: d for l, d in langs.items() if "wall_ms" in d and "error" not in d}

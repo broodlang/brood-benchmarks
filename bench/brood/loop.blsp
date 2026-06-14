@@ -1,6 +1,9 @@
-(def n (let (e (getenv "BENCH_N")) (if e (string->number e) 3000000)))
+(def n (let (e (getenv "BENCH_N")) (if e (string->number e) 60000000)))
 
-;; raw iteration: tail-recursive count with an accumulator (TCO, O(1) stack)
-(defn loop--acc (i acc) (if (>= i n) acc (loop--acc (+ i 1) (+ acc 1))))
+;; raw iteration: tail-recursive count with an accumulator (TCO, O(1) stack).
+;; Accumulate the index (not a constant), so the checksum = sum 0..n-1 is
+;; path-dependent — it catches an off-by-one in the loop bound, which `+ 1`
+;; (checksum = n, just echoing the input) would not.
+(defn loop--acc (i acc) (if (>= i n) acc (loop--acc (+ i 1) (+ acc i))))
 
 (println (loop--acc 0 0))

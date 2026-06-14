@@ -5,7 +5,7 @@
 require "net/http"
 require "uri"
 
-n = (ENV["BENCH_N"] || "500").to_i
+n = (ENV["BENCH_N"] || "1000").to_i
 port = ENV["BENCH_HTTP_PORT"] || "8089"
 uri = URI("http://127.0.0.1:#{port}/")
 

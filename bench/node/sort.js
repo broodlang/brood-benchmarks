@@ -1,4 +1,4 @@
-const N = parseInt(process.env.BENCH_N || "50000", 10);
+const N = parseInt(process.env.BENCH_N || "750000", 10);
 const MOD = 1000000007;
 
 // LCG with BigInt (product exceeds 2^53); values themselves fit in a double.

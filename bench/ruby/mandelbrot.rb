@@ -1,4 +1,4 @@
-n = (ENV["BENCH_N"] || "128").to_i
+n = (ENV["BENCH_N"] || "768").to_i
 maxiter = 100
 
 total = 0

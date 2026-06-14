@@ -1,4 +1,4 @@
-(def n (let (e (getenv "BENCH_N")) (if e (string->number e) 20000)))
+(def n (let (e (getenv "BENCH_N")) (if e (string->number e) 300000)))
 
 ;; all-integer trial division: in Brood the (* d d) multiply is CHEAPER than
 ;; comparing d to a float sqrt bound (mixed int/float compare coerces) — so we

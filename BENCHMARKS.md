@@ -4,6 +4,14 @@ Machine: `whklat`, 12-core x86-64, Linux 7.0.0, 2026-06-14.
 Runtimes: Brood 0.1.0 · Elixir 1.20.0 / OTP 28 · Python 3.14.4 · Node 22.21.0 · Ruby 3.3.8 · .NET 10.0.109.
 Method: best of 5 runs per benchmark (startup best of 15); the concurrency benchmarks (spawn, pfib, http) take the best of 7, since they bounce more run-to-run. Compute = wall − startup, so boot cost is not charged against compute-heavy benchmarks.
 
+> ⚠️ **These numbers are stale — re-run before trusting them.** The workload
+> sizes were raised substantially so the work dominates startup noise (e.g. `fib`
+> 30→37, `loop` 3M→60M, `wordcount` 100k→1.5M), `reduce` was changed to a real
+> higher-order fold (it had been a closed-form/loop in some languages), and two
+> benchmarks were added (`nqueens`, `pipeline`). Regenerate with
+> `python3 bench/harness.py --label whklat` on the reference machine, then refresh
+> the tables below.
+
 > Brood numbers reflect main at `b9e2173`. The wins from `32bbda7` (transient GC
 > fix + map combinators), `67c2ec2` (parallel-allocation intern cache + sharded
 > counter), `84d3315` (type-of keyword cache) and `b99756d` (JIT'd 2-element vector

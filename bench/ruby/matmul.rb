@@ -1,4 +1,4 @@
-n = (ENV["BENCH_N"] || "80").to_i
+n = (ENV["BENCH_N"] || "220").to_i
 mod = 1000000007
 
 a = Array.new(n) { |i| Array.new(n) { |j| (i + j) % 100 } }

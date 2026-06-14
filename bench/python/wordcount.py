@@ -1,5 +1,5 @@
 import os
-N = int(os.environ.get("BENCH_N", "100000"))
+N = int(os.environ.get("BENCH_N", "1500000"))
 K = 1000
 
 x = 123456789

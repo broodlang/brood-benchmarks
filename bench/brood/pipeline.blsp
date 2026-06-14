@@ -1,0 +1,12 @@
+(def n (let (e (getenv "BENCH_N")) (if e (string->number e) 200000)))
+
+;; map / filter / reduce pipeline over a range: keep the multiples of 3 or 5,
+;; square them, sum the squares. Exercises the sequence library and the ->>
+;; threading macro. Checksum = that sum.
+(defn mult35? (i) (or (= 0 (rem i 3)) (= 0 (rem i 5))))
+
+(println
+  (->> (range n)
+       (filter mult35?)
+       (map (fn (i) (* i i)))
+       (reduce + 0)))

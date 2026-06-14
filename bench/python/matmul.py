@@ -1,5 +1,5 @@
 import os
-N = int(os.environ.get("BENCH_N", "80"))
+N = int(os.environ.get("BENCH_N", "220"))
 MOD = 1000000007
 
 A = [[(i + j) % 100 for j in range(N)] for i in range(N)]

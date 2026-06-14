@@ -1,5 +1,7 @@
 import os
-N = int(os.environ.get("BENCH_N", "1000000"))
+from functools import reduce
+from operator import add
+N = int(os.environ.get("BENCH_N", "10000000"))
 
-# idiomatic fast fold for addition over a range
-print(sum(range(N)))
+# higher-order fold: add applied per element (a real fold, not C-level sum()).
+print(reduce(add, range(N), 0))

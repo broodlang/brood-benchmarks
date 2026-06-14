@@ -1,4 +1,4 @@
-n = (ENV["BENCH_N"] || "20000").to_i
+n = (ENV["BENCH_N"] || "300000").to_i
 
 def prime?(n)
   return false if n < 2

@@ -1,10 +1,10 @@
 import os
-N = int(os.environ.get("BENCH_N", "3000000"))
+N = int(os.environ.get("BENCH_N", "60000000"))
 
 acc = 0
 i = 0
 while i < N:
-    acc += 1
+    acc += i
     i += 1
 
 print(acc)
