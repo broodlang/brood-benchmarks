@@ -42,8 +42,8 @@ and JIT'd integer loops (`loop`, `collatz`, and now `primes` — recently tiered
 of six) beat both interpreters. Its weakness is **raw single-threaded compute on
 shapes the JIT doesn't yet cover** — float (`mandelbrot`), array math (`matmul`),
 the immutable map build (`wordcount`), string building (`strings`), and the sequence
-`pipeline`. By geometric mean across the suite Brood sits **~17.5× off the fastest**
-(down from ~19.5× after two JIT fixes tiered `primes`/`bintree`/`nqueens`) —
+`pipeline`. By geometric mean across the suite Brood sits **~16.0× off the fastest**
+(down from ~19.5× after JIT fixes tiered `primes`/`bintree`/`nqueens`) —
 mid-pack, **ahead of Python**, with .NET and Node fastest. See
 [BENCHMARKS.md](BENCHMARKS.md) for the honest, full picture, a
 [positioning chart](results/positioning.svg), and the code side by side.

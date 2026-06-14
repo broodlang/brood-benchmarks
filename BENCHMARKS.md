@@ -11,10 +11,13 @@ Method: best of 5 runs per benchmark (startup best of 15); the concurrency bench
 > six languages produce the **same** checksum — a mismatch fails the run — so we
 > know they did equivalent work.
 >
-> **Two JIT wins landed since the last run** (Brood `dcb4232`): admitting bool
-> literals to the JIT subset tiered `primes`' trial-division loop (**351 → 43 ms,
-> now 3rd of six**), and left-folding n-ary `+`/`*` into native 2-ary ops tiered
-> `bintree`'s `check` (**1123 → 452 ms**) and helped `nqueens` (**933 → 512 ms**).
+> **JIT wins landed** (Brood `9dfc00f`): admitting bool literals to the JIT subset
+> tiered `primes`' trial-division loop (**351 → 41 ms, now 3rd of six**) and helped
+> `nqueens` (**933 → 510 ms**, its bool `safe?` arms tier); left-folding n-ary
+> `+`/`*` into native 2-ary ops tiered `bintree`'s `check` (**1123 → 449 ms**). The
+> bool win first shipped a JIT miscompile (a `Value::Bool` truthiness check read the
+> full payload word instead of the bool byte, corrupting `nest format`); that's
+> fixed and guarded by a tiering regression test.
 
 ---
 
@@ -212,6 +215,6 @@ Python, Ruby, and the BEAM. Green processes handle 500 in-flight GETs cleanly.
 - **The weak frontier is raw single-threaded compute on un-JIT'd shapes** — float
   (`mandelbrot`), array math (`matmul`), the immutable map build (`wordcount`),
   string building (`strings`), and the sequence `pipeline`. By geometric mean across
-  the suite Brood lands at **~17.5× the fastest runtime** (down from ~19.5× before
+  the suite Brood lands at **~16.0× the fastest runtime** (down from ~19.5× before
   the JIT fixes) — mid-pack, ahead of Python, with .NET and Node fastest. See
   [`results/positioning.svg`](results/positioning.svg).
