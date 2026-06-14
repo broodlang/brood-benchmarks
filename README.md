@@ -17,10 +17,13 @@ interpreters (Python, Ruby) and JITs (Node/V8, Elixir/BeamAsm, .NET/RyuJIT).
 > cached per call-site. A **process-count-aware GC floor** keeps parallel fan-out's
 > peak memory low (`pfib` peaks ~16 MB), and a **thread-local symbol-interner cache
 > + a sharded allocation counter** removed the global-lock contention that had made
-> allocation-heavy fan-out near-serial. Still **interpreted** (no JIT path yet, and
-> the suite's weak rows): **float** loops (`mandelbrot`), array math (`matmul`),
-> the immutable map build (`wordcount`), short-lived allocation (`bintree`), and the
-> sequence combinators behind `pipeline`.
+> allocation-heavy fan-out near-serial. **Top-level-lambda promotion** — freezing an
+> inline `(fn …)`'s body into the immovable RUNTIME region so it no longer drags its
+> whole form onto the tree-walker — moved `pipeline` (**~4.1×**) and `matmul`'s matrix
+> build (**~2.2×**) onto the VM. Still **interpreted** (no JIT path yet, the suite's
+> weak rows): **float** loops (`mandelbrot`), the immutable map build (`wordcount`),
+> short-lived allocation (`bintree`), string building (`strings`), and `matmul`'s
+> inner `nth` loop.
 
 ## Results
 
@@ -39,12 +42,15 @@ plus **fast-enough startup** (~28 ms, ahead of Ruby and ~9× ahead of the BEAM).
 .NET), and on **parallel CPU** (`pfib`) it finishes **ahead of Ruby and Python**.
 The fairness-fixed `reduce` (a real higher-order fold) now **beats Node and Ruby**,
 and JIT'd integer loops (`loop`, `collatz`, and now `primes` — recently tiered, 3rd
-of six) beat both interpreters. Its weakness is **raw single-threaded compute on
-shapes the JIT doesn't yet cover** — float (`mandelbrot`), array math (`matmul`),
-the immutable map build (`wordcount`), string building (`strings`), and the sequence
-`pipeline`. By geometric mean across the suite Brood sits **~16.0× off the fastest**
-(down from ~19.5× after JIT fixes tiered `primes`/`bintree`/`nqueens`) —
-mid-pack, **ahead of Python**, with .NET and Node fastest. See
+of six) beat both interpreters; top-level-lambda promotion pulled `pipeline` off the
+tree-walker (**~4.1×**) and sped `matmul`'s matrix build (**~2.2×**). Its weakness is
+**raw single-threaded compute on shapes the JIT doesn't yet cover** — float
+(`mandelbrot`), the immutable map build (`wordcount`), string building (`strings`),
+and array math (`matmul` — improved, but its inner `nth` loop still under-tiers).
+By geometric mean across the single-threaded suite Brood sits **~16× off the fastest**
+(down from ~19.5× as JIT fixes tiered `primes`/`bintree`/`nqueens`; the average is now
+dominated by `mandelbrot`/`matmul`) — mid-pack, **ahead of Python**, with .NET and
+Node fastest. See
 [BENCHMARKS.md](BENCHMARKS.md) for the honest, full picture, a
 [positioning chart](results/positioning.svg), and the code side by side.
 

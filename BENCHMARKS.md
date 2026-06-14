@@ -11,13 +11,17 @@ Method: best of 5 runs per benchmark (startup best of 15); the concurrency bench
 > six languages produce the **same** checksum — a mismatch fails the run — so we
 > know they did equivalent work.
 >
-> **JIT wins landed** (Brood `9dfc00f`): admitting bool literals to the JIT subset
-> tiered `primes`' trial-division loop (**351 → 41 ms, now 3rd of six**) and helped
+> **JIT wins landed.** Admitting bool literals to the JIT subset (Brood `9dfc00f`)
+> tiered `primes`' trial-division loop (**351 → 42 ms, now 3rd of six**) and helped
 > `nqueens` (**933 → 510 ms**, its bool `safe?` arms tier); left-folding n-ary
-> `+`/`*` into native 2-ary ops tiered `bintree`'s `check` (**1123 → 449 ms**). The
+> `+`/`*` into native 2-ary ops tiered `bintree`'s `check` (**1123 → 443 ms**). The
 > bool win first shipped a JIT miscompile (a `Value::Bool` truthiness check read the
 > full payload word instead of the bool byte, corrupting `nest format`); that's
-> fixed and guarded by a tiering regression test.
+> fixed and guarded by a tiering regression test. Then promoting a top-level
+> `(fn …)`'s body into the immovable RUNTIME region (Brood `dfa4f67`) — so an inline
+> lambda no longer forces its whole form onto the tree-walker — moved **two** rows at
+> once: `pipeline` (**552 → 134 ms, ~4.1×**) and `matmul`'s matrix construction
+> (**542 → 243 ms, ~2.2×**).
 
 ---
 
@@ -27,12 +31,12 @@ Cold start to first instruction. Lower is better.
 
 | runtime | boot |
 |---------|------|
-| Python  | 10ms |
+| Python  | 11ms |
 | Node    | 19ms |
-| .NET    | 21ms |
-| Brood   | 28ms |
-| Ruby    | 42ms |
-| Elixir  | 259ms |
+| .NET    | 23ms |
+| Brood   | 29ms |
+| Ruby    | 40ms |
+| Elixir  | 258ms |
 
 Brood is the fourth-fastest boot, ahead of Ruby and ~9× ahead of the BEAM.
 
@@ -46,7 +50,7 @@ Wall time minus boot cost. All times in ms unless noted. Lower is better.
 
 | Brood | Elixir | Python | Node | Ruby | .NET |
 |-------|--------|--------|------|------|------|
-| 645ms | 123ms | 766ms | 74ms | 640ms | 40ms |
+| 635ms | 128ms | 756ms | 86ms | 628ms | 51ms |
 
 Naive double recursion runs on the native path (call linking + call-site inline
 cache). Brood matches Ruby and edges out Python; the JITs (.NET, Node) and the BEAM
@@ -56,7 +60,7 @@ are still well ahead on raw call throughput.
 
 | Brood | Elixir | Python | Node | Ruby | .NET |
 |-------|--------|--------|------|------|------|
-| 183ms | 92ms | 2358ms | 31ms | 610ms | 25ms |
+| 190ms | 87ms | 2284ms | 44ms | 585ms | 13ms |
 
 The self-tail loop is JIT'd: Brood beats every interpreter in the field (Python,
 Ruby) and trails only the JITs and the BEAM.
@@ -65,7 +69,7 @@ Ruby) and trails only the JITs and the BEAM.
 
 | Brood | Elixir | Python | Node | Ruby | .NET |
 |-------|--------|--------|------|------|------|
-| 108ms | 48ms | 110ms | 232ms | 234ms | 13ms |
+| 119ms | 48ms | 122ms | 234ms | 235ms | 10ms |
 
 A real fold (`+` applied per element) in all six. Brood's primitive-reducer fast
 path **beats Node and Ruby** here — their per-element callback/block folds cost more
@@ -75,7 +79,7 @@ than Brood's — and ties Python; .NET and the BEAM lead.
 
 | Brood | Elixir | Python | Node | Ruby | .NET |
 |-------|--------|--------|------|------|------|
-| 43ms | 68ms | 126ms | 16ms | 121ms | 9ms |
+| 42ms | 69ms | 136ms | 23ms | 121ms | 21ms |
 
 **Was 351 ms (last of six).** Admitting bool literals to the JIT subset (Brood
 `613c484`) let the `divides-none?` trial-division loop — whose exit arms return
@@ -86,7 +90,7 @@ faster than before. The single biggest single-fix move in the suite.
 
 | Brood | Elixir | Python | Node | Ruby | .NET |
 |-------|--------|--------|------|------|------|
-| 491ms | 151ms | 2469ms | 180ms | 893ms | 60ms |
+| 479ms | 155ms | 2465ms | 178ms | 894ms | 57ms |
 
 `collatz`'s `steps` is an all-integer self-tail loop that runs native; Brood is in
 Node's range and far ahead of Python and Ruby.
@@ -95,7 +99,7 @@ Node's range and far ahead of Python and Ruby.
 
 | Brood | Elixir | Python | Node | Ruby | .NET |
 |-------|--------|--------|------|------|------|
-| 1332ms | 291ms | 1386ms | 21ms | 435ms | 19ms |
+| 1326ms | 296ms | 1343ms | 19ms | 431ms | 24ms |
 
 The integer-only JIT can't yet tier float loops, so this stays interpreted —
 Brood's weakest row (only Python is slower). The float frontier is the next lever.
@@ -104,27 +108,30 @@ Brood's weakest row (only Python is slower). The float frontier is the next leve
 
 | Brood | Elixir | Python | Node | Ruby | .NET |
 |-------|--------|--------|------|------|------|
-| 542ms | 79ms | 470ms | 27ms | 294ms | 5ms |
+| 243ms | 81ms | 476ms | 34ms | 302ms | 3ms |
 
-The one bintree-class row the n-ary fold didn't move: its inner `nth` loop
-under-tiers in a **data-dependent** way (a deopt, not a missing codegen path) —
-still under investigation.
+**Was 542 ms.** The matrix *construction* — `(into [] (map (fn (i) … (map (fn (j) …)))
+…))`, two top-level inline lambdas — used to run tree-walked. Promoting a top-level
+`(fn …)`'s body into the immovable RUNTIME region (Brood `dfa4f67`) lets it VM-compile:
+**~2.2× faster**. The remaining gap is the inner `nth` multiply loop, which under-tiers
+in a **data-dependent** way (a deopt, not a missing codegen path) — and .NET does this
+in 3 ms, so the ratio stays the suite's largest.
 
 ### strings 500 k — join + length
 
 | Brood | Elixir | Python | Node | Ruby | .NET |
 |-------|--------|--------|------|------|------|
-| 824ms | 128ms | 46ms | 58ms | 90ms | 36ms |
+| 814ms | 130ms | 54ms | 69ms | 99ms | 43ms |
 
 `(map number->string (range n))` builds a live N-element cons list (eager `map`),
 which the copying GC relocates repeatedly — also the suite's memory outlier
-(175 MB). A lazy/streaming `map` would fix both; deferred as a design change.
+(181 MB). A lazy/streaming `map` would fix both; deferred as a design change.
 
 ### wordcount 750 k — hash-map build
 
 | Brood | Elixir | Python | Node | Ruby | .NET |
 |-------|--------|--------|------|------|------|
-| 1014ms | 188ms | 183ms | 38ms | 72ms | 37ms |
+| 995ms | 180ms | 175ms | 40ms | 84ms | 48ms |
 
 Immutable CHAMP-map build (Brood/Elixir) vs mutable dict/hash (the rest). The
 immutable side pays for structural sharing; Brood also has no map-build JIT path.
@@ -133,18 +140,18 @@ immutable side pays for structural sharing; Brood also has no map-build JIT path
 
 | Brood | Elixir | Python | Node | Ruby | .NET |
 |-------|--------|--------|------|------|------|
-| 452ms | 58ms | 96ms | 21ms | 102ms | 17ms |
+| 443ms | 48ms | 100ms | 35ms | 110ms | 17ms |
 
 **Was 1123 ms.** `check` does `(+ 1 (check …) (check …))` — a 3-arg add that used to
 route through the variadic prelude `+` and kept the arm off the native path.
 Left-folding n-ary `+`/`*` into native 2-ary ops (Brood `dcb4232`) lets it tier:
-**~2.4× faster.** Memory stays low (25.9 MB) despite the allocation churn.
+**~2.5× faster.** Memory stays low (24.8 MB) despite the allocation churn.
 
 ### sort 375 k — sort + walk
 
 | Brood | Elixir | Python | Node | Ruby | .NET |
 |-------|--------|--------|------|------|------|
-| 289ms | 123ms | 190ms | 107ms | 72ms | 77ms |
+| 288ms | 128ms | 197ms | 119ms | 87ms | 63ms |
 
 The native sort plus an in-language checksum walk: Brood's **closest compute gap**
 in the suite (~4× the fastest).
@@ -153,7 +160,7 @@ in the suite (~4× the fastest).
 
 | Brood | Elixir | Python | Node | Ruby | .NET |
 |-------|--------|--------|------|------|------|
-| 512ms | 62ms | 67ms | 24ms | 128ms | 22ms |
+| 510ms | 62ms | 68ms | 24ms | 136ms | 31ms |
 
 **Was 933 ms.** Backtracking whose `safe?` predicate returns `true`/`false` — the
 same bool-subset fix that moved `primes` tiers those arms too (**~1.8× faster**).
@@ -163,18 +170,20 @@ The remaining cost is the per-step list building the JIT doesn't cover.
 
 | Brood | Elixir | Python | Node | Ruby | .NET |
 |-------|--------|--------|------|------|------|
-| 552ms | 23ms | 9ms | 12ms | 19ms | 8ms |
+| 134ms | 28ms | 9ms | 15ms | 8ms | 6ms |
 
-A composed sequence pipeline (`->>` over `filter`/`map`/`reduce`). Each stage
-materialises and re-walks the sequence, and the top-level `(fn …)` runs tree-walked
-(not VM-compiled) — the interpreters' lazy/streamed or C-level pipelines are far
-cheaper. Two clear targets: lazy combinators and top-level-lambda promotion.
+**Was 552 ms (last by a wide margin).** A composed sequence pipeline (`->>` over
+`filter`/`map`/`reduce`) whose `(fn …)` stages are top-level inline lambdas — the whole
+form ran tree-walked. Promoting a top-level `(fn …)`'s body into the immovable RUNTIME
+region (Brood `dfa4f67`) lets it VM-compile and tier: **~4.1× faster**. The remaining
+gap is the eager combinators — each stage still materialises and re-walks the sequence,
+where the interpreters stream or drop to C. Lazy combinators are the next lever.
 
 ### spawn 10 k — concurrent fan-out, each fib(15)
 
 | Brood | Elixir | Python | Node | Ruby | .NET |
 |-------|--------|--------|------|------|------|
-| 520ms | 56ms | 554ms | 54ms | 1601ms | 26ms |
+| 512ms | 56ms | 544ms | 53ms | 1582ms | 24ms |
 
 Brood uses green processes + message passing (≈ Python's asyncio cost here, well
 ahead of Ruby's OS threads). Spawn/teardown of 10 k processes dominates over the
@@ -184,17 +193,17 @@ trivial fib(15) work.
 
 | Brood | Elixir | Python | Node | Ruby | .NET |
 |-------|--------|--------|------|------|------|
-| 407ms | 123ms | 684ms | 111ms | 442ms | 35ms |
+| 410ms | 114ms | 705ms | 123ms | 436ms | 49ms |
 
 100 × `fib(28)` across cores. Brood finishes **ahead of Ruby and Python** and holds
-the **lightest memory in the field** (17.2 MB) while saturating 12 cores; .NET, the
+the **lightest memory in the field** (16.0 MB) while saturating 12 cores; .NET, the
 BEAM and Node lead.
 
 ### http 500 concurrent GETs — I/O concurrency
 
 | Brood | Elixir | Python | Node | Ruby | .NET |
 |-------|--------|--------|------|------|------|
-| 139ms | 641ms | 176ms | 120ms | 208ms | 158ms |
+| 150ms | 644ms | 178ms | 116ms | 222ms | 145ms |
 
 Brood is **2nd of six** on concurrent I/O — behind only Node, ahead of .NET,
 Python, Ruby, and the BEAM. Green processes handle 500 in-flight GETs cleanly.
@@ -205,16 +214,21 @@ Python, Ruby, and the BEAM. Green processes handle 500 in-flight GETs cleanly.
 
 - **Memory** is Brood's standout: ~14 MB base, holding the lightest or
   second-lightest peak RSS across nearly every workload (only Python is as light),
-  and the single lightest in `pfib` (17.2 MB) while running flat-out on 12 cores.
-- **Startup** ~28 ms — fourth, behind Python/Node/.NET, ahead of Ruby, ~9× ahead
+  and the single lightest in `pfib` (16.0 MB) while running flat-out on 12 cores.
+- **Startup** ~29 ms — fourth, behind Python/Node/.NET, ahead of Ruby, ~9× ahead
   of the BEAM.
 - **Concurrency** is competitive: `http` 2nd of six, `pfib` ahead of Ruby and
   Python.
 - **Higher-order/iteration**: a real `reduce` fold beats Node and Ruby; JIT'd
-  integer loops (`loop`, `collatz`, and now `primes`) beat both interpreters.
+  integer loops (`loop`, `collatz`, and now `primes`) beat both interpreters; and
+  the top-level-lambda promotion pulled `pipeline` off the tree-walker (**~4.1×**)
+  and sped `matmul`'s matrix build (**~2.2×**).
 - **The weak frontier is raw single-threaded compute on un-JIT'd shapes** — float
-  (`mandelbrot`), array math (`matmul`), the immutable map build (`wordcount`),
-  string building (`strings`), and the sequence `pipeline`. By geometric mean across
-  the suite Brood lands at **~16.0× the fastest runtime** (down from ~19.5× before
-  the JIT fixes) — mid-pack, ahead of Python, with .NET and Node fastest. See
+  (`mandelbrot`), the immutable map build (`wordcount`), string building (`strings`),
+  and array math (`matmul` — improved, but its inner `nth` loop still under-tiers and
+  .NET does it in 3 ms, so its ratio stays the suite's largest). By geometric mean
+  across the single-threaded suite Brood lands at **~16× the fastest runtime** (down
+  from ~19.5× as the JIT fixes landed; the average is now dominated by `mandelbrot`
+  and `matmul`, so the `pipeline`/`matmul` wins barely move it) — mid-pack, ahead of
+  Python, with .NET and Node fastest. See
   [`results/positioning.svg`](results/positioning.svg).
