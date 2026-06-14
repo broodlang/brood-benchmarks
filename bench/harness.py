@@ -110,22 +110,22 @@ def collect_meta(langs):
 # the freshest tune (it became a real higher-order fold; re-measure to settle N).
 BENCHES = [
     ("startup",    0,        "all", "interpreter/VM startup + base memory"),
-    ("fib",        37,       "all", "naive recursion / function-call overhead"),
-    ("loop",       60000000, "all", "raw iteration (tail recursion vs for-loop)"),
-    ("reduce",     10000000, "all", "higher-order fold over a range"),
-    ("primes",     300000,   "all", "integer arithmetic (trial division)"),
-    ("collatz",    500000,   "all", "integer arithmetic + tight inner loop"),
-    ("mandelbrot", 768,      "all", "floating-point math (escape iterations)"),
-    ("matmul",     220,      "all", "nested loops + indexing (integer NxN)"),
-    ("strings",    1000000,  "all", "string building (join) + length"),
-    ("wordcount",  1500000,  "all", "hash-map build (immutable vs mutable)"),
-    ("bintree",    400,      "all", "allocation / GC pressure (build+walk trees)"),
-    ("sort",       750000,   "all", "sort a list of ints + checksum walk"),
+    ("fib",        35,       "all", "naive recursion / function-call overhead"),
+    ("loop",       30000000, "all", "raw iteration (tail recursion vs for-loop)"),
+    ("reduce",     5000000,  "all", "higher-order fold over a range"),
+    ("primes",     150000,   "all", "integer arithmetic (trial division)"),
+    ("collatz",    250000,   "all", "integer arithmetic + tight inner loop"),
+    ("mandelbrot", 540,      "all", "floating-point math (escape iterations)"),
+    ("matmul",     175,      "all", "nested loops + indexing (integer NxN)"),
+    ("strings",    500000,   "all", "string building (join) + length"),
+    ("wordcount",  750000,   "all", "hash-map build (immutable vs mutable)"),
+    ("bintree",    200,      "all", "allocation / GC pressure (build+walk trees)"),
+    ("sort",       375000,   "all", "sort a list of ints + checksum walk"),
     ("nqueens",    10,       "all", "backtracking recursion — count N-queens solutions"),
-    ("pipeline",   200000,   "all", "filter/map/reduce pipeline over a range"),
-    ("spawn",      20000,    "all", "lightweight concurrent units + result collection"),
-    ("pfib",       30,       "all", "parallel fib — 100 computed at once across cores"),
-    ("http",       1000,     "all", "concurrent HTTP — N in-flight GETs to a local server"),
+    ("pipeline",   100000,   "all", "filter/map/reduce pipeline over a range"),
+    ("spawn",      10000,    "all", "lightweight concurrent units + result collection"),
+    ("pfib",       28,       "all", "parallel fib — 100 computed at once across cores"),
+    ("http",       500,      "all", "concurrent HTTP — N in-flight GETs to a local server"),
 ]
 
 # The concurrency benchmarks bounce 15–45% run-to-run with scheduler / CPU
@@ -144,12 +144,19 @@ QUICK = {  # smaller sizes for a fast smoke run
 RSS_RE = re.compile(r"Maximum resident set size \(kbytes\):\s*(\d+)")
 
 
-def run_once(cmd, n, timeout, extra_env=None):
-    """Run `cmd` under /usr/bin/time -v with BENCH_N=n. Returns (ok, wall_ms, rss_kb, out)."""
+def run_once(cmd, n, timeout, extra_env=None, pin=None, settle=0.0):
+    """Run `cmd` under /usr/bin/time -v with BENCH_N=n. Returns (ok, wall_ms, rss_kb, out).
+
+    `pin` (a taskset core list like "11" or "0-11") confines the process to those
+    CPUs so it isn't migrated and contends less with system noise; `settle` sleeps
+    that many seconds first so the previous run's teardown (freeing RSS, reaping
+    threads) doesn't bleed into this measurement. Both are the isolation knobs."""
     env = dict(os.environ, BENCH_N=str(n))
     if extra_env:
         env.update(extra_env)
-    full = ["/usr/bin/time", "-v"] + cmd
+    full = (["taskset", "-c", pin] if pin else []) + ["/usr/bin/time", "-v"] + cmd
+    if settle:
+        time.sleep(settle)
     t0 = time.perf_counter()
     try:
         p = subprocess.run(full, env=env, capture_output=True, text=True, timeout=timeout)
@@ -163,7 +170,7 @@ def run_once(cmd, n, timeout, extra_env=None):
     return (True, wall_ms, rss, p.stdout.strip())
 
 
-def bench_lang(lang, name, n, runs, timeout):
+def bench_lang(lang, name, n, runs, timeout, pin=None, settle=0.0):
     spec = LANGS[lang]
     path = str(ROOT / spec["dir"] / f"{name}.{spec['ext']}")
     if not Path(path).exists():
@@ -172,7 +179,7 @@ def bench_lang(lang, name, n, runs, timeout):
     extra_env = spec.get("env")
     best_wall, rss_peak, checksum, err = float("inf"), 0, None, None
     for _ in range(runs):
-        ok, wall, rss, out = run_once(cmd, n, timeout, extra_env)
+        ok, wall, rss, out = run_once(cmd, n, timeout, extra_env, pin, settle)
         if not ok:
             return {"error": out, "wall_ms": wall, "rss_kb": rss}
         best_wall = min(best_wall, wall)          # best = least-noisy run
@@ -245,6 +252,16 @@ def main():
     ap.add_argument("--focus", default="", help="only print this language's rows (ranks still reflect full field)")
     ap.add_argument("--report-from", default="", metavar="JSON",
                     help="skip running; regenerate the report from an existing results JSON")
+    ap.add_argument("--isolate", dest="isolate", action="store_true", default=None,
+                    help="pin each run to dedicated CPU(s) via taskset and settle between "
+                         "runs, to avoid contention (default: on when taskset is present)")
+    ap.add_argument("--no-isolate", dest="isolate", action="store_false",
+                    help="disable CPU pinning / settle (run unpinned, back-to-back)")
+    ap.add_argument("--pin-core", type=int, default=None,
+                    help="core to pin single-threaded benchmarks to (default: last core); "
+                         "the concurrency benchmarks always get every core")
+    ap.add_argument("--settle", type=float, default=0.25,
+                    help="seconds to idle before each measured run (default: 0.25)")
     args = ap.parse_args()
 
     if args.report_from:
@@ -278,6 +295,23 @@ def main():
     if "dotnet" in langs:
         build_dotnet()
 
+    # Isolation: pin each measured process to dedicated CPUs (so it isn't migrated
+    # and contends less with system noise) and settle between runs. On by default
+    # when taskset is available; single-threaded benchmarks pin to one core, the
+    # concurrency ones (NOISY) get every core so their parallelism story holds.
+    ncpu = os.cpu_count() or 1
+    isolate = args.isolate
+    if isolate is None:
+        isolate = shutil.which("taskset") is not None
+    if isolate and shutil.which("taskset") is None:
+        print("warning: --isolate requested but `taskset` not found — running unpinned.", file=sys.stderr)
+        isolate = False
+    pin_core = args.pin_core if args.pin_core is not None else ncpu - 1
+    all_cores = f"0-{ncpu - 1}"
+    if isolate:
+        print(f"isolation: taskset pin (compute→core {pin_core}, concurrency→{all_cores}), "
+              f"{args.settle}s settle before each run")
+
     startup_runs = args.startup_runs if args.startup_runs is not None else args.runs
     results = {}
     mismatched = []
@@ -299,9 +333,14 @@ def main():
             port = pick_free_port()
             server = start_http_server(port)
             os.environ["BENCH_HTTP_PORT"] = str(port)
+        if isolate:
+            pin = all_cores if name in NOISY else str(pin_core)
+            settle = args.settle
+        else:
+            pin, settle = None, 0.0
         try:
             for lang in run_langs:
-                r = bench_lang(lang, name, n, runs, args.timeout)
+                r = bench_lang(lang, name, n, runs, args.timeout, pin, settle)
                 if r is None:
                     continue
                 results[name]["langs"][lang] = r
@@ -317,6 +356,9 @@ def main():
             mismatched.append(name)
 
     meta = collect_meta(langs)
+    meta["isolation"] = (
+        f"taskset pin (compute→core {pin_core}, concurrency→{all_cores}); {args.settle}s settle"
+        if isolate else "none (unpinned, back-to-back)")
     out_dir = Path(args.out) if args.out else RESULTS
     out_dir.mkdir(parents=True, exist_ok=True)
     suffix = f".{args.label}" if args.label else ""
@@ -367,6 +409,8 @@ def build_report(results, args, meta=None):
         L.append(f"> **Machine:** `{meta['host']}` ({meta['cores']} cores), "
                  f"{meta['platform']} — {meta['date']}.")
         L.append(f"> **Runtimes:** {vers}.")
+        if meta.get("isolation"):
+            L.append(f"> **Isolation:** {meta['isolation']}.")
         L.append("")
     mode = "quick" if args.quick else "full"
     startup_runs = getattr(args, "startup_runs", None) or args.runs

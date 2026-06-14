@@ -1,4 +1,4 @@
-n = (ENV["BENCH_N"] || "60000000").to_i
+n = (ENV["BENCH_N"] || "30000000").to_i
 
 acc = 0
 i = 0

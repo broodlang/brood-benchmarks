@@ -1,5 +1,5 @@
 import os
-N = int(os.environ.get("BENCH_N", "750000"))
+N = int(os.environ.get("BENCH_N", "375000"))
 MOD = 1000000007
 
 x = 123456789

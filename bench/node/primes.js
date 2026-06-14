@@ -1,4 +1,4 @@
-const N = parseInt(process.env.BENCH_N || "300000", 10);
+const N = parseInt(process.env.BENCH_N || "150000", 10);
 
 function isPrime(n) {
   if (n < 2) return false;

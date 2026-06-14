@@ -1,6 +1,6 @@
 import os, sys
 sys.setrecursionlimit(100000)
-N = int(os.environ.get("BENCH_N", "37"))
+N = int(os.environ.get("BENCH_N", "35"))
 
 def fib(n):
     if n < 2:

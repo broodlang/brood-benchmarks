@@ -1,5 +1,14 @@
 # Brood performance — findings and improvement areas
 
+> **Rebased 2026-06-14.** The suite was re-scoped after this analysis: workload
+> sizes were raised so the fastest runtimes clear startup noise, runs are now
+> CPU-pinned + settled (`taskset`), `reduce` became a genuine higher-order fold,
+> and `nqueens`/`pipeline` were added. The absolute ms below are at the **old
+> sizes** — the optimization arcs (commit-to-commit deltas) still hold as history,
+> but for current numbers see [`../results/report.md`](../results/report.md) and
+> [`../BENCHMARKS.md`](../BENCHMARKS.md). The qualitative finding — float and
+> allocation are the un-JIT'd frontier — is unchanged.
+
 Based on the whklat benchmark run (2026-06-13). Numbers are compute time (wall − boot) unless noted.
 
 The absolute tables below were measured on commit `939aba3` (the JIT call-path

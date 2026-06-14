@@ -1,4 +1,4 @@
-const N = parseInt(process.env.BENCH_N || "1500000", 10);
+const N = parseInt(process.env.BENCH_N || "750000", 10);
 const K = 1000n;
 
 // LCG: the x*1103515245 product exceeds 2^53, so use BigInt for exactness.

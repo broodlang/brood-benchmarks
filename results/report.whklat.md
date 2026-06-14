@@ -1,171 +1,194 @@
 # Brood vs Elixir vs Python vs Node vs Ruby vs .NET — benchmark results
 
-> **Machine:** `whklat` (12 cores), Linux-7.0.0-22-generic-x86_64-with-glibc2.43 — 2026-06-13 10:29.
+> **Machine:** `whklat` (12 cores), Linux-7.0.0-22-generic-x86_64-with-glibc2.43 — 2026-06-14 11:25.
 > **Runtimes:** Brood brood 0.1.0; Elixir Elixir 1.20.0 (compiled with Erlang/OTP 28); Python Python 3.14.4; Node v22.21.0; Ruby ruby 3.3.8 (2025-04-09 revision b200bad6cd) [x86_64-linux-gnu]; .NET 10.0.109.
+> **Isolation:** taskset pin (compute→core 11, concurrency→0-11); 0.25s settle.
 
-_best of 5 runs; startup best of 15; spawn/pfib/http best of 7 per program; full sizes. **compute = wall − startup** (startup is that language's own boot time from its `startup`-row wall). Rankings and ratios are by **compute** so a slow-booting runtime's real work speed is visible (e.g. the BEAM boots ~400ms but computes fast). On the `startup` row itself rankings are by wall (compute ≈ 0). RSS = peak resident memory. `pos` = rank by compute, `mem` = rank by RSS (1 = best), out of the languages with a port._
+_best of 3 runs; spawn/pfib/http best of 7 per program; full sizes. **compute = wall − startup** (startup is that language's own boot time from its `startup`-row wall). Rankings and ratios are by **compute** so a slow-booting runtime's real work speed is visible (e.g. the BEAM boots ~400ms but computes fast). On the `startup` row itself rankings are by wall (compute ≈ 0). RSS = peak resident memory. `pos` = rank by compute, `mem` = rank by RSS (1 = best), out of the languages with a port._
 
 ## startup — interpreter/VM startup + base memory  (N=0)
 
 | lang | compute | vs fastest | pos | wall | startup | peak RSS | mem | checksum |
 |------|---------|------------|-----|------|---------|----------|-----|----------|
-| brood | 27.9ms | 3.0× | 4/6 | 27.9ms | — | 14.5 MB | 2/6 | 0 |
-| elixir | 250.7ms | 27.0× | 6/6 | 250.7ms | — | 78.6 MB | 6/6 | 0 |
-| python | 9.3ms | 1.0× | 1/6 | 9.3ms | — | 9.8 MB | 1/6 | 0 |
-| node | 17.5ms | 1.9× | 2/6 | 17.5ms | — | 43.2 MB | 5/6 | 0 |
-| ruby | 39.6ms | 4.3× | 5/6 | 39.6ms | — | 23.5 MB | 3/6 | 0 |
-| dotnet | 21.2ms | 2.3× | 3/6 | 21.2ms | — | 25.8 MB | 4/6 | 0 |
+| brood | 28.0ms | 2.5× | 4/6 | 28.0ms | — | 13.7 MB | 2/6 | 0 |
+| elixir | 262.1ms | 23.4× | 6/6 | 262.1ms | — | 78.8 MB | 6/6 | 0 |
+| python | 11.2ms | 1.0× | 1/6 | 11.2ms | — | 9.8 MB | 1/6 | 0 |
+| node | 17.6ms | 1.6× | 2/6 | 17.6ms | — | 43.2 MB | 5/6 | 0 |
+| ruby | 40.9ms | 3.7× | 5/6 | 40.9ms | — | 23.5 MB | 3/6 | 0 |
+| dotnet | 24.7ms | 2.2× | 3/6 | 24.7ms | — | 25.9 MB | 4/6 | 0 |
 
-## fib — naive recursion / function-call overhead  (N=30)
-
-| lang | compute | vs fastest | pos | wall | startup | peak RSS | mem | checksum |
-|------|---------|------------|-----|------|---------|----------|-----|----------|
-| brood | 65.9ms | 14.6× | 6/6 | 93.8ms | 27.9ms | 15.3 MB | 2/6 | 832040 |
-| elixir | 56.0ms | 12.4× | 3/6 | 306.7ms | 250.7ms | 82.2 MB | 6/6 | 832040 |
-| python | 65.8ms | 14.6× | 5/6 | 75.1ms | 9.3ms | 9.8 MB | 1/6 | 832040 |
-| node | 7.3ms | 1.6× | 2/6 | 24.8ms | 17.5ms | 48.5 MB | 5/6 | 832040 |
-| ruby | 58.5ms | 13.0× | 4/6 | 98.1ms | 39.6ms | 23.5 MB | 3/6 | 832040 |
-| dotnet | 4.5ms | 1.0× | 1/6 | 25.7ms | 21.2ms | 25.8 MB | 4/6 | 832040 |
-
-## loop — raw iteration (tail recursion vs for-loop)  (N=3000000)
+## fib — naive recursion / function-call overhead  (N=35)
 
 | lang | compute | vs fastest | pos | wall | startup | peak RSS | mem | checksum |
 |------|---------|------------|-----|------|---------|----------|-----|----------|
-| brood | 17.7ms | 7.7× | 3/6 | 45.6ms | 27.9ms | 15.3 MB | 2/6 | 3000000 |
-| elixir | 53.1ms | 23.1× | 4/6 | 303.8ms | 250.7ms | 81.9 MB | 6/6 | 3000000 |
-| python | 192.2ms | 83.6× | 6/6 | 201.5ms | 9.3ms | 9.8 MB | 1/6 | 3000000 |
-| node | 3.5ms | 1.5× | 2/6 | 21.0ms | 17.5ms | 48.4 MB | 5/6 | 3000000 |
-| ruby | 63.5ms | 27.6× | 5/6 | 103.1ms | 39.6ms | 23.5 MB | 3/6 | 3000000 |
-| dotnet | 2.3ms | 1.0× | 1/6 | 23.5ms | 21.2ms | 26.2 MB | 4/6 | 3000000 |
+| brood | 637.3ms | 12.7× | 5/6 | 665.3ms | 28.0ms | 14.2 MB | 2/6 | 9227465 |
+| elixir | 121.1ms | 2.4× | 3/6 | 383.2ms | 262.1ms | 80.7 MB | 6/6 | 9227465 |
+| python | 739.7ms | 14.7× | 6/6 | 750.9ms | 11.2ms | 9.8 MB | 1/6 | 9227465 |
+| node | 74.2ms | 1.5× | 2/6 | 91.8ms | 17.6ms | 48.7 MB | 5/6 | 9227465 |
+| ruby | 626.3ms | 12.5× | 4/6 | 667.2ms | 40.9ms | 23.5 MB | 3/6 | 9227465 |
+| dotnet | 50.3ms | 1.0× | 1/6 | 75.0ms | 24.7ms | 25.9 MB | 4/6 | 9227465 |
 
-## reduce — higher-order fold over a range  (N=1000000)
-
-| lang | compute | vs fastest | pos | wall | startup | peak RSS | mem | checksum |
-|------|---------|------------|-----|------|---------|----------|-----|----------|
-| brood | 19.9ms | 15.3× | 6/6 | 47.8ms | 27.9ms | 14.5 MB | 2/6 | 499999500000 |
-| elixir | 17.6ms | 13.5× | 5/6 | 268.3ms | 250.7ms | 77.0 MB | 6/6 | 499999500000 |
-| python | 7.2ms | 5.5× | 4/6 | 16.5ms | 9.3ms | 9.8 MB | 1/6 | 499999500000 |
-| node | 3.0ms | 2.3× | 3/6 | 20.5ms | 17.5ms | 50.4 MB | 5/6 | 499999500000 |
-| ruby | 1.3ms | 1.0× | 1/6 | 40.9ms | 39.6ms | 23.5 MB | 3/6 | 499999500000 |
-| dotnet | 1.5ms | 1.2× | 2/6 | 22.7ms | 21.2ms | 26.1 MB | 4/6 | 499999500000 |
-
-## primes — integer arithmetic (trial division)  (N=20000)
+## loop — raw iteration (tail recursion vs for-loop)  (N=30000000)
 
 | lang | compute | vs fastest | pos | wall | startup | peak RSS | mem | checksum |
 |------|---------|------------|-----|------|---------|----------|-----|----------|
-| brood | 23.0ms | 10.0× | 5/6 | 50.9ms | 27.9ms | 14.5 MB | 2/6 | 2262 |
-| elixir | 48.8ms | 21.2× | 6/6 | 299.5ms | 250.7ms | 80.7 MB | 6/6 | 2262 |
-| python | 10.3ms | 4.5× | 3/6 | 19.6ms | 9.3ms | 10.0 MB | 1/6 | 2262 |
-| node | 2.4ms | 1.0× | 2/6 | 19.9ms | 17.5ms | 49.1 MB | 5/6 | 2262 |
-| ruby | 11.0ms | 4.8× | 4/6 | 50.6ms | 39.6ms | 23.5 MB | 3/6 | 2262 |
-| dotnet | 2.3ms | 1.0× | 1/6 | 23.5ms | 21.2ms | 26.2 MB | 4/6 | 2262 |
+| brood | 192.9ms | 8.4× | 4/6 | 220.9ms | 28.0ms | 14.2 MB | 2/6 | 449999985000000 |
+| elixir | 97.3ms | 4.2× | 3/6 | 359.4ms | 262.1ms | 81.8 MB | 6/6 | 449999985000000 |
+| python | 2.383s | 104.0× | 6/6 | 2.394s | 11.2ms | 9.8 MB | 1/6 | 449999985000000 |
+| node | 44.8ms | 2.0× | 2/6 | 62.4ms | 17.6ms | 50.5 MB | 5/6 | 449999985000000 |
+| ruby | 598.7ms | 26.1× | 5/6 | 639.6ms | 40.9ms | 23.5 MB | 3/6 | 449999985000000 |
+| dotnet | 22.9ms | 1.0× | 1/6 | 47.6ms | 24.7ms | 26.4 MB | 4/6 | 449999985000000 |
 
-## collatz — integer arithmetic + tight inner loop  (N=30000)
-
-| lang | compute | vs fastest | pos | wall | startup | peak RSS | mem | checksum |
-|------|---------|------------|-----|------|---------|----------|-----|----------|
-| brood | 62.6ms | 12.8× | 3/6 | 90.5ms | 27.9ms | 27.2 MB | 4/6 | 307 |
-| elixir | 65.4ms | 13.3× | 4/6 | 316.1ms | 250.7ms | 83.4 MB | 6/6 | 307 |
-| python | 261.7ms | 53.4× | 6/6 | 271.0ms | 9.3ms | 9.8 MB | 1/6 | 307 |
-| node | 7.9ms | 1.6× | 2/6 | 25.4ms | 17.5ms | 48.6 MB | 5/6 | 307 |
-| ruby | 86.2ms | 17.6× | 5/6 | 125.8ms | 39.6ms | 23.5 MB | 2/6 | 307 |
-| dotnet | 4.9ms | 1.0× | 1/6 | 26.1ms | 21.2ms | 26.1 MB | 3/6 | 307 |
-
-## mandelbrot — floating-point math (escape iterations)  (N=128)
+## reduce — higher-order fold over a range  (N=5000000)
 
 | lang | compute | vs fastest | pos | wall | startup | peak RSS | mem | checksum |
 |------|---------|------------|-----|------|---------|----------|-----|----------|
-| brood | 75.3ms | 25.1× | 5/6 | 103.2ms | 27.9ms | 14.5 MB | 2/6 | 345426 |
-| elixir | 60.4ms | 20.1× | 4/6 | 311.1ms | 250.7ms | 85.2 MB | 6/6 | 345426 |
-| python | 80.9ms | 27.0× | 6/6 | 90.2ms | 9.3ms | 10.1 MB | 1/6 | 345426 |
-| node | 3.0ms | 1.0× | 1/6 | 20.5ms | 17.5ms | 50.7 MB | 5/6 | 345426 |
-| ruby | 31.5ms | 10.5× | 3/6 | 71.1ms | 39.6ms | 23.7 MB | 3/6 | 345426 |
-| dotnet | 3.0ms | 1.0× | 2/6 | 24.2ms | 21.2ms | 26.2 MB | 4/6 | 345426 |
+| brood | 114.5ms | 10.1× | 4/6 | 142.5ms | 28.0ms | 13.5 MB | 2/6 | 12499997500000 |
+| elixir | 36.2ms | 3.2× | 2/6 | 298.3ms | 262.1ms | 78.2 MB | 5/6 | 12499997500000 |
+| python | 110.0ms | 9.7× | 3/6 | 121.2ms | 11.2ms | 10.5 MB | 1/6 | 12499997500000 |
+| node | 234.7ms | 20.8× | 5/6 | 252.3ms | 17.6ms | 90.7 MB | 6/6 | 12499997500000 |
+| ruby | 240.6ms | 21.3× | 6/6 | 281.5ms | 40.9ms | 23.5 MB | 3/6 | 12499997500000 |
+| dotnet | 11.3ms | 1.0× | 1/6 | 36.0ms | 24.7ms | 27.7 MB | 4/6 | 12499997500000 |
 
-## matmul — nested loops + indexing (integer NxN)  (N=80)
-
-| lang | compute | vs fastest | pos | wall | startup | peak RSS | mem | checksum |
-|------|---------|------------|-----|------|---------|----------|-----|----------|
-| brood | 103.6ms | 38.4× | 6/6 | 131.5ms | 27.9ms | 28.7 MB | 4/6 | 229499993 |
-| elixir | 27.5ms | 10.2× | 3/6 | 278.2ms | 250.7ms | 79.5 MB | 6/6 | 229499993 |
-| python | 45.3ms | 16.8× | 5/6 | 54.6ms | 9.3ms | 9.9 MB | 1/6 | 229499993 |
-| node | 3.9ms | 1.4× | 2/6 | 21.4ms | 17.5ms | 49.2 MB | 5/6 | 229499993 |
-| ruby | 31.6ms | 11.7× | 4/6 | 71.2ms | 39.6ms | 23.7 MB | 2/6 | 229499993 |
-| dotnet | 2.7ms | 1.0× | 1/6 | 23.9ms | 21.2ms | 26.2 MB | 3/6 | 229499993 |
-
-## strings — string building (join) + length  (N=50000)
+## primes — integer arithmetic (trial division)  (N=150000)
 
 | lang | compute | vs fastest | pos | wall | startup | peak RSS | mem | checksum |
 |------|---------|------------|-----|------|---------|----------|-----|----------|
-| brood | 64.1ms | 11.2× | 6/6 | 92.0ms | 27.9ms | 30.0 MB | 3/6 | 288889 |
-| elixir | 28.2ms | 4.9× | 5/6 | 278.9ms | 250.7ms | 86.7 MB | 6/6 | 288889 |
-| python | 5.7ms | 1.0× | 1/6 | 15.0ms | 9.3ms | 12.9 MB | 1/6 | 288889 |
-| node | 7.4ms | 1.3× | 3/6 | 24.9ms | 17.5ms | 52.6 MB | 5/6 | 288889 |
-| ruby | 9.7ms | 1.7× | 4/6 | 49.3ms | 39.6ms | 25.8 MB | 2/6 | 288889 |
-| dotnet | 5.7ms | 1.0× | 2/6 | 26.9ms | 21.2ms | 30.1 MB | 4/6 | 288889 |
+| brood | 350.6ms | 70.1× | 6/6 | 378.6ms | 28.0ms | 13.6 MB | 2/6 | 13848 |
+| elixir | 50.7ms | 10.1× | 3/6 | 312.8ms | 262.1ms | 81.0 MB | 6/6 | 13848 |
+| python | 135.0ms | 27.0× | 5/6 | 146.2ms | 11.2ms | 9.9 MB | 1/6 | 13848 |
+| node | 16.2ms | 3.2× | 2/6 | 33.8ms | 17.6ms | 49.2 MB | 5/6 | 13848 |
+| ruby | 131.2ms | 26.2× | 4/6 | 172.1ms | 40.9ms | 23.5 MB | 3/6 | 13848 |
+| dotnet | 5.0ms | 1.0× | 1/6 | 29.7ms | 24.7ms | 26.4 MB | 4/6 | 13848 |
 
-## wordcount — hash-map build (immutable vs mutable)  (N=100000)
-
-| lang | compute | vs fastest | pos | wall | startup | peak RSS | mem | checksum |
-|------|---------|------------|-----|------|---------|----------|-----|----------|
-| brood | 162.6ms | 22.6× | 6/6 | 190.5ms | 27.9ms | 53.4 MB | 5/6 | 50038280 |
-| elixir | 39.8ms | 5.5× | 5/6 | 290.5ms | 250.7ms | 80.7 MB | 6/6 | 50038280 |
-| python | 23.6ms | 3.3× | 4/6 | 32.9ms | 9.3ms | 9.9 MB | 1/6 | 50038280 |
-| node | 7.2ms | 1.0× | 1/6 | 24.7ms | 17.5ms | 50.4 MB | 4/6 | 50038280 |
-| ruby | 12.3ms | 1.7× | 3/6 | 51.9ms | 39.6ms | 23.5 MB | 2/6 | 50038280 |
-| dotnet | 10.2ms | 1.4× | 2/6 | 31.4ms | 21.2ms | 27.3 MB | 3/6 | 50038280 |
-
-## bintree — allocation / GC pressure (build+walk trees)  (N=40)
+## collatz — integer arithmetic + tight inner loop  (N=250000)
 
 | lang | compute | vs fastest | pos | wall | startup | peak RSS | mem | checksum |
 |------|---------|------------|-----|------|---------|----------|-----|----------|
-| brood | 282.1ms | 50.4× | 6/6 | 310.0ms | 27.9ms | 20.2 MB | 2/6 | 327640 |
-| elixir | 56.9ms | 10.2× | 5/6 | 307.6ms | 250.7ms | 84.0 MB | 6/6 | 327640 |
-| python | 22.8ms | 4.1× | 3/6 | 32.1ms | 9.3ms | 10.0 MB | 1/6 | 327640 |
-| node | 7.1ms | 1.3× | 2/6 | 24.6ms | 17.5ms | 52.3 MB | 5/6 | 327640 |
-| ruby | 23.2ms | 4.1× | 4/6 | 62.8ms | 39.6ms | 23.8 MB | 3/6 | 327640 |
-| dotnet | 5.6ms | 1.0× | 1/6 | 26.8ms | 21.2ms | 30.8 MB | 4/6 | 327640 |
+| brood | 464.9ms | 8.9× | 4/6 | 492.9ms | 28.0ms | 28.6 MB | 4/6 | 442 |
+| elixir | 150.3ms | 2.9× | 2/6 | 412.4ms | 262.1ms | 81.8 MB | 6/6 | 442 |
+| python | 2.612s | 49.9× | 6/6 | 2.623s | 11.2ms | 9.7 MB | 1/6 | 442 |
+| node | 179.5ms | 3.4× | 3/6 | 197.1ms | 17.6ms | 49.0 MB | 5/6 | 442 |
+| ruby | 871.2ms | 16.7× | 5/6 | 912.1ms | 40.9ms | 23.5 MB | 2/6 | 442 |
+| dotnet | 52.3ms | 1.0× | 1/6 | 77.0ms | 24.7ms | 26.4 MB | 3/6 | 442 |
 
-## sort — sort a list of ints + checksum walk  (N=50000)
-
-| lang | compute | vs fastest | pos | wall | startup | peak RSS | mem | checksum |
-|------|---------|------------|-----|------|---------|----------|-----|----------|
-| brood | 32.2ms | 2.8× | 6/6 | 60.1ms | 27.9ms | 25.1 MB | 3/6 | 102632633 |
-| elixir | 28.6ms | 2.5× | 5/6 | 279.3ms | 250.7ms | 86.8 MB | 6/6 | 102632633 |
-| python | 18.8ms | 1.6× | 4/6 | 28.1ms | 9.3ms | 12.2 MB | 1/6 | 102632633 |
-| node | 16.6ms | 1.4× | 3/6 | 34.1ms | 17.5ms | 51.6 MB | 5/6 | 102632633 |
-| ruby | 11.5ms | 1.0× | 1/6 | 51.1ms | 39.6ms | 24.2 MB | 2/6 | 102632633 |
-| dotnet | 12.8ms | 1.1× | 2/6 | 34.0ms | 21.2ms | 27.2 MB | 4/6 | 102632633 |
-
-## spawn — lightweight concurrent units + result collection  (N=20000)
+## mandelbrot — floating-point math (escape iterations)  (N=540)
 
 | lang | compute | vs fastest | pos | wall | startup | peak RSS | mem | checksum |
 |------|---------|------------|-----|------|---------|----------|-----|----------|
-| brood | 1.281s | 57.2× | 5/6 | 1.309s | 27.9ms | 200.1 MB | 5/6 | 12200000 |
-| elixir | 83.3ms | 3.7× | 2/6 | 334.0ms | 250.7ms | 90.4 MB | 4/6 | 12200000 |
-| python | 1.101s | 49.2× | 4/6 | 1.111s | 9.3ms | 36.0 MB | 2/6 | 12200000 |
-| node | 109.2ms | 4.9× | 3/6 | 126.7ms | 17.5ms | 55.9 MB | 3/6 | 12200000 |
-| ruby | 5.095s | 227.4× | 6/6 | 5.134s | 39.6ms | 246.4 MB | 6/6 | 12200000 |
-| dotnet | 22.4ms | 1.0× | 1/6 | 43.6ms | 21.2ms | 32.1 MB | 1/6 | 12200000 |
+| brood | 1.277s | 70.2× | 5/6 | 1.305s | 28.0ms | 13.6 MB | 2/6 | 6129302 |
+| elixir | 279.3ms | 15.3× | 3/6 | 541.4ms | 262.1ms | 81.4 MB | 6/6 | 6129302 |
+| python | 1.423s | 78.2× | 6/6 | 1.434s | 11.2ms | 10.0 MB | 1/6 | 6129302 |
+| node | 33.7ms | 1.9× | 2/6 | 51.3ms | 17.6ms | 49.8 MB | 5/6 | 6129302 |
+| ruby | 442.1ms | 24.3× | 4/6 | 483.0ms | 40.9ms | 23.6 MB | 3/6 | 6129302 |
+| dotnet | 18.2ms | 1.0× | 1/6 | 42.9ms | 24.7ms | 26.4 MB | 4/6 | 6129302 |
+
+## matmul — nested loops + indexing (integer NxN)  (N=175)
+
+| lang | compute | vs fastest | pos | wall | startup | peak RSS | mem | checksum |
+|------|---------|------------|-----|------|---------|----------|-----|----------|
+| brood | 538.6ms | 91.3× | 6/6 | 566.6ms | 28.0ms | 32.2 MB | 4/6 | 654353666 |
+| elixir | 82.6ms | 14.0× | 3/6 | 344.7ms | 262.1ms | 81.7 MB | 6/6 | 654353666 |
+| python | 456.2ms | 77.3× | 5/6 | 467.4ms | 11.2ms | 10.3 MB | 1/6 | 654353666 |
+| node | 35.5ms | 6.0× | 2/6 | 53.1ms | 17.6ms | 52.8 MB | 5/6 | 654353666 |
+| ruby | 312.5ms | 53.0× | 4/6 | 353.4ms | 40.9ms | 23.8 MB | 2/6 | 654353666 |
+| dotnet | 5.9ms | 1.0× | 1/6 | 30.6ms | 24.7ms | 26.8 MB | 3/6 | 654353666 |
+
+## strings — string building (join) + length  (N=500000)
+
+| lang | compute | vs fastest | pos | wall | startup | peak RSS | mem | checksum |
+|------|---------|------------|-----|------|---------|----------|-----|----------|
+| brood | 795.2ms | 18.9× | 6/6 | 823.2ms | 28.0ms | 176.0 MB | 5/6 | 3388889 |
+| elixir | 121.9ms | 2.9× | 5/6 | 384.0ms | 262.1ms | 198.7 MB | 6/6 | 3388889 |
+| python | 48.4ms | 1.1× | 2/6 | 59.6ms | 11.2ms | 39.8 MB | 1/6 | 3388889 |
+| node | 58.3ms | 1.4× | 3/6 | 75.9ms | 17.6ms | 96.0 MB | 4/6 | 3388889 |
+| ruby | 86.9ms | 2.1× | 4/6 | 127.8ms | 40.9ms | 52.1 MB | 2/6 | 3388889 |
+| dotnet | 42.1ms | 1.0× | 1/6 | 66.8ms | 24.7ms | 56.9 MB | 3/6 | 3388889 |
+
+## wordcount — hash-map build (immutable vs mutable)  (N=750000)
+
+| lang | compute | vs fastest | pos | wall | startup | peak RSS | mem | checksum |
+|------|---------|------------|-----|------|---------|----------|-----|----------|
+| brood | 982.6ms | 28.8× | 6/6 | 1.011s | 28.0ms | 55.5 MB | 5/6 | 374854840 |
+| elixir | 186.6ms | 5.5× | 5/6 | 448.7ms | 262.1ms | 78.5 MB | 6/6 | 374854840 |
+| python | 184.5ms | 5.4× | 4/6 | 195.7ms | 11.2ms | 9.9 MB | 1/6 | 374854840 |
+| node | 46.1ms | 1.4× | 2/6 | 63.7ms | 17.6ms | 50.7 MB | 4/6 | 374854840 |
+| ruby | 70.9ms | 2.1× | 3/6 | 111.8ms | 40.9ms | 23.5 MB | 2/6 | 374854840 |
+| dotnet | 34.1ms | 1.0× | 1/6 | 58.8ms | 24.7ms | 27.5 MB | 3/6 | 374854840 |
+
+## bintree — allocation / GC pressure (build+walk trees)  (N=200)
+
+| lang | compute | vs fastest | pos | wall | startup | peak RSS | mem | checksum |
+|------|---------|------------|-----|------|---------|----------|-----|----------|
+| brood | 1.123s | 43.3× | 6/6 | 1.151s | 28.0ms | 28.7 MB | 3/6 | 1638200 |
+| elixir | 59.0ms | 2.3× | 3/6 | 321.1ms | 262.1ms | 82.1 MB | 6/6 | 1638200 |
+| python | 108.0ms | 4.2× | 4/6 | 119.2ms | 11.2ms | 10.0 MB | 1/6 | 1638200 |
+| node | 36.7ms | 1.4× | 2/6 | 54.3ms | 17.6ms | 56.7 MB | 5/6 | 1638200 |
+| ruby | 113.9ms | 4.4× | 5/6 | 154.8ms | 40.9ms | 23.8 MB | 2/6 | 1638200 |
+| dotnet | 25.9ms | 1.0× | 1/6 | 50.6ms | 24.7ms | 32.4 MB | 4/6 | 1638200 |
+
+## sort — sort a list of ints + checksum walk  (N=375000)
+
+| lang | compute | vs fastest | pos | wall | startup | peak RSS | mem | checksum |
+|------|---------|------------|-----|------|---------|----------|-----|----------|
+| brood | 244.0ms | 3.2× | 6/6 | 272.0ms | 28.0ms | 87.8 MB | 5/6 | 46468819 |
+| elixir | 111.8ms | 1.5× | 4/6 | 373.9ms | 262.1ms | 166.1 MB | 6/6 | 46468819 |
+| python | 184.9ms | 2.4× | 5/6 | 196.1ms | 11.2ms | 25.9 MB | 1/6 | 46468819 |
+| node | 107.3ms | 1.4× | 3/6 | 124.9ms | 17.6ms | 65.5 MB | 4/6 | 46468819 |
+| ruby | 76.5ms | 1.0× | 2/6 | 117.4ms | 40.9ms | 29.2 MB | 2/6 | 46468819 |
+| dotnet | 75.9ms | 1.0× | 1/6 | 100.6ms | 24.7ms | 29.7 MB | 3/6 | 46468819 |
+
+## nqueens — backtracking recursion — count N-queens solutions  (N=10)
+
+| lang | compute | vs fastest | pos | wall | startup | peak RSS | mem | checksum |
+|------|---------|------------|-----|------|---------|----------|-----|----------|
+| brood | 933.3ms | 68.1× | 6/6 | 961.3ms | 28.0ms | 24.7 MB | 3/6 | 724 |
+| elixir | 48.8ms | 3.6× | 3/6 | 310.9ms | 262.1ms | 80.6 MB | 6/6 | 724 |
+| python | 66.9ms | 4.9× | 4/6 | 78.1ms | 11.2ms | 9.8 MB | 1/6 | 724 |
+| node | 13.7ms | 1.0× | 1/6 | 31.3ms | 17.6ms | 51.2 MB | 5/6 | 724 |
+| ruby | 137.1ms | 10.0× | 5/6 | 178.0ms | 40.9ms | 23.8 MB | 2/6 | 724 |
+| dotnet | 19.0ms | 1.4× | 2/6 | 43.7ms | 24.7ms | 29.3 MB | 4/6 | 724 |
+
+## pipeline — filter/map/reduce pipeline over a range  (N=100000)
+
+| lang | compute | vs fastest | pos | wall | startup | peak RSS | mem | checksum |
+|------|---------|------------|-----|------|---------|----------|-----|----------|
+| brood | 562.6ms | 76.0× | 6/6 | 590.6ms | 28.0ms | 35.6 MB | 4/6 | 155553889038886 |
+| elixir | 23.4ms | 3.2× | 4/6 | 285.5ms | 262.1ms | 78.0 MB | 6/6 | 155553889038886 |
+| python | 7.4ms | 1.0× | 1/6 | 18.6ms | 11.2ms | 9.9 MB | 1/6 | 155553889038886 |
+| node | 24.9ms | 3.4× | 5/6 | 42.5ms | 17.6ms | 52.5 MB | 5/6 | 155553889038886 |
+| ruby | 7.7ms | 1.0× | 2/6 | 48.6ms | 40.9ms | 24.0 MB | 2/6 | 155553889038886 |
+| dotnet | 19.4ms | 2.6× | 3/6 | 44.1ms | 24.7ms | 28.1 MB | 3/6 | 155553889038886 |
+
+## spawn — lightweight concurrent units + result collection  (N=10000)
+
+| lang | compute | vs fastest | pos | wall | startup | peak RSS | mem | checksum |
+|------|---------|------------|-----|------|---------|----------|-----|----------|
+| brood | 524.9ms | 23.9× | 4/6 | 552.9ms | 28.0ms | 116.9 MB | 5/6 | 6100000 |
+| elixir | 58.0ms | 2.6× | 2/6 | 320.1ms | 262.1ms | 88.5 MB | 4/6 | 6100000 |
+| python | 549.7ms | 25.0× | 5/6 | 560.9ms | 11.2ms | 28.1 MB | 1/6 | 6100000 |
+| node | 62.3ms | 2.8× | 3/6 | 79.9ms | 17.6ms | 51.8 MB | 3/6 | 6100000 |
+| ruby | 1.579s | 71.8× | 6/6 | 1.620s | 40.9ms | 136.4 MB | 6/6 | 6100000 |
+| dotnet | 22.0ms | 1.0× | 1/6 | 46.7ms | 24.7ms | 30.7 MB | 2/6 | 6100000 |
 
 ## pfib — parallel fib — 100 computed at once across cores  (N=28)
 
 | lang | compute | vs fastest | pos | wall | startup | peak RSS | mem | checksum |
 |------|---------|------------|-----|------|---------|----------|-----|----------|
-| brood | 459.7ms | 11.1× | 4/6 | 487.6ms | 27.9ms | 17.3 MB | 1/6 | 31781100 |
-| elixir | 133.2ms | 3.2× | 3/6 | 383.9ms | 250.7ms | 84.2 MB | 5/6 | 31781100 |
-| python | 754.2ms | 18.2× | 6/6 | 763.5ms | 9.3ms | 22.3 MB | 2/6 | 31781100 |
-| node | 128.5ms | 3.1× | 2/6 | 146.0ms | 17.5ms | 181.8 MB | 6/6 | 31781100 |
-| ruby | 479.5ms | 11.6× | 5/6 | 519.1ms | 39.6ms | 23.7 MB | 3/6 | 31781100 |
-| dotnet | 41.5ms | 1.0× | 1/6 | 62.7ms | 21.2ms | 28.0 MB | 4/6 | 31781100 |
+| brood | 424.6ms | 11.0× | 4/6 | 452.6ms | 28.0ms | 15.8 MB | 1/6 | 31781100 |
+| elixir | 105.6ms | 2.7× | 2/6 | 367.7ms | 262.1ms | 82.1 MB | 5/6 | 31781100 |
+| python | 698.8ms | 18.1× | 6/6 | 710.0ms | 11.2ms | 22.1 MB | 2/6 | 31781100 |
+| node | 116.6ms | 3.0× | 3/6 | 134.2ms | 17.6ms | 183.2 MB | 6/6 | 31781100 |
+| ruby | 450.8ms | 11.6× | 5/6 | 491.7ms | 40.9ms | 23.7 MB | 3/6 | 31781100 |
+| dotnet | 38.7ms | 1.0× | 1/6 | 63.4ms | 24.7ms | 28.1 MB | 4/6 | 31781100 |
 
 ## http — concurrent HTTP — N in-flight GETs to a local server  (N=500)
 
 | lang | compute | vs fastest | pos | wall | startup | peak RSS | mem | checksum |
 |------|---------|------------|-----|------|---------|----------|-----|----------|
-| brood | 182.6ms | 1.4× | 3/6 | 210.5ms | 27.9ms | 97.1 MB | 5/6 | 500 |
-| elixir | 736.0ms | 5.8× | 6/6 | 986.7ms | 250.7ms | 555.9 MB | 6/6 | 500 |
-| python | 187.7ms | 1.5× | 4/6 | 197.0ms | 9.3ms | 46.2 MB | 1/6 | 500 |
-| node | 127.9ms | 1.0× | 1/6 | 145.4ms | 17.5ms | 65.3 MB | 4/6 | 500 |
-| ruby | 225.2ms | 1.8× | 5/6 | 264.8ms | 39.6ms | 50.2 MB | 3/6 | 500 |
-| dotnet | 158.1ms | 1.2× | 2/6 | 179.3ms | 21.2ms | 48.2 MB | 2/6 | 500 |
+| brood | 147.7ms | 1.2× | 2/6 | 175.7ms | 28.0ms | 102.7 MB | 5/6 | 500 |
+| elixir | 674.9ms | 5.3× | 6/6 | 937.0ms | 262.1ms | 552.6 MB | 6/6 | 500 |
+| python | 175.8ms | 1.4× | 4/6 | 187.0ms | 11.2ms | 47.2 MB | 1/6 | 500 |
+| node | 128.1ms | 1.0× | 1/6 | 145.7ms | 17.6ms | 65.2 MB | 4/6 | 500 |
+| ruby | 207.5ms | 1.6× | 5/6 | 248.4ms | 40.9ms | 50.3 MB | 3/6 | 500 |
+| dotnet | 148.9ms | 1.2× | 3/6 | 173.6ms | 24.7ms | 48.3 MB | 2/6 | 500 |

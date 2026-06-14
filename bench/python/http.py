@@ -13,7 +13,7 @@ import os
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
 
-N = int(os.environ.get("BENCH_N", "1000"))
+N = int(os.environ.get("BENCH_N", "500"))
 PORT = os.environ.get("BENCH_HTTP_PORT", "8089")
 URL = f"http://127.0.0.1:{PORT}/"
 

@@ -1,4 +1,4 @@
-const N = parseInt(process.env.BENCH_N || "37", 10);
+const N = parseInt(process.env.BENCH_N || "35", 10);
 
 function fib(n) {
   if (n < 2) return n;

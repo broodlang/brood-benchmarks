@@ -1,5 +1,5 @@
 import os
-N = int(os.environ.get("BENCH_N", "60000000"))
+N = int(os.environ.get("BENCH_N", "30000000"))
 
 acc = 0
 i = 0

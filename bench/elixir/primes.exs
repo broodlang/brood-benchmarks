@@ -5,5 +5,5 @@ defmodule B do
   defp check(n, d, limit), do: if(rem(n, d) == 0, do: false, else: check(n, d + 1, limit))
 end
 
-n = String.to_integer(System.get_env("BENCH_N") || "300000")
+n = String.to_integer(System.get_env("BENCH_N") || "150000")
 IO.puts(Enum.count(2..(n - 1), &B.prime?/1))

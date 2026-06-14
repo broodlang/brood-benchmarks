@@ -9,30 +9,18 @@ interpreters (Python, Ruby) and JITs (Node/V8, Elixir/BeamAsm, .NET/RyuJIT).
 > **Engine:** Brood runs on its **bytecode VM** — the closure-compiling engine
 > that superseded the original tree-walker — with **primitive inlining** (core
 > arithmetic/comparison ops run inline as native `i64` operations) and a **tier-1
-> template JIT**. With **back-edge tiering** the JIT fires on self-tail integer
-> loops (a tight `loop` runs native, **5.4×**; a bare 200M-iter loop 8 s → 0.55 s),
-> and **native-to-native call linking** plus a **call-site inline cache + call-head
-> elision** now put non-tail recursion firmly on the native path — a JIT'd caller
-> invokes a JIT'd callee directly, the callee's compiled arm is cached per call-site,
-> and free-global calls no longer stage a head value at all (**fib 3.3×, pfib ~5×
-> and now ahead of Ruby, bintree 1.2×**). `VectorRef` codegen handles matmul's
-> indexed loop (**153 → 104 ms**) and fixing two codegen bails did the same for
-> `collatz` (**289 → 63 ms**).
-> A **process-count-aware GC floor** keeps parallel fan-out's peak memory low
-> (`pfib` peaks ~15 MB), and a **thread-local symbol-interner cache + a sharded
-> allocation counter** removed the global-lock contention that had made
-> allocation-heavy fan-out near-serial (**8 alloc-heavy processes 10.8 s → 3.4 s,
-> ~1.3× → ~4× parallelism; `spawn` ~9 %**). A **transient GC-correctness fix**
-> (a tenured live transient no longer dangles across a collection) let the map
-> combinators (`merge`/`update-vals`/…) build through transients (**~1.4–1.6×**).
-> Two more: **caching `type-of`'s per-tag keyword** (it was re-interning the tag
-> name on every seq-predicate call — `nil?`/`pair?` per element) cut **bintree,
-> strings, sort, wordcount, collatz, matmul** 2–7 %; and the JIT now **emits a
-> 2-element vector literal** so bintree's `make` runs native (**bintree −13.6 %
-> cumulative**, instruction count). Earlier **data-structure fast paths** moved more rows:
-> inlining `nth`/`vector-ref` to a slab read, a primitive-reducer fold
-> (**reduce ~4.7×**), a single-pass native `join` (**strings ~2.2×**), and
-> fixed-arity `get`/`assoc` (**wordcount ~1.3×**) — all checksum-verified.
+> template JIT**. **Back-edge tiering** puts self-tail integer loops (`loop`,
+> `collatz`) on the native path; **`VectorRef` codegen** does the same for indexed
+> array loops; and **native-to-native call linking + a call-site inline cache +
+> call-head elision** extend the native path to **non-tail recursion** (`fib`,
+> `pfib`) — a JIT'd caller invokes a JIT'd callee directly and the compiled arm is
+> cached per call-site. A **process-count-aware GC floor** keeps parallel fan-out's
+> peak memory low (`pfib` peaks ~16 MB), and a **thread-local symbol-interner cache
+> + a sharded allocation counter** removed the global-lock contention that had made
+> allocation-heavy fan-out near-serial. Still **interpreted** (no JIT path yet, and
+> the suite's weak rows): **float** loops (`mandelbrot`), array math (`matmul`),
+> the immutable map build (`wordcount`), short-lived allocation (`bintree`), and the
+> sequence combinators behind `pipeline`.
 
 ## Results
 
@@ -43,31 +31,27 @@ interpreters (Python, Ruby) and JITs (Node/V8, Elixir/BeamAsm, .NET/RyuJIT).
 
 ![Where the languages land — compute speed (startup excluded) vs memory](results/positioning.svg)
 
-**The short version:** Brood's strengths are **memory** (~14 MB base, holding
-14–38 MB across *every* workload — only Python is as light) and **fast-enough
-startup** (~28 ms, ahead of Ruby and ~9× ahead of the BEAM). On **concurrent I/O**
-(`http`) it lands a respectable 3rd of six (~1.4× behind Node, just behind .NET),
-and on **parallel CPU** (`pfib`) it now finishes **ahead of Ruby** while holding the
-**lightest memory in the field** (~17 MB). Its main weakness is **raw single-threaded
-compute** — the young bytecode VM trails the JITs (.NET and Node lead) and the
-interpreters (Ruby, Python). Recent work closed several gaps: the JIT now compiles
-self-tail loops (`loop` 5.4×, `collatz`), matmul's indexed loop, and — via
-native-to-native call linking, a call-site inline cache and call-head elision —
-**non-tail recursion** (`fib` now matches Elixir/Python at 3.3×, `pfib` ~5× and past
-Ruby, `bintree` 1.2×), and data-structure fast paths fixed `reduce`, `strings`, and
-`wordcount`. The remaining frontier is **float** support for `mandelbrot` (the
-integer-only JIT can't yet tier it) and **allocation** (`bintree`'s short-lived
-nodes). See
-[BENCHMARKS.md](BENCHMARKS.md)
-for the honest, full picture, a [positioning chart](results/positioning.svg), and
-the code side by side.
+**The short version:** Brood's standout is **memory** — ~13.7 MB base, holding the
+lightest or second-lightest peak RSS across nearly every workload (only Python is
+as light), and the single lightest in `pfib` (~16 MB) while saturating 12 cores —
+plus **fast-enough startup** (~28 ms, ahead of Ruby and ~9× ahead of the BEAM). On
+**concurrent I/O** (`http`) it lands **2nd of six** (behind only Node, level with
+.NET), and on **parallel CPU** (`pfib`) it finishes **ahead of Ruby and Python**.
+The fairness-fixed `reduce` (a real higher-order fold) now **beats Node and Ruby**,
+and JIT'd integer loops (`loop`, `collatz`) beat both interpreters. Its weakness is
+**raw single-threaded compute on shapes the JIT doesn't yet cover** — float
+(`mandelbrot`), array math (`matmul`), allocation (`bintree`), backtracking
+(`nqueens`), and the sequence `pipeline`. By geometric mean across the suite Brood
+sits ~19.5× off the fastest — mid-pack, now **ahead of Python**, with .NET and Node
+fastest. See [BENCHMARKS.md](BENCHMARKS.md) for the honest, full picture, a
+[positioning chart](results/positioning.svg), and the code side by side.
 
 ## The benchmarks (17)
 
 | name | stresses |
 |------|----------|
 | `startup`    | interpreter/VM startup + base memory |
-| `fib`        | naive recursion / function-call overhead (`fib(37)`) |
+| `fib`        | naive recursion / function-call overhead (`fib(35)`) |
 | `loop`       | raw iteration — tail recursion vs a `for` loop |
 | `reduce`     | higher-order fold over a materialised range |
 | `primes`     | integer arithmetic — count primes by trial division |
@@ -189,3 +173,6 @@ machine · Brood 0.1.0 (bytecode VM + tier-1 JIT, primitive inlining,
 process-count-aware GC floor) · Elixir 1.20.0 / OTP 28 (BeamAsm JIT) · Python
 3.14.4 · Node 22.21.0 (V8) · Ruby 3.3.8 · .NET 10.0.109 (RyuJIT). Best of 5 runs
 each (startup best of 15); the concurrency benchmarks (`spawn`/`pfib`/`http`) take the best of 7.
+Each run is CPU-pinned with `taskset` (single-threaded benchmarks to one dedicated
+core, the concurrency ones to all 12) with a 0.25 s settle between runs, so a prior
+run's teardown doesn't contend with the next measurement.

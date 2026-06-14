@@ -1,4 +1,4 @@
-n = String.to_integer(System.get_env("BENCH_N") || "200000")
+n = String.to_integer(System.get_env("BENCH_N") || "100000")
 
 sum =
   0..(n - 1)

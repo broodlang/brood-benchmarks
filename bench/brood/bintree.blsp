@@ -1,4 +1,4 @@
-(def n (let (e (getenv "BENCH_N")) (if e (string->number e) 400)))
+(def n (let (e (getenv "BENCH_N")) (if e (string->number e) 200)))
 (def depth 12)
 
 (defn make (d) (if (= d 0) nil [(make (- d 1)) (make (- d 1))]))

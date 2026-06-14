@@ -1,4 +1,4 @@
-(def n (let (e (getenv "BENCH_N")) (if e (string->number e) 60000000)))
+(def n (let (e (getenv "BENCH_N")) (if e (string->number e) 30000000)))
 
 ;; raw iteration: tail-recursive count with an accumulator (TCO, O(1) stack).
 ;; Accumulate the index (not a constant), so the checksum = sum 0..n-1 is

@@ -5,7 +5,7 @@
 # subtotal. Checksum = 100*fib(N).
 require "etc"
 
-n = (ENV["BENCH_N"] || "30").to_i
+n = (ENV["BENCH_N"] || "28").to_i
 tasks = 100
 
 def fib(n)

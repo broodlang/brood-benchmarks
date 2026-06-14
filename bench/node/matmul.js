@@ -1,4 +1,4 @@
-const N = parseInt(process.env.BENCH_N || "220", 10);
+const N = parseInt(process.env.BENCH_N || "175", 10);
 const MOD = 1000000007;
 
 const A = [], B = [];

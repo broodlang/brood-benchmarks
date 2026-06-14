@@ -1,4 +1,4 @@
-const N = parseInt(process.env.BENCH_N || "500000", 10);
+const N = parseInt(process.env.BENCH_N || "250000", 10);
 
 let best = 0;
 for (let start = 1; start < N; start++) {
