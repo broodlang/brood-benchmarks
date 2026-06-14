@@ -134,3 +134,33 @@ Regression check on the merge: an old-vs-new A/B (load-independent
 `perf stat -e instructions` + best-of-N wall) found the suite neutral within noise
 — `spawn` improved, a +2–4 % instruction bump on the JIT'd integer loops
 (`loop`/`collatz`) from the call-path/lazy-slot refactor, nothing else moved.
+
+## 7. Float JIT attempt — `mandelbrot` (2026-06-14, brood branch `perf/jit-float`, NOT merged)
+
+Pursued §3/§4's float gap: `mandelbrot`'s `esc` is a pure-`f64` self-tail loop, so if it
+lowered it would run native like `loop`/`collatz` did. The float codegen was implemented and
+is **correct** — a top-level pure-`f64` self-tail loop runs native (**~20×**, 4.06s→0.20s,
+exact-bit vs `BROOD_VM=0`) — but **`mandelbrot` did not win**, and the reason is instructive.
+
+`esc`'s win is blocked not by floats but by its **nested self-tail control flow**, which trips
+a *different* deep tier-1-JIT bug under every structural form of `(if (and (<= …) (< i maxi)) …)`:
+
+- **`and` (as written).** `(and a b)` → `(let (g a) (if g b g))`; the 2nd compare (an `i8`
+  bool) crosses a block boundary at the inner-`if` merge. The Cranelift verifier rejects the
+  bare-`i8` block-arg; zero-extending to `i64` fixes that, then `esc` runs native and correct
+  for ~5000 iterations and **hangs** — `perf` shows a **preempt/back-edge ping-pong**
+  (`vm_run_bc` → esc-native + `brood_rt_tick`, not converging once the reduction budget
+  exhausts). The same shape *without* `and` handles preempt fine.
+- **Nested `if`** (`(if A (if B X Y) Y)`, no bool value-merge). No hang, correct, but **bails**
+  a block-param *depth mismatch* (`jump block5(v224): got 1, expected 2`) — the dead `Jump`
+  after the tail `SelfCall` inside the nested then-branch breaks the leader/depth analysis.
+
+A pre-existing JIT bug *was* fixed along the way (worth keeping): `and`/`or` in any hot arm
+deopted because `JumpIfFalse` tag-checked a boxed `Bool` condition `== Int`; it now branches on
+Brood truthiness, so slot-based `and`/`or` lower.
+
+**Net:** float codegen sound; `esc` stays on the VM (crossing-widening reverted → no hang, no
+win, ~+2 % tiering overhead). Unlocking it needs real JIT-internals work (fix the preempt
+ping-pong for multi-merge-block arms, or the depth analysis for dead-jumps-after-tailcall, or
+type-aware block params) — a focused project, not a small change. Full write-up: brood
+`docs/jit-float.md` on `perf/jit-float`.
