@@ -31,19 +31,21 @@ interpreters (Python, Ruby) and JITs (Node/V8, Elixir/BeamAsm, .NET/RyuJIT).
 
 ![Where the languages land — compute speed (startup excluded) vs memory](results/positioning.svg)
 
-**The short version:** Brood's standout is **memory** — ~13.7 MB base, holding the
+**The short version:** Brood's standout is **memory** — ~14 MB base, holding the
 lightest or second-lightest peak RSS across nearly every workload (only Python is
-as light), and the single lightest in `pfib` (~16 MB) while saturating 12 cores —
+as light), and the single lightest in `pfib` (~17 MB) while saturating 12 cores —
 plus **fast-enough startup** (~28 ms, ahead of Ruby and ~9× ahead of the BEAM). On
-**concurrent I/O** (`http`) it lands **2nd of six** (behind only Node, level with
+**concurrent I/O** (`http`) it lands **2nd of six** (behind only Node, ahead of
 .NET), and on **parallel CPU** (`pfib`) it finishes **ahead of Ruby and Python**.
 The fairness-fixed `reduce` (a real higher-order fold) now **beats Node and Ruby**,
-and JIT'd integer loops (`loop`, `collatz`) beat both interpreters. Its weakness is
-**raw single-threaded compute on shapes the JIT doesn't yet cover** — float
-(`mandelbrot`), array math (`matmul`), allocation (`bintree`), backtracking
-(`nqueens`), and the sequence `pipeline`. By geometric mean across the suite Brood
-sits ~19.5× off the fastest — mid-pack, now **ahead of Python**, with .NET and Node
-fastest. See [BENCHMARKS.md](BENCHMARKS.md) for the honest, full picture, a
+and JIT'd integer loops (`loop`, `collatz`, and now `primes` — recently tiered, 3rd
+of six) beat both interpreters. Its weakness is **raw single-threaded compute on
+shapes the JIT doesn't yet cover** — float (`mandelbrot`), array math (`matmul`),
+the immutable map build (`wordcount`), string building (`strings`), and the sequence
+`pipeline`. By geometric mean across the suite Brood sits **~17.5× off the fastest**
+(down from ~19.5× after two JIT fixes tiered `primes`/`bintree`/`nqueens`) —
+mid-pack, **ahead of Python**, with .NET and Node fastest. See
+[BENCHMARKS.md](BENCHMARKS.md) for the honest, full picture, a
 [positioning chart](results/positioning.svg), and the code side by side.
 
 ## The benchmarks (17)
