@@ -119,10 +119,10 @@ Cumulative over the call-path arc: **fib 218 → 66 ms (3.3×), pfib 2342 → 46
 
 `mandelbrot`'s `esc` is a self-tail loop, but it bails immediately: it's floating-point and the JIT subset is integer-only (it bails on the first float constant). Float support needs **type-specialized tiering** — design in `docs/jit-float.md` (brood repo). This is now the only integer-vs-float gap: `collatz`, the other self-tail loop that wasn't tiering, was an all-integer arm blocked by two codegen bugs (now fixed — see "Recently addressed").
 
-### 2. GC / allocation — bintree 282 ms
+### 2. GC / allocation — bintree 247 ms
 
-Still the largest single integer benchmark, but **−13.6 % since this table** (type-of
-cache + JIT'd `make`). `bintree` is build + walk: `make` now runs native (the JIT
+Still the largest single integer benchmark, down from 282 ms (type-of cache +
+JIT'd `make`; **−13.6 %** by instruction count, confirmed by a low-load re-run). `bintree` is build + walk: `make` now runs native (the JIT
 emits its `[a b]` node literal — commit `b99756d`); the **walk (`check`) is the
 remaining interpreted half** — it's a two-call recursion + `VectorRef` + a `nil?`
 call (3 calls), and the link benefit gate measured it neutral, so it stays on the
@@ -149,7 +149,7 @@ Compute time (Brood); absolute ms is the stable measure (the "× vs fastest" mul
 | string build | strings | 64 ms | **addressed** — native `%string-join` |
 | immutable map churn | wordcount | 163 ms | **addressed** — fixed-arity `get`/`assoc` |
 | non-tail call dispatch | fib, pfib | 66 ms / 460 ms | **addressed** — linking + call-site IC + call-head elision (fib 3.3×, pfib ~5×; pfib now ahead of Ruby) |
-| allocation / walk | bintree | 282 ms | **partly addressed** — linking + elision lowered the driver/walk (348→282); residual is node alloc |
+| allocation / walk | bintree | 247 ms | **partly addressed** — linking/elision + type-of cache + JIT'd `make` (348→247); residual is the interpreted `check` walk (links neutral) + node alloc |
 | JIT subset gap (float) | mandelbrot | 75 ms | open — integer-only subset; needs float specialization (docs/jit-float.md) |
 
 What is **not** the bottleneck (measured): the scheduler (`pfib` spreads across cores) and the VM call-site IC (already caches the resolved `(arm, env)` per site). With non-tail dispatch addressed, the main open frontier is **float JIT** (mandelbrot) and **allocation** (bintree).
