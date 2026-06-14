@@ -23,9 +23,12 @@ interpreters (Python, Ruby) and JITs (Node/V8, Elixir/BeamAsm, .NET/RyuJIT).
 > build (**~2.2×**) onto the VM. And **lowering `and`/`or`** (a comparison result
 > crossing a block boundary now zero-extends to the block-param width) tiered
 > `mandelbrot`'s `esc` escape test — the **biggest single win, ~5.3×**, off the bottom
-> of the table. Still **interpreted** (the suite's weak rows): array math (`matmul`'s
-> inner `nth` loop), the immutable map build (`wordcount`), short-lived allocation
-> (`bintree`), and string building (`strings`).
+> of the table. And **loop-invariant vector hoisting (LICM)** — sound with *no* alias
+> analysis because Brood data is immutable — resolves an invariant vector's element base
+> once at the loop entry and inlines the reads, narrowing `matmul`'s inner `nth` loop
+> (**~241 → ~212 ms compute**). Still **interpreted** (the suite's weak rows): array math
+> (`matmul`'s remaining global / per-row `nth`s), the immutable map build (`wordcount`),
+> short-lived allocation (`bintree`), and string building (`strings`).
 
 ## Results
 
@@ -45,14 +48,19 @@ plus **fast-enough startup** (~28 ms, ahead of Ruby and ~9× ahead of the BEAM).
 The fairness-fixed `reduce` (a real higher-order fold) now **beats Node and Ruby**,
 and JIT'd integer loops (`loop`, `collatz`, and now `primes` — recently tiered, 3rd
 of six) beat both interpreters; top-level-lambda promotion pulled `pipeline` off the
-tree-walker (**~4.5×**) and sped `matmul`'s matrix build (**~2.2×**); and lowering
+tree-walker (**~4.5×**) and sped `matmul`'s matrix build (**~2.2×**); lowering
 `and`/`or` tiered `mandelbrot` (**~5.3×**, the biggest single win), which now beats
-Elixir and Ruby. Its remaining weakness is **raw single-threaded compute on shapes the
-JIT doesn't yet cover** — array math (`matmul`, now the largest gap at ~39×), the
-immutable map build (`wordcount`), string building (`strings`), and short-lived
-allocation (`bintree`). By geometric mean across the single-threaded suite Brood sits
-**~13.5× off the fastest** (down from ~16× before `and`/`or`, and ~19.5× before the JIT
-fixes) — mid-pack, **ahead of Python**, with .NET and Node fastest. See
+Elixir and Ruby; and loop-invariant vector hoisting (LICM — sound with no alias analysis
+because the data is immutable) inlined `matmul`'s invariant-row read (**~212 ms compute,
+from ~241**). Its remaining weakness is **raw single-threaded compute on shapes the
+JIT doesn't yet cover** — array math (`matmul`, still the largest gap at ~45×: the LICM
+narrows the inner read but the boxed 24-byte `Value` can't match a register `long`, and
+the global / per-row reads still call the slab helper), the immutable map build
+(`wordcount`), string building (`strings`), and short-lived allocation (`bintree`). By
+geometric mean across the single-threaded suite Brood sits **~14× off the fastest** (down
+from ~16× before `and`/`or`, and ~19.5× before the JIT fixes; the exact figure swings with
+the sub-10 ms compute times of the fastest runtimes) — mid-pack, **ahead of Python**, with
+.NET and Node fastest. See
 [BENCHMARKS.md](BENCHMARKS.md) for the honest, full picture, a
 [positioning chart](results/positioning.svg), and the code side by side.
 
