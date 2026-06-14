@@ -1,6 +1,6 @@
 # Brood Benchmarks
 
-Machine: `whklat`, 12-core x86-64, Linux 7.0.0, 2026-06-14.
+Machine: `whklat`, 12-core x86-64, Linux 7.0.0, 2026-06-15.
 Runtimes: Brood 0.1.0 · Elixir 1.20.0 / OTP 28 · Python 3.14.4 · Node 22.21.0 · Ruby 3.3.8 · .NET 10.0.109.
 Method: best of 5 runs per benchmark (startup best of 15); the concurrency benchmarks (spawn, pfib, http) take the best of 7. Compute = wall − startup, so boot cost is not charged against compute-heavy benchmarks.
 
@@ -26,6 +26,10 @@ Method: best of 5 runs per benchmark (startup best of 15); the concurrency bench
 > (`(and (<= …) (< …))`) — the **single biggest win: 1326 → 250 ms (~5.3×)**, off the
 > bottom of the table. (The promotion also surfaced two latent closure-serialisation
 > gaps — `form-pos` over the wire, and a `def`-RHS-in-`let` capture — both since fixed.)
+> Most recently, **loop-invariant vector hoisting (LICM)** — resolving an invariant
+> vector's element base once at the loop entry and inlining the reads, sound with *no*
+> alias analysis because Brood data is immutable — inlined `matmul`'s invariant-row `nth`
+> (**~241 → ~212 ms compute**).
 
 ---
 
@@ -118,14 +122,22 @@ happens to be all comparisons + adds/muls the JIT already covers.)
 
 | Brood | Elixir | Python | Node | Ruby | .NET |
 |-------|--------|--------|------|------|------|
-| 241ms | 86ms | 469ms | 32ms | 300ms | 6ms |
+| 212ms | 85ms | 493ms | 21ms | 297ms | 5ms |
 
 **Was 542 ms.** The matrix *construction* — `(into [] (map (fn (i) … (map (fn (j) …)))
 …))`, two top-level inline lambdas — used to run tree-walked. Promoting a top-level
 `(fn …)`'s body into the immovable RUNTIME region (Brood `dfa4f67`) lets it VM-compile:
-**~2.2× faster**. The remaining gap is the inner `nth` multiply loop, which under-tiers
-in a **data-dependent** way (a deopt, not a missing codegen path) — and .NET does this
-in 6 ms, so the ratio (~39×) is now the suite's largest.
+**~2.2× faster**. The inner `dot` loop already runs native (the old "data-dependent
+deopt" note was wrong); its cost is the **per-element `nth`**, which lowers to a
+`brood_rt_vector_ref` call (marshal + a `boxcar` slab lookup + a 24-byte out-pointer
+copy, ~7–10 ns each). **Loop-invariant vector hoisting (LICM)** now resolves an
+*invariant* vector's element base once at the loop entry and inlines `ptr + idx*stride`
+reads for the rest — sound with **no alias analysis** because Brood data is immutable
+(ADR-026). That inlines `(nth rowa k)` (**~241 → ~212 ms compute**). The residual gap is
+the two reads it can't hoist — the global `b` (hoisting it would diverge from the VM's
+late binding under hot reload) and the per-`k` row — plus the boxed 24-byte `Value` vs
+.NET's register `long`. .NET does this in ~5 ms, so the ratio (~45×, noise-sensitive on
+that tiny denominator) is still the suite's largest.
 
 ### strings 500 k — join + length
 
@@ -232,14 +244,18 @@ Python, Ruby, and the BEAM. Green processes handle 500 in-flight GETs cleanly.
 - **Higher-order/iteration**: a real `reduce` fold beats Node and Ruby; JIT'd
   integer loops (`loop`, `collatz`, and now `primes`) beat both interpreters; the
   top-level-lambda promotion pulled `pipeline` off the tree-walker (**~4.5×**) and
-  sped `matmul`'s matrix build (**~2.2×**); and lowering `and`/`or` tiered
+  sped `matmul`'s matrix build (**~2.2×**); lowering `and`/`or` tiered
   `mandelbrot`'s escape test — its **biggest win, ~5.3×** — so `mandelbrot` now beats
-  Elixir and Ruby instead of trailing the field.
+  Elixir and Ruby instead of trailing the field; and loop-invariant vector hoisting
+  (LICM, sound with no alias analysis because the data is immutable) inlined `matmul`'s
+  invariant-row read (**~241 → ~212 ms**).
 - **The weak frontier is raw single-threaded compute on un-JIT'd shapes** — array
-  math (`matmul`, now the largest ratio at ~39× — .NET does it in 6 ms; its inner
-  `nth` loop under-tiers), the immutable map build (`wordcount`), short-lived
-  allocation (`bintree`), and string building (`strings`). By geometric mean across
-  the single-threaded suite Brood lands at **~13.5× the fastest runtime** (down from
-  ~16× before `and`/`or` tiered `mandelbrot`, and ~19.5× before the JIT fixes) —
-  mid-pack, ahead of Python, with .NET and Node fastest. See
+  math (`matmul`, still the largest ratio at ~45× — .NET does it in ~5 ms; the LICM
+  inlined the invariant read but the global / per-row `nth`s still call the slab helper
+  and the boxed 24-byte `Value` can't match a register `long`), the immutable map build
+  (`wordcount`), short-lived allocation (`bintree`), and string building (`strings`). By
+  geometric mean across the single-threaded suite Brood lands at **~14× the fastest
+  runtime** (down from ~16× before `and`/`or` tiered `mandelbrot`, and ~19.5× before the
+  JIT fixes; the exact figure swings with the sub-10 ms compute times of the fastest
+  runtimes) — mid-pack, ahead of Python, with .NET and Node fastest. See
   [`results/positioning.svg`](results/positioning.svg).
