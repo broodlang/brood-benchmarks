@@ -34,9 +34,14 @@ interpreters (Python, Ruby) and JITs (Node/V8, Elixir/BeamAsm, .NET/RyuJIT).
 > lazy/streaming forms its peers use here (Elixir `Stream`, Python generators, .NET LINQ):
 > **31× → 8× off the fastest and 34 → 13 MB** (~3.5× faster, ~2.6× lighter). Eager `map`/`filter`
 > stay eager (Brood iterates them for side effects), so fusion is opt-in.
+> And **`strings` went from last to first** — `(join "," (range n))` streams each integer
+> straight into one buffer in the `%string-join` kernel (no intermediate list, no per-element
+> string, all immutable), matching Elixir's `Enum.join(0..(n-1), ",")`: **~960 ms → ~10 ms**,
+> now the **fastest of six and the lightest** (16 MB).
 > Still **interpreted** (the suite's weak rows): array math (`matmul`'s per-`k` row `nth`),
-> the immutable map build (`wordcount`),
-> short-lived allocation (`bintree`), and string building (`strings`).
+> the immutable map build (`wordcount` — same algorithm as Elixir's `Map.update`, ~5.6× slower
+> on Brood's young CHAMP constant factors, not an immutability cost), and short-lived
+> allocation (`bintree`).
 
 ## Results
 
@@ -67,11 +72,14 @@ here); top-level-lambda promotion sped `matmul`'s matrix build (**~2.2×**); low
 Elixir and Ruby; and loop-invariant vector hoisting (LICM — sound with no alias analysis
 because the data is immutable) inlined **both** of `matmul`'s invariant `nth`s — the local
 row and the global `b` (epoch-guarded) — (**~241 → ~171 ms compute**), so `matmul` now
-beats both interpreters. Its remaining weakness is **raw single-threaded compute on shapes
-the JIT doesn't yet cover** — array math (`matmul`, still the largest gap at ~30×: the boxed
-24-byte `Value` can't match a register `long`, and the per-`k` row read still calls the slab
-helper), the immutable map build (`wordcount`), string building (`strings`), and short-lived
-allocation (`bintree`). By geometric mean across the single-threaded suite Brood sits
+beats both interpreters; and streaming `%string-join` took **`strings` from last to first**
+(~960 ms → ~10 ms, fastest and lightest of six). Its remaining weakness is **raw
+single-threaded compute on shapes the JIT doesn't yet cover** — array math (`matmul`, still
+the largest gap at ~30×: the boxed 24-byte `Value` can't match a register `long`, and the
+per-`k` row read still calls the slab helper), the immutable map build (`wordcount` — note
+this is **not** an immutability cost: Elixir's `Map.update` is the same immutable RMW and ~5.6×
+faster, so the gap is Brood's young CHAMP constant factors), and short-lived allocation
+(`bintree`). By geometric mean across the single-threaded suite Brood sits
 **~12× off the fastest** (down from ~16× before `and`/`or`, and ~19.5× before the JIT fixes;
 the exact figure swings with the sub-10 ms compute times of the fastest runtimes) —
 mid-pack, **ahead of Python**, with .NET and Node fastest. See
@@ -90,7 +98,7 @@ mid-pack, **ahead of Python**, with .NET and Node fastest. See
 | `collatz`    | integer arithmetic in a tight inner loop |
 | `mandelbrot` | floating-point math — escape iterations over a grid |
 | `matmul`     | nested loops + indexing — integer N×N multiply |
-| `strings`    | string building (`join`) + length |
+| `strings`    | string building — comma-join 0..n-1 + length (Brood/Elixir join the range directly) |
 | `wordcount`  | hash-map build — **immutable** (Brood/Elixir) vs **mutable** (Python/Node/Ruby/.NET) |
 | `bintree`    | allocation / GC pressure — build & walk many binary trees |
 | `sort`       | sort a list of ints + an order-sensitive checksum walk |

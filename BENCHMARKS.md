@@ -141,15 +141,35 @@ per-`k` row — plus the boxed 24-byte `Value` vs .NET's register `long`. .NET d
 ~6 ms, so the ratio (**~30×**, noise-sensitive on that tiny denominator) is still the
 suite's largest, but Brood now sits comfortably ahead of both interpreters.
 
-### strings 500 k — join + length
+### strings 500 k — comma-join 0..n-1 + length
 
 | Brood | Elixir | Python | Node | Ruby | .NET |
 |-------|--------|--------|------|------|------|
-| 807ms | 133ms | 42ms | 54ms | 94ms | 46ms |
+| 10ms | 162ms | 47ms | 64ms | 90ms | 165ms |
 
-`(map number->string (range n))` builds a live N-element cons list (eager `map`),
-which the copying GC relocates repeatedly — also the suite's memory outlier
-(181 MB). A lazy/streaming `map` would fix both; deferred as a design change.
+**Was 807 ms (last by far, 181 MB — the memory outlier); now 10 ms, fastest and
+lightest of six.** The old code did `(join "," (map number->string (range n)))` — a
+redundant `map` that allocated N throwaway strings + a live N-element cons list the GC
+then relocated, all of which `%string-join` re-rendered anyway. `join` already renders
+each element, so we join the range directly (`(join "," (range n))`), matching Elixir's
+`Enum.join(0..(n-1), ",")`. The native `%string-join` now has a **streaming int-range
+fast path** — iterate `lo..hi`, format each integer straight into one pre-grown buffer
+with `write!` (no intermediate `Vec`, no per-element `String`). Fully immutable — no
+string builder; this only changes how the result string is *constructed*.
+
+### wordcount 750 k — hash-map build
+
+| Brood | Elixir | Python | Node | Ruby | .NET |
+|-------|--------|--------|------|------|------|
+| 1123ms | 202ms | 187ms | 35ms | 75ms | 51ms |
+
+**This is NOT an immutability cost.** Elixir's `Enum.reduce(… Map.update(m, k, 1, &(&1+1)))`
+is the *same* immutable-map read-modify-write into a plain `%{}` — and it's ~5.6× faster
+than Brood. So the gap is Brood's young CHAMP's **constant factors**, not the persistent
+approach. ~94% of Brood's time is the trie RMW (the LCG arithmetic alone is 70 ms). Two
+immutable levers: a single-pass **`map-update`** primitive (Brood does `(assoc m k (+ (get m
+k 0) 1))` = *two* trie walks; Elixir's `Map.update` is one), and cheaper CHAMP path-copy
+(per-level `SmallVec` clones + a fresh `MapNode` per level). Open.
 
 ### wordcount 750 k — hash-map build
 
@@ -233,9 +253,9 @@ from **~31× to ~8× off the fastest** while dropping peak memory **34 → 13 MB
 ~2.6× lighter at this N; ~3.3× / ~13× at n=1e6, where the eager cons-per-stage dominates).
 Eager `map`/`filter` stay eager — Brood iterates them for side effects — so fusion is opt-in
 via `eduction`/`lmap`/`lfilter`. Still 6/6 here (the per-element transducer closures are
-interpreted), but no longer the memory or allocation outlier it was. `strings` is the
-remaining un-fused pipeline (its `join` realises the view; full fusion needs a string-builder
-reducer).
+interpreted), but no longer the memory or allocation outlier it was. (`strings`, the other
+join-heavy row, is now *first* — see below — by streaming the range straight into the
+buffer; no string builder needed.)
 
 ### spawn 10 k — concurrent fan-out, each fib(15)
 
@@ -297,7 +317,9 @@ Python, Ruby, and the BEAM. Green processes handle 500 in-flight GETs cleanly.
   math (`matmul`, still the largest ratio at ~30× — .NET does it in ~6 ms; the LICM
   inlined the invariant reads but the per-`k` row `nth` still calls the slab helper and
   the boxed 24-byte `Value` can't match a register `long`), the immutable map build
-  (`wordcount`), short-lived allocation (`bintree`), and string building (`strings`). By
+  (`wordcount` — not an immutability cost; Elixir's immutable `Map.update` is ~5.6× faster,
+  so it's Brood's young CHAMP constant factors), and short-lived allocation (`bintree`).
+  (`strings` was here too; streaming `%string-join` made it the fastest of six.) By
   geometric mean across the single-threaded suite Brood lands at **~12× the fastest
   runtime** (down from ~16× before `and`/`or` tiered `mandelbrot`, and ~19.5× before the
   JIT fixes; the exact figure swings with the sub-10 ms compute times of the fastest
