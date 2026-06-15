@@ -1,0 +1,16 @@
+;; error PROPAGATION: throw from `depth` non-tail frames down, catch at the top, N times.
+;; The realistic shape — an error raised deep in a call stack and recovered near the top —
+;; where a runtime that captures a full stack trace on throw (e.g. .NET) pays O(depth).
+(def n (let (e (getenv "BENCH_N")) (if e (string->number e) 50000)))
+(def md 1000000007)
+(def depth 50)
+
+(defn descend (d i)
+  (if (= d 0)
+    (throw (rem i 100))
+    (+ 1 (descend (- d 1) i))))   ; non-tail → builds `depth` frames; throw unwinds them
+
+(defn loop (i acc)
+  (if (>= i n) acc (loop (+ i 1) (+ acc (try (descend depth i) (catch e e))))))
+
+(println (rem (loop 0 0) md))

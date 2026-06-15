@@ -122,6 +122,8 @@ BENCHES = [
     ("bintree",    200,      "all", "allocation / GC pressure (build+walk trees)"),
     ("sort",       375000,   "all", "sort a list of ints + checksum walk"),
     ("nqueens",    10,       "all", "backtracking recursion — count N-queens solutions"),
+    ("errors",     200000,   "all", "error handling — raise + recover a value N times"),
+    ("errors-deep", 50000,   "all", "error propagation — throw 50 frames deep, catch at top"),
     ("pipeline",   100000,   "all", "filter/map/reduce pipeline over a range"),
     ("spawn",      10000,    "all", "lightweight concurrent units + result collection"),
     ("pfib",       28,       "all", "parallel fib — 100 computed at once across cores"),

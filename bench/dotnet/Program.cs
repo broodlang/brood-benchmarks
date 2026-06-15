@@ -21,6 +21,8 @@ switch (name)
     case "bintree":    Bench.Bintree.Run(N(200)); break;
     case "sort":       Bench.Sort.Run(N(375000)); break;
     case "nqueens":    Bench.Nqueens.Run(N(10)); break;
+    case "errors":     Bench.Errors.Run(N(200000)); break;
+    case "errors-deep": Bench.ErrorsDeep.Run(N(50000)); break;
     case "pipeline":   Bench.Pipeline.Run(N(100000)); break;
     case "pfib":       Bench.Pfib.Run(N(28)); break;
     case "spawn":      await Bench.Spawn.Run(N(10000)); break;
