@@ -122,22 +122,23 @@ happens to be all comparisons + adds/muls the JIT already covers.)
 
 | Brood | Elixir | Python | Node | Ruby | .NET |
 |-------|--------|--------|------|------|------|
-| 212ms | 85ms | 493ms | 21ms | 297ms | 5ms |
+| 171ms | 82ms | 465ms | 22ms | 306ms | 6ms |
 
-**Was 542 ms.** The matrix *construction* — `(into [] (map (fn (i) … (map (fn (j) …)))
-…))`, two top-level inline lambdas — used to run tree-walked. Promoting a top-level
-`(fn …)`'s body into the immovable RUNTIME region (Brood `dfa4f67`) lets it VM-compile:
-**~2.2× faster**. The inner `dot` loop already runs native (the old "data-dependent
-deopt" note was wrong); its cost is the **per-element `nth`**, which lowers to a
-`brood_rt_vector_ref` call (marshal + a `boxcar` slab lookup + a 24-byte out-pointer
-copy, ~7–10 ns each). **Loop-invariant vector hoisting (LICM)** now resolves an
-*invariant* vector's element base once at the loop entry and inlines `ptr + idx*stride`
-reads for the rest — sound with **no alias analysis** because Brood data is immutable
-(ADR-026). That inlines `(nth rowa k)` (**~241 → ~212 ms compute**). The residual gap is
-the two reads it can't hoist — the global `b` (hoisting it would diverge from the VM's
-late binding under hot reload) and the per-`k` row — plus the boxed 24-byte `Value` vs
-.NET's register `long`. .NET does this in ~5 ms, so the ratio (~45×, noise-sensitive on
-that tiny denominator) is still the suite's largest.
+**Was 542 ms; beats Ruby and Python.** The matrix *construction* — `(into [] (map (fn (i)
+… (map (fn (j) …))) …))`, two top-level inline lambdas — used to run tree-walked.
+Promoting a top-level `(fn …)`'s body into the immovable RUNTIME region (Brood `dfa4f67`)
+lets it VM-compile: **~2.2× faster**. The inner `dot` loop already runs native (the old
+"data-dependent deopt" note was wrong); its cost was the **per-element `nth`**, a
+`brood_rt_vector_ref` call (marshal + a `boxcar` slab lookup + a 24-byte out-pointer copy,
+~7–10 ns each). **Loop-invariant vector hoisting (LICM)** resolves an *invariant* vector's
+element base once at the loop entry and inlines `ptr + idx*stride` reads — sound with **no
+alias analysis** because Brood data is immutable (ADR-026). It inlines both `(nth rowa k)`
+(invariant local) and `(nth b k)` (the global `b`, hoisted with a back-edge `global_epoch`
+guard that deopts on a concurrent rebind, so it stays bit-identical to the VM's late
+binding): **~241 → ~171 ms compute**. The residual gap is the one read it can't hoist — the
+per-`k` row — plus the boxed 24-byte `Value` vs .NET's register `long`. .NET does this in
+~6 ms, so the ratio (**~30×**, noise-sensitive on that tiny denominator) is still the
+suite's largest, but Brood now sits comfortably ahead of both interpreters.
 
 ### strings 500 k — join + length
 
@@ -188,29 +189,31 @@ in the suite (~4× the fastest).
 same bool-subset fix that moved `primes` tiers those arms too (**~1.8× faster**).
 The remaining cost is the per-step list building the JIT doesn't cover.
 
-### errors 200 k — raise + recover a value
+### errors 200 k — raise + recover a value (compute ms)
 
 | Brood | Elixir | Python | Node | Ruby | .NET |
 |-------|--------|--------|------|------|------|
-| 224ms | 350ms | 60ms | 615ms | 162ms | 327ms |
+| 208ms | 87ms | 52ms | 590ms | 111ms | 301ms |
 
 Raw exception throughput — raise a value-carrying error and recover it, in a tight loop.
-Python's exception machinery is fastest; Brood is 3rd. A shallow throw is cheap even in
-.NET (its cost is the stack-trace capture, which a 1–2-frame throw barely pays), so this
-axis alone doesn't separate the runtimes the way real error flows do — hence `errors-deep`.
+Python's exception machinery is fastest; Brood is 4th (ahead of .NET and Node). A shallow
+throw is cheap even in .NET (its cost is the stack-trace capture, which a 1–2-frame throw
+barely pays), so this axis alone doesn't separate the runtimes the way real error flows
+do — hence `errors-deep`.
 
-### errors-deep 50 k — throw 50 frames deep, catch at the top
+### errors-deep 50 k — throw 50 frames deep, catch at the top (compute ms)
 
 | Brood | Elixir | Python | Node | Ruby | .NET |
 |-------|--------|--------|------|------|------|
-| 298ms | 336ms | 235ms | 239ms | 158ms | 741ms |
+| 270ms | 68ms | 226ms | 226ms | 118ms | 708ms |
 
 The realistic shape: an error raised deep in a call stack and recovered near the top (a
-driver failing N layers down). **.NET is last (~4.7×)** — it captures a full stack trace on
-every throw, so the cost scales with depth, exactly where exceptions hurt in production.
-Ruby/Python/Node lead; **Brood is 4th, ahead of Elixir and .NET.** Both error benchmarks do
-equivalent work in all six languages (same checksum). This is where a compute-loop-only
-suite misleads: .NET tops the arithmetic rows but is the *worst* at deep error recovery.
+driver failing N layers down). **.NET is last (~10× the fastest)** — it captures a full
+stack trace on every throw, so the cost scales with depth, exactly where exceptions hurt in
+production. Elixir/Ruby lead (the BEAM unwinds cheaply); **Brood is 5th, but still ahead of
+.NET.** Both error benchmarks do equivalent work in all six languages (same checksum). This
+is where a compute-loop-only suite misleads: **.NET tops the arithmetic rows but is the
+*worst* at deep error recovery** — the axis that matters under real-world fault load.
 
 ### pipeline 100 k — filter → map → reduce
 
@@ -265,20 +268,26 @@ Python, Ruby, and the BEAM. Green processes handle 500 in-flight GETs cleanly.
   of the BEAM.
 - **Concurrency** is competitive: `http` 2nd of six, `pfib` ahead of Ruby and
   Python.
+- **Error handling** is a real-world axis the compute loops hide: on deep-stack
+  propagation (`errors-deep`) **.NET is last (~10×)** — a full stack-trace capture per
+  throw — while Brood is mid-pack, ahead of .NET. So .NET tops the arithmetic rows yet is
+  the *worst* at recovering errors raised deep in a call stack (the production-relevant
+  shape). See the `errors` / `errors-deep` rows above.
 - **Higher-order/iteration**: a real `reduce` fold beats Node and Ruby; JIT'd
   integer loops (`loop`, `collatz`, and now `primes`) beat both interpreters; the
   top-level-lambda promotion pulled `pipeline` off the tree-walker (**~4.5×**) and
   sped `matmul`'s matrix build (**~2.2×**); lowering `and`/`or` tiered
   `mandelbrot`'s escape test — its **biggest win, ~5.3×** — so `mandelbrot` now beats
   Elixir and Ruby instead of trailing the field; and loop-invariant vector hoisting
-  (LICM, sound with no alias analysis because the data is immutable) inlined `matmul`'s
-  invariant-row read (**~241 → ~212 ms**).
+  (LICM, sound with no alias analysis because the data is immutable) inlined both of
+  `matmul`'s invariant `nth`s — the local row and the global `b` (epoch-guarded) —
+  (**~241 → ~171 ms**), so `matmul` now beats both interpreters.
 - **The weak frontier is raw single-threaded compute on un-JIT'd shapes** — array
-  math (`matmul`, still the largest ratio at ~45× — .NET does it in ~5 ms; the LICM
-  inlined the invariant read but the global / per-row `nth`s still call the slab helper
-  and the boxed 24-byte `Value` can't match a register `long`), the immutable map build
+  math (`matmul`, still the largest ratio at ~30× — .NET does it in ~6 ms; the LICM
+  inlined the invariant reads but the per-`k` row `nth` still calls the slab helper and
+  the boxed 24-byte `Value` can't match a register `long`), the immutable map build
   (`wordcount`), short-lived allocation (`bintree`), and string building (`strings`). By
-  geometric mean across the single-threaded suite Brood lands at **~14× the fastest
+  geometric mean across the single-threaded suite Brood lands at **~12× the fastest
   runtime** (down from ~16× before `and`/`or` tiered `mandelbrot`, and ~19.5× before the
   JIT fixes; the exact figure swings with the sub-10 ms compute times of the fastest
   runtimes) — mid-pack, ahead of Python, with .NET and Node fastest. See

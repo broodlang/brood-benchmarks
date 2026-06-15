@@ -26,8 +26,10 @@ interpreters (Python, Ruby) and JITs (Node/V8, Elixir/BeamAsm, .NET/RyuJIT).
 > of the table. And **loop-invariant vector hoisting (LICM)** — sound with *no* alias
 > analysis because Brood data is immutable — resolves an invariant vector's element base
 > once at the loop entry and inlines the reads, narrowing `matmul`'s inner `nth` loop
-> (**~241 → ~212 ms compute**). Still **interpreted** (the suite's weak rows): array math
-> (`matmul`'s remaining global / per-row `nth`s), the immutable map build (`wordcount`),
+> (**~241 → ~171 ms compute**, both the local row and the global `b` hoisted, the latter
+> with a back-edge `global_epoch` guard so it stays bit-identical to the VM's late binding).
+> Still **interpreted** (the suite's weak rows): array math (`matmul`'s per-`k` row `nth`),
+> the immutable map build (`wordcount`),
 > short-lived allocation (`bintree`), and string building (`strings`).
 
 ## Results
@@ -45,26 +47,26 @@ as light), and the single lightest in `pfib` (~16 MB) while saturating 12 cores 
 plus **fast-enough startup** (~28 ms, ahead of Ruby and ~9× ahead of the BEAM). On
 **concurrent I/O** (`http`) it lands **2nd of six** (behind only Node, ahead of
 .NET), and on **parallel CPU** (`pfib`) it finishes **ahead of Ruby and Python**. On
-**error handling** Brood is mid-pack on raw raise/recover throughput (`errors`, 3rd) and
-competitive on **deep-stack propagation** (`errors-deep`, 4th — ahead of Elixir and .NET,
-the latter **last** at ~4.7× because it captures a full stack trace on every throw, a real
-cost that tight compute loops hide).
+**error handling** Brood is mid-pack on raw raise/recover throughput (`errors`, 4th) and on
+**deep-stack propagation** (`errors-deep`, 5th) — but on the latter **.NET is *last* (~10×)**
+because it captures a full stack trace on every throw, a real production cost that tight
+compute loops hide (the BEAM unwinds cheaply, so Elixir/Ruby lead).
 The fairness-fixed `reduce` (a real higher-order fold) now **beats Node and Ruby**,
 and JIT'd integer loops (`loop`, `collatz`, and now `primes` — recently tiered, 3rd
 of six) beat both interpreters; top-level-lambda promotion pulled `pipeline` off the
 tree-walker (**~4.5×**) and sped `matmul`'s matrix build (**~2.2×**); lowering
 `and`/`or` tiered `mandelbrot` (**~5.3×**, the biggest single win), which now beats
 Elixir and Ruby; and loop-invariant vector hoisting (LICM — sound with no alias analysis
-because the data is immutable) inlined `matmul`'s invariant-row read (**~212 ms compute,
-from ~241**). Its remaining weakness is **raw single-threaded compute on shapes the
-JIT doesn't yet cover** — array math (`matmul`, still the largest gap at ~45×: the LICM
-narrows the inner read but the boxed 24-byte `Value` can't match a register `long`, and
-the global / per-row reads still call the slab helper), the immutable map build
-(`wordcount`), string building (`strings`), and short-lived allocation (`bintree`). By
-geometric mean across the single-threaded suite Brood sits **~14× off the fastest** (down
-from ~16× before `and`/`or`, and ~19.5× before the JIT fixes; the exact figure swings with
-the sub-10 ms compute times of the fastest runtimes) — mid-pack, **ahead of Python**, with
-.NET and Node fastest. See
+because the data is immutable) inlined **both** of `matmul`'s invariant `nth`s — the local
+row and the global `b` (epoch-guarded) — (**~241 → ~171 ms compute**), so `matmul` now
+beats both interpreters. Its remaining weakness is **raw single-threaded compute on shapes
+the JIT doesn't yet cover** — array math (`matmul`, still the largest gap at ~30×: the boxed
+24-byte `Value` can't match a register `long`, and the per-`k` row read still calls the slab
+helper), the immutable map build (`wordcount`), string building (`strings`), and short-lived
+allocation (`bintree`). By geometric mean across the single-threaded suite Brood sits
+**~12× off the fastest** (down from ~16× before `and`/`or`, and ~19.5× before the JIT fixes;
+the exact figure swings with the sub-10 ms compute times of the fastest runtimes) —
+mid-pack, **ahead of Python**, with .NET and Node fastest. See
 [BENCHMARKS.md](BENCHMARKS.md) for the honest, full picture, a
 [positioning chart](results/positioning.svg), and the code side by side.
 
