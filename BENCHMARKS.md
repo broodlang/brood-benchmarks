@@ -20,7 +20,8 @@ Method: best of 5 runs per benchmark (startup best of 15); the concurrency bench
 > fixed and guarded by a tiering regression test. Promoting a top-level `(fn …)`'s
 > body into the immovable RUNTIME region (Brood `dfa4f67`) — so an inline lambda no
 > longer forces its whole form onto the tree-walker — moved **two** rows at once:
-> `pipeline` (**552 → 122 ms**) and `matmul`'s matrix construction (**542 → 241 ms**).
+> `pipeline` (**552 → 122 ms**, and **→ 39 ms** once it later moved to the fused
+> `eduction` path — lazy seq-views, ADR-111) and `matmul`'s matrix construction (**542 → 241 ms**).
 > Then lowering `and`/`or` to the JIT (a comparison result crossing a block boundary
 > now zero-extends to the block-param width) tiered `mandelbrot`'s `esc` escape test
 > (`(and (<= …) (< …))`) — the **single biggest win: 1326 → 250 ms (~5.3×)**, off the
@@ -219,14 +220,22 @@ is where a compute-loop-only suite misleads: **.NET tops the arithmetic rows but
 
 | Brood | Elixir | Python | Node | Ruby | .NET |
 |-------|--------|--------|------|------|------|
-| 122ms | 17ms | 9ms | 8ms | 18ms | 22ms |
+| 39ms | 22ms | 5ms | 11ms | 8ms | 9ms |
 
-**Was 552 ms (last by a wide margin).** A composed sequence pipeline (`->>` over
-`filter`/`map`/`reduce`) whose `(fn …)` stages are top-level inline lambdas — the whole
-form ran tree-walked. Promoting a top-level `(fn …)`'s body into the immovable RUNTIME
-region (Brood `dfa4f67`) lets it VM-compile and tier: **~4.5× faster**. The remaining
-gap is the eager combinators — each stage still materialises and re-walks the sequence,
-where the interpreters stream or drop to C. Lazy combinators are the next lever.
+**Was 552 ms (last by a wide margin), then 122 ms, now 39 ms.** A composed `filter → map →
+reduce` over a range. Two levers landed. First, promoting the top-level inline `(fn …)`
+stages into the immovable RUNTIME region (Brood `dfa4f67`) let the form VM-compile and tier
+(**~4.5×**). Then **lazy seq-views** (ADR-111, compute-frontier lever 3c): `eduction` builds a
+non-materialising view carrying a transducer, so the chain **fuses into one pass with no
+intermediate lists**. That matches the lazy/streaming forms the peers use here (Elixir
+`Stream`, Python generators, .NET LINQ — Node and Ruby build eager arrays), and closed the gap
+from **~31× to ~8× off the fastest** while dropping peak memory **34 → 13 MB** (~3.5× faster,
+~2.6× lighter at this N; ~3.3× / ~13× at n=1e6, where the eager cons-per-stage dominates).
+Eager `map`/`filter` stay eager — Brood iterates them for side effects — so fusion is opt-in
+via `eduction`/`lmap`/`lfilter`. Still 6/6 here (the per-element transducer closures are
+interpreted), but no longer the memory or allocation outlier it was. `strings` is the
+remaining un-fused pipeline (its `join` realises the view; full fusion needs a string-builder
+reducer).
 
 ### spawn 10 k — concurrent fan-out, each fib(15)
 
@@ -275,8 +284,10 @@ Python, Ruby, and the BEAM. Green processes handle 500 in-flight GETs cleanly.
   shape). See the `errors` / `errors-deep` rows above.
 - **Higher-order/iteration**: a real `reduce` fold beats Node and Ruby; JIT'd
   integer loops (`loop`, `collatz`, and now `primes`) beat both interpreters; the
-  top-level-lambda promotion pulled `pipeline` off the tree-walker (**~4.5×**) and
-  sped `matmul`'s matrix build (**~2.2×**); lowering `and`/`or` tiered
+  fusing lazy pipelines (`eduction`/`lmap`, ADR-111) fold `pipeline` in one pass with no
+  intermediate lists (**~31× → ~8× off the fastest, 34 → 13 MB**), matching the lazy forms
+  Elixir/Python/.NET use; top-level-lambda promotion sped `matmul`'s matrix build
+  (**~2.2×**); lowering `and`/`or` tiered
   `mandelbrot`'s escape test — its **biggest win, ~5.3×** — so `mandelbrot` now beats
   Elixir and Ruby instead of trailing the field; and loop-invariant vector hoisting
   (LICM, sound with no alias analysis because the data is immutable) inlined both of
