@@ -19,8 +19,8 @@ interpreters (Python, Ruby) and JITs (Node/V8, Elixir/BeamAsm, .NET/RyuJIT).
 > + a sharded allocation counter** removed the global-lock contention that had made
 > allocation-heavy fan-out near-serial. **Top-level-lambda promotion** — freezing an
 > inline `(fn …)`'s body into the immovable RUNTIME region so it no longer drags its
-> whole form onto the tree-walker — moved `pipeline` (**~4.5×**) and `matmul`'s matrix
-> build (**~2.2×**) onto the VM. And **lowering `and`/`or`** (a comparison result
+> whole form onto the tree-walker — moved `matmul`'s matrix build (**~2.2×**) onto the
+> VM (and `pipeline`, before it later moved to the fused path below). And **lowering `and`/`or`** (a comparison result
 > crossing a block boundary now zero-extends to the block-param width) tiered
 > `mandelbrot`'s `esc` escape test — the **biggest single win, ~5.3×**, off the bottom
 > of the table. And **loop-invariant vector hoisting (LICM)** — sound with *no* alias
@@ -28,6 +28,12 @@ interpreters (Python, Ruby) and JITs (Node/V8, Elixir/BeamAsm, .NET/RyuJIT).
 > once at the loop entry and inlines the reads, narrowing `matmul`'s inner `nth` loop
 > (**~241 → ~171 ms compute**, both the local row and the global `b` hoisted, the latter
 > with a back-edge `global_epoch` guard so it stays bit-identical to the VM's late binding).
+> And **fusing lazy pipelines** — `eduction` / `lmap` / `lfilter` build a non-materialising
+> *seq-view* carrying a transducer, so a `filter → map → reduce` chain folds in **one pass with
+> no intermediate lists** (compute-frontier lever 3c). `pipeline` now uses it, matching the
+> lazy/streaming forms its peers use here (Elixir `Stream`, Python generators, .NET LINQ):
+> **31× → 8× off the fastest and 34 → 13 MB** (~3.5× faster, ~2.6× lighter). Eager `map`/`filter`
+> stay eager (Brood iterates them for side effects), so fusion is opt-in.
 > Still **interpreted** (the suite's weak rows): array math (`matmul`'s per-`k` row `nth`),
 > the immutable map build (`wordcount`),
 > short-lived allocation (`bintree`), and string building (`strings`).
@@ -53,8 +59,10 @@ because it captures a full stack trace on every throw, a real production cost th
 compute loops hide (the BEAM unwinds cheaply, so Elixir/Ruby lead).
 The fairness-fixed `reduce` (a real higher-order fold) now **beats Node and Ruby**,
 and JIT'd integer loops (`loop`, `collatz`, and now `primes` — recently tiered, 3rd
-of six) beat both interpreters; top-level-lambda promotion pulled `pipeline` off the
-tree-walker (**~4.5×**) and sped `matmul`'s matrix build (**~2.2×**); lowering
+of six) beat both interpreters; fusing lazy pipelines (`eduction`/`lmap`, lever 3c) fold
+`pipeline`'s `filter → map → reduce` in one pass with no intermediate lists, closing it from
+**~31× to ~8× off the fastest and 34 → 13 MB** (matching the lazy forms Elixir/Python/.NET use
+here); top-level-lambda promotion sped `matmul`'s matrix build (**~2.2×**); lowering
 `and`/`or` tiered `mandelbrot` (**~5.3×**, the biggest single win), which now beats
 Elixir and Ruby; and loop-invariant vector hoisting (LICM — sound with no alias analysis
 because the data is immutable) inlined **both** of `matmul`'s invariant `nth`s — the local
@@ -89,7 +97,7 @@ mid-pack, **ahead of Python**, with .NET and Node fastest. See
 | `nqueens`    | backtracking recursion — count N-queens solutions (`N=10`) |
 | `errors`      | error handling — raise + recover a value-carrying exception N times |
 | `errors-deep` | error propagation — throw 50 frames deep, catch at the top |
-| `pipeline`   | a `filter → map → reduce` composition over a range |
+| `pipeline`   | a `filter → map → reduce` composition over a range (Brood fuses it via `eduction`, like Elixir `Stream` / Python generators / .NET LINQ) |
 | `spawn`      | lightweight concurrent units + result collection |
 | `pfib`       | parallel CPU — 100 `fib`s computed at once across cores |
 | `http`       | concurrent I/O — N in-flight HTTP GETs to a local server |
