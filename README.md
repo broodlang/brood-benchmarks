@@ -1,6 +1,6 @@
 # benchmark — Brood vs Elixir vs Python vs Node vs Ruby vs .NET
 
-A cross-language micro-benchmark suite: **17 small programs, each implemented
+A cross-language micro-benchmark suite: **19 small programs, each implemented
 six times** (once per language) and run under one identical harness, to see
 where the Brood runtime is faster or slower than the alternatives — on
 **startup**, **memory**, **raw performance**, and **concurrency**. The field spans
@@ -44,7 +44,11 @@ lightest or second-lightest peak RSS across nearly every workload (only Python i
 as light), and the single lightest in `pfib` (~16 MB) while saturating 12 cores —
 plus **fast-enough startup** (~28 ms, ahead of Ruby and ~9× ahead of the BEAM). On
 **concurrent I/O** (`http`) it lands **2nd of six** (behind only Node, ahead of
-.NET), and on **parallel CPU** (`pfib`) it finishes **ahead of Ruby and Python**.
+.NET), and on **parallel CPU** (`pfib`) it finishes **ahead of Ruby and Python**. On
+**error handling** Brood is mid-pack on raw raise/recover throughput (`errors`, 3rd) and
+competitive on **deep-stack propagation** (`errors-deep`, 4th — ahead of Elixir and .NET,
+the latter **last** at ~4.7× because it captures a full stack trace on every throw, a real
+cost that tight compute loops hide).
 The fairness-fixed `reduce` (a real higher-order fold) now **beats Node and Ruby**,
 and JIT'd integer loops (`loop`, `collatz`, and now `primes` — recently tiered, 3rd
 of six) beat both interpreters; top-level-lambda promotion pulled `pipeline` off the
@@ -64,7 +68,7 @@ the sub-10 ms compute times of the fastest runtimes) — mid-pack, **ahead of Py
 [BENCHMARKS.md](BENCHMARKS.md) for the honest, full picture, a
 [positioning chart](results/positioning.svg), and the code side by side.
 
-## The benchmarks (17)
+## The benchmarks (19)
 
 | name | stresses |
 |------|----------|
@@ -81,6 +85,8 @@ the sub-10 ms compute times of the fastest runtimes) — mid-pack, **ahead of Py
 | `bintree`    | allocation / GC pressure — build & walk many binary trees |
 | `sort`       | sort a list of ints + an order-sensitive checksum walk |
 | `nqueens`    | backtracking recursion — count N-queens solutions (`N=10`) |
+| `errors`      | error handling — raise + recover a value-carrying exception N times |
+| `errors-deep` | error propagation — throw 50 frames deep, catch at the top |
 | `pipeline`   | a `filter → map → reduce` composition over a range |
 | `spawn`      | lightweight concurrent units + result collection |
 | `pfib`       | parallel CPU — 100 `fib`s computed at once across cores |
