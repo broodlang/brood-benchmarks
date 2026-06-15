@@ -188,6 +188,30 @@ in the suite (~4× the fastest).
 same bool-subset fix that moved `primes` tiers those arms too (**~1.8× faster**).
 The remaining cost is the per-step list building the JIT doesn't cover.
 
+### errors 200 k — raise + recover a value
+
+| Brood | Elixir | Python | Node | Ruby | .NET |
+|-------|--------|--------|------|------|------|
+| 224ms | 350ms | 60ms | 615ms | 162ms | 327ms |
+
+Raw exception throughput — raise a value-carrying error and recover it, in a tight loop.
+Python's exception machinery is fastest; Brood is 3rd. A shallow throw is cheap even in
+.NET (its cost is the stack-trace capture, which a 1–2-frame throw barely pays), so this
+axis alone doesn't separate the runtimes the way real error flows do — hence `errors-deep`.
+
+### errors-deep 50 k — throw 50 frames deep, catch at the top
+
+| Brood | Elixir | Python | Node | Ruby | .NET |
+|-------|--------|--------|------|------|------|
+| 298ms | 336ms | 235ms | 239ms | 158ms | 741ms |
+
+The realistic shape: an error raised deep in a call stack and recovered near the top (a
+driver failing N layers down). **.NET is last (~4.7×)** — it captures a full stack trace on
+every throw, so the cost scales with depth, exactly where exceptions hurt in production.
+Ruby/Python/Node lead; **Brood is 4th, ahead of Elixir and .NET.** Both error benchmarks do
+equivalent work in all six languages (same checksum). This is where a compute-loop-only
+suite misleads: .NET tops the arithmetic rows but is the *worst* at deep error recovery.
+
 ### pipeline 100 k — filter → map → reduce
 
 | Brood | Elixir | Python | Node | Ruby | .NET |
