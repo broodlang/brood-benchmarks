@@ -40,11 +40,11 @@ interpreters (Python, Ruby) and JITs (Node/V8, Elixir/BeamAsm, .NET/RyuJIT).
 > now the **fastest of six and the lightest** (16 MB).
 > And the **call/dispatch round** attacked the per-call and per-access overhead: **sharing
 > JIT'd native code across a runtime's processes** (a spawned worker installs an
-> already-compiled arm instead of recompiling its own copy) took **`spawn` 516 → 122 ms,
-> from ~7.7× to ~2.5× of Elixir** — the biggest jump; **hoisting loop-invariant *scalar*
-> globals** (the LICM above, extended from vectors) took **`loop` to parity with the BEAM**
-> (112 vs 106 ms) by reading the bound once instead of through the inline cache each
-> iteration; plus a **no-clone fast-link** on the call path (`fib` ~654 → 558 ms) and
+> already-compiled arm instead of recompiling its own copy) took **`spawn` from ~7.7× to
+> ~1.5× of Elixir** (the fib work runs native, not interpreted); **hoisting loop-invariant
+> *scalar* globals** (the LICM above, extended from vectors) took **`loop` to parity with
+> the BEAM** (99 vs 99 ms) by reading the bound once instead of through the inline cache each
+> iteration; plus a **no-clone + cached fast-link** on the call path (`fib` ~654 → ~480 ms) and
 > **lexical addressing of captured variables** (flat frame slots, not env-chain scans). All
 > keep Emacs-style hot reload (the shared `global_epoch` deopts JIT'd code on a `def`).
 > Still **interpreted** (the suite's weak rows): array math (`matmul`'s per-`k` row `nth`),
@@ -71,10 +71,9 @@ plus **fast-enough startup** (~28 ms, ahead of Ruby and ~9× ahead of the BEAM).
 **deep-stack propagation** (`errors-deep`, 5th) — but on the latter **.NET is *last* (~10×)**
 because it captures a full stack trace on every throw, a real production cost that tight
 compute loops hide (the BEAM unwinds cheaply, so Elixir/Ruby lead).
-On **concurrent fan-out** (`spawn`) sharing JIT'd code across a runtime's processes took it
-to **~2.5× of Elixir** (was ~7.7× — workers no longer each recompile the shared function).
+On **concurrent fan-out** (`spawn`) sharing JIT'd code across a runtime's processes took it to **~1.5× of Elixir** on a quiet machine (was ~7.7×); the fib work now runs native, not interpreted.
 The fairness-fixed `reduce` (a real higher-order fold) now **beats Node and Ruby**,
-and JIT'd integer loops (`loop` — now **at parity with the BEAM** after hoisting the
+and JIT'd integer loops (`loop` — now **at parity with the BEAM** (it ties or edges it on a quiet machine) after hoisting the
 loop-invariant global bound — `collatz`, and `primes` — recently tiered, 3rd
 of six) beat both interpreters; fusing lazy pipelines (`eduction`/`lmap`, lever 3c) fold
 `pipeline`'s `filter → map → reduce` in one pass with no intermediate lists, closing it from
@@ -92,9 +91,9 @@ per-`k` row read still calls the slab helper), the immutable map build (`wordcou
 this is **not** an immutability cost: Elixir's `Map.update` is the same immutable RMW and ~5.6×
 faster, so the gap is Brood's young CHAMP constant factors), and short-lived allocation
 (`bintree`). By geometric mean across the single-threaded suite Brood sits
-**~9.9× off the fastest** (down from ~12× before the mimalloc allocator backend + the `strings`
-streaming win, ~16× before `and`/`or`, and ~19.5× before the JIT fixes; the exact figure swings
-with the sub-10 ms compute times of the fastest runtimes) — mid-pack, **ahead of Python**, with
+**~9-12× off the fastest** (down from ~16× before `and`/`or`, ~19.5× before the JIT fixes; the
+exact figure swings run-to-run with the sub-10 ms compute times of .NET/Node, so treat it as a
+band) — mid-pack, **ahead of Python**, with
 .NET and Node fastest. (Brood is built for long-running apps — editors, web servers — so it
 spends some memory for speed: the **mimalloc** backend's per-thread heaps cut allocation-heavy
 work ~15–28% at a higher steady-state RSS, a deliberate trade; boot stays ~38 ms.) See
