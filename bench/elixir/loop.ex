@@ -1,0 +1,9 @@
+defmodule Bloop do
+  def loop(i, n, acc) when i >= n, do: acc
+  def loop(i, n, acc), do: loop(i + 1, n, acc + i)
+
+  def main do
+    n = String.to_integer(System.get_env("BENCH_N") || "30000000")
+    IO.puts(loop(0, n, 0))
+  end
+end

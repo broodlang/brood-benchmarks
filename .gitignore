@@ -26,3 +26,4 @@ results/report.*.md
 # …except this machine's run, which we do track.
 !results/results.whklat.json
 !results/report.whklat.md
+bench/elixir/_build/
