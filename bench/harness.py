@@ -32,7 +32,7 @@ ROOT = Path(__file__).resolve().parent          # .../bench
 RESULTS = ROOT.parent / "results"
 
 # Display names for report headers/titles, in the canonical column order.
-NICE = {"brood": "Brood", "elixir": "Elixir", "python": "Python",
+NICE = {"brood": "Brood", "elixir": "Elixir", "erlang": "Erlang", "python": "Python",
         "node": "Node", "ruby": "Ruby", "dotnet": ".NET"}
 
 # ext + how to invoke a single source file. `env` is merged on top of the
@@ -47,9 +47,35 @@ NICE = {"brood": "Brood", "elixir": "Elixir", "python": "Python",
 DOTNET_DIR = ROOT / "dotnet"
 DOTNET_APP = DOTNET_DIR / "publish" / "brood-bench"
 
+# Elixir, like .NET, is precompiled once at startup rather than run from source.
+# `elixir file.exs` recompiles the program's module on every run — that ~100ms
+# compile leaks into the "compute" measurement (compute = wall − startup, and the
+# `startup` baseline compiles no module so the leak isn't subtracted), overstating
+# Elixir's compute by ~100ms/run. Instead we `elixirc` every bench module to
+# BEAM_DIR once (build_beam) and run the precompiled `.beam` with `-pa BEAM_DIR`,
+# the fair analog to escript / `node app.js` — no recompile per run. Each module
+# is named `B<benchname>` (alnum only) so they don't collide in one BEAM_DIR; the
+# run command loads it and calls `B<name>.main()`.
+ELIXIR_DIR = ROOT / "elixir"
+BEAM_DIR = ELIXIR_DIR / "_build"
+
+
+def beam_module(name):
+    """The compiled module name for a benchmark — `B` + the name's alphanumerics
+    (e.g. `errors-deep` -> `Berrorsdeep`). Must match the `defmodule B…` in the
+    corresponding bench/elixir/<name>.ex."""
+    return "B" + re.sub(r"[^a-zA-Z0-9]", "", name)
+
+
+def elixir_cmd(p):
+    """Run the precompiled module for bench file `p` from BEAM_DIR (no recompile)."""
+    return ["elixir", "-pa", str(BEAM_DIR), "-e", f"{beam_module(Path(p).stem)}.main()"]
+
+
 LANGS = {
     "brood":  {"dir": "brood",  "ext": "blsp", "cmd": lambda p: ["brood", p], "env": {"BROOD_VM": "1"}},
-    "elixir": {"dir": "elixir", "ext": "exs",  "cmd": lambda p: ["elixir", p]},
+    "elixir": {"dir": "elixir", "ext": "ex",   "cmd": elixir_cmd},
+    "erlang": {"dir": "erlang", "ext": "erl",  "cmd": lambda p: ["escript", p]},
     "python": {"dir": "python", "ext": "py",   "cmd": lambda p: ["python3", p]},
     "node":   {"dir": "node",   "ext": "js",   "cmd": lambda p: ["node", p]},
     "ruby":   {"dir": "ruby",   "ext": "rb",   "cmd": lambda p: ["ruby", p]},
@@ -68,6 +94,23 @@ def build_dotnet():
         raise RuntimeError("dotnet build failed:\n" + r.stdout + r.stderr)
 
 
+def build_beam():
+    """Precompile every Elixir bench module to BEAM_DIR once (mirrors build_dotnet).
+    Each run then loads the `.beam` via `-pa BEAM_DIR` instead of recompiling the
+    source — so the ~100ms module-compile no longer leaks into compute."""
+    print("compiling Elixir modules (elixirc → _build)…")
+    BEAM_DIR.mkdir(parents=True, exist_ok=True)
+    sources = sorted(str(p) for p in ELIXIR_DIR.glob("*.ex"))
+    if not sources:
+        raise RuntimeError(f"no Elixir sources found in {ELIXIR_DIR}")
+    r = subprocess.run(
+        ["elixirc", "-o", str(BEAM_DIR)] + sources,
+        capture_output=True, text=True,
+    )
+    if r.returncode != 0:
+        raise RuntimeError("elixirc failed:\n" + r.stdout + r.stderr)
+
+
 def probe_version(lang):
     """The runtime's `--version` first line (for elixir, the `Elixir …` line), or
     None if the binary isn't on PATH. Stamped into the report so a result file
@@ -75,6 +118,7 @@ def probe_version(lang):
     cmd = {
         "brood":  ["brood", "--version"],
         "elixir": ["elixir", "--version"],
+        "erlang": ["erl", "-noshell", "-eval", "io:format(\"Erlang/OTP ~s [BEAM]~n\",[erlang:system_info(otp_release)]),halt()."],
         "python": ["python3", "--version"],
         "node":   ["node", "--version"],
         "ruby":   ["ruby", "--version"],
@@ -296,6 +340,8 @@ def main():
 
     if "dotnet" in langs:
         build_dotnet()
+    if "elixir" in langs:
+        build_beam()
 
     # Isolation: pin each measured process to dedicated CPUs (so it isn't migrated
     # and contends less with system noise) and settle between runs. On by default
@@ -400,7 +446,7 @@ def fmt_ms(ms):
 
 
 def build_report(results, args, meta=None):
-    order = ["brood", "elixir", "python", "node", "ruby", "dotnet"]
+    order = ["brood", "elixir", "erlang", "python", "node", "ruby", "dotnet"]
     focus = getattr(args, "focus", "") or ""
     # Title names only the languages that actually produced a result this run.
     present = [l for l in order if any(l in d["langs"] for d in results.values())]

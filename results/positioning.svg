@@ -5,37 +5,25 @@
 <line x1="70" y1="50" x2="70" y2="420" stroke="#888" stroke-width="1"/>
 <line x1="70.0" y1="50" x2="70.0" y2="420" stroke="#eee" stroke-width="1"/>
 <text x="70.0" y="438" text-anchor="middle" font-size="12" fill="#555">1×</text>
-<line x1="191.0" y1="50" x2="191.0" y2="420" stroke="#eee" stroke-width="1"/>
-<text x="191.0" y="438" text-anchor="middle" font-size="12" fill="#555">2×</text>
-<line x1="350.9" y1="50" x2="350.9" y2="420" stroke="#eee" stroke-width="1"/>
-<text x="350.9" y="438" text-anchor="middle" font-size="12" fill="#555">5×</text>
-<line x1="471.9" y1="50" x2="471.9" y2="420" stroke="#eee" stroke-width="1"/>
-<text x="471.9" y="438" text-anchor="middle" font-size="12" fill="#555">10×</text>
-<line x1="592.8" y1="50" x2="592.8" y2="420" stroke="#eee" stroke-width="1"/>
-<text x="592.8" y="438" text-anchor="middle" font-size="12" fill="#555">20×</text>
+<line x1="391.2" y1="50" x2="391.2" y2="420" stroke="#eee" stroke-width="1"/>
+<text x="391.2" y="438" text-anchor="middle" font-size="12" fill="#555">2×</text>
 <line x1="70" y1="420.0" x2="730" y2="420.0" stroke="#eee" stroke-width="1"/>
 <text x="60" y="424.0" text-anchor="end" font-size="12" fill="#555">0</text>
-<line x1="70" y1="336.1" x2="730" y2="336.1" stroke="#eee" stroke-width="1"/>
-<text x="60" y="340.1" text-anchor="end" font-size="12" fill="#555">20</text>
-<line x1="70" y1="252.1" x2="730" y2="252.1" stroke="#eee" stroke-width="1"/>
-<text x="60" y="256.1" text-anchor="end" font-size="12" fill="#555">40</text>
-<line x1="70" y1="168.2" x2="730" y2="168.2" stroke="#eee" stroke-width="1"/>
-<text x="60" y="172.2" text-anchor="end" font-size="12" fill="#555">60</text>
-<line x1="70" y1="84.3" x2="730" y2="84.3" stroke="#eee" stroke-width="1"/>
-<text x="60" y="88.3" text-anchor="end" font-size="12" fill="#555">80</text>
+<line x1="70" y1="329.4" x2="730" y2="329.4" stroke="#eee" stroke-width="1"/>
+<text x="60" y="333.4" text-anchor="end" font-size="12" fill="#555">20</text>
+<line x1="70" y1="238.7" x2="730" y2="238.7" stroke="#eee" stroke-width="1"/>
+<text x="60" y="242.7" text-anchor="end" font-size="12" fill="#555">40</text>
+<line x1="70" y1="148.1" x2="730" y2="148.1" stroke="#eee" stroke-width="1"/>
+<text x="60" y="152.1" text-anchor="end" font-size="12" fill="#555">60</text>
+<line x1="70" y1="57.4" x2="730" y2="57.4" stroke="#eee" stroke-width="1"/>
+<text x="60" y="61.4" text-anchor="end" font-size="12" fill="#555">80</text>
 <text x="400.0" y="464" text-anchor="middle" font-size="13" fill="#333">compute slowdown vs the fastest — startup excluded, log scale — left is faster</text>
 <text x="18" y="235.0" text-anchor="middle" font-size="13" fill="#333" transform="rotate(-90 18 235.0)">base memory (MB) — lower is lighter</text>
 <text x="78" y="412" font-size="11" fill="#aaa">↙ fast &amp; light</text>
-<circle cx="691.1" cy="379.1" r="7" fill="#2980b9" fill-opacity="0.85" stroke="#fff" stroke-width="1.5"/>
-<text x="680.1" y="383.1" text-anchor="end" font-size="13" font-weight="600" fill="#2980b9">Python <tspan font-weight="400" fill="#777">(35× · 10MB)</tspan></text>
-<circle cx="539.9" cy="321.4" r="7" fill="#d35400" fill-opacity="0.85" stroke="#fff" stroke-width="1.5"/>
-<text x="528.9" y="325.4" text-anchor="end" font-size="13" font-weight="600" fill="#d35400">Ruby <tspan font-weight="400" fill="#777">(15× · 24MB)</tspan></text>
-<circle cx="522.4" cy="318.8" r="7" fill="#c0392b" fill-opacity="0.85" stroke="#fff" stroke-width="1.5"/>
-<text x="533.4" y="322.8" text-anchor="start" font-size="13" font-weight="600" fill="#c0392b">Brood <tspan font-weight="400" fill="#777">(13× · 24MB)</tspan></text>
-<circle cx="70.0" cy="310.9" r="7" fill="#16a085" fill-opacity="0.85" stroke="#fff" stroke-width="1.5"/>
-<text x="81.0" y="314.9" text-anchor="start" font-size="13" font-weight="600" fill="#16a085">.NET <tspan font-weight="400" fill="#777">(1× · 26MB)</tspan></text>
-<circle cx="288.2" cy="238.3" r="7" fill="#27ae60" fill-opacity="0.85" stroke="#fff" stroke-width="1.5"/>
-<text x="299.2" y="242.3" text-anchor="start" font-size="13" font-weight="600" fill="#27ae60">Node <tspan font-weight="400" fill="#777">(3× · 43MB)</tspan></text>
-<circle cx="371.7" cy="98.3" r="7" fill="#8e44ad" fill-opacity="0.85" stroke="#fff" stroke-width="1.5"/>
-<text x="382.7" y="102.3" text-anchor="start" font-size="13" font-weight="600" fill="#8e44ad">Elixir <tspan font-weight="400" fill="#777">(6× · 77MB)</tspan></text>
+<circle cx="626.6" cy="323.4" r="7" fill="#c0392b" fill-opacity="0.85" stroke="#fff" stroke-width="1.5"/>
+<text x="615.6" y="327.4" text-anchor="end" font-size="13" font-weight="600" fill="#c0392b">Brood <tspan font-weight="400" fill="#777">(3× · 21MB)</tspan></text>
+<circle cx="107.2" cy="101.1" r="7" fill="#8e44ad" fill-opacity="0.85" stroke="#fff" stroke-width="1.5"/>
+<text x="118.2" y="105.1" text-anchor="start" font-size="13" font-weight="600" fill="#8e44ad">Elixir <tspan font-weight="400" fill="#777">(1× · 70MB)</tspan></text>
+<circle cx="70.0" cy="98.3" r="7" fill="#444" fill-opacity="0.85" stroke="#fff" stroke-width="1.5"/>
+<text x="81.0" y="102.3" text-anchor="start" font-size="13" font-weight="600" fill="#444">erlang <tspan font-weight="400" fill="#777">(1× · 71MB)</tspan></text>
 </svg>

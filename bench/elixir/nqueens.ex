@@ -1,4 +1,4 @@
-defmodule Q do
+defmodule Bnqueens do
   def safe?(_c, [], _d), do: true
 
   def safe?(c, [p | rest], d) do
@@ -17,7 +17,9 @@ defmodule Q do
       if safe?(c, placed, 1), do: acc + solve(row + 1, n, [c | placed]), else: acc
     end)
   end
-end
 
-n = String.to_integer(System.get_env("BENCH_N") || "10")
-IO.puts(Q.solve(0, n, []))
+  def main do
+    n = String.to_integer(System.get_env("BENCH_N") || "10")
+    IO.puts(solve(0, n, []))
+  end
+end
