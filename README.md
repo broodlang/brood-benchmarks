@@ -1,4 +1,4 @@
-# benchmark — Brood vs Elixir vs Erlang vs Python vs Node vs Ruby vs .NET
+# benchmark — Brood vs Elixir vs Python vs Node vs Ruby vs .NET
 
 A cross-language micro-benchmark suite: **19 small programs, each implemented
 six times** (once per language) and run under one identical harness, to see
@@ -61,36 +61,34 @@ interpreters (Python, Ruby) and JITs (Node/V8, Elixir/BeamAsm, .NET/RyuJIT).
 
 ![Where the languages land — compute speed (startup excluded) vs memory](results/positioning.svg)
 
-> **Methodology (2026-06-17): a fair, precompiled BEAM baseline.** These numbers compare
-> Brood against **precompiled Elixir** *and* **Erlang** (the leaner BEAM sibling). An earlier
-> harness ran Elixir as `elixir file.exs`, which **recompiles the program's module every run**
-> — that ~100 ms compile leaked into the "compute" measurement (compute = wall − startup, and
-> the startup baseline compiled no module, so the leak wasn't subtracted), **overstating
-> Elixir's compute by ~100 ms/run and flattering Brood**. Now every Elixir module is `elixirc`'d
-> once and run from its `.beam` (like `.NET`), and precompiled-Elixir ≈ Erlang on same-BEAM
-> workloads (fib 80 vs 75 ms compute), as two compilers for one VM should be. **Any comparative
-> figure in the engine notes above predates this fix** and overstates Brood's standing; the
-> numbers below are the corrected, trustworthy baseline.
+> **Methodology note (2026-06-17): Elixir is now precompiled.** An earlier harness ran Elixir as
+> `elixir file.exs`, which **recompiles the program's module every run** — that ~100 ms compile
+> leaked into "compute" (compute = wall − startup, and the startup baseline compiled no module, so
+> it wasn't subtracted), **overstating Elixir's compute by ~100 ms/run and flattering Brood vs
+> Elixir specifically**. Elixir is now `elixirc`'d once and run from its `.beam` (like `.NET`). We
+> cross-checked against raw **Erlang** and confirmed precompiled-Elixir ≈ Erlang (fib 87 vs 75 ms —
+> same BEAM), then dropped Erlang as redundant. The fix mainly moves the *Brood-vs-Elixir* numbers
+> (Brood is behind Elixir on most compute, where the old harness showed it competitive); the
+> overall field position is unchanged. Any comparative figure in the engine notes above predates it.
 
-**The short version (corrected baseline):** Brood's genuine standouts are **memory** (~14–21 MB
-base, lightest or near-lightest peak RSS on nearly every workload) and **fast startup** (~46 ms,
-~4× ahead of the BEAM's ~190 ms boot). It **wins outright** on `strings` (~9–10× — the streaming
-`%string-join` kernel builds the whole result in one immutable pass) and concurrent I/O `http`
-(~4× — non-blocking sockets deliver to mailboxes). It's **competitive (~2–3×)** on `mandelbrot`
-(beats Elixir, ~2× behind Erlang), `reduce` (beats Erlang's eager `lists:foldl`, ~3× behind
-Elixir's lazy `Enum`), and tight integer loops `loop`/`primes` (~2.5×).
+**The short version:** Brood's genuine standouts are **memory** (~21 MB geomean RSS — 2nd-lightest
+of six, behind only Python; lighter than Ruby, Node, Elixir, and .NET) and **fast startup** (~36 ms
+— ahead of Elixir and Ruby, ~5× ahead of the BEAM's ~190 ms boot). It **wins outright** on two
+workloads: `strings` (**fastest of six** — the streaming `%string-join` kernel builds the whole
+result in one immutable pass) and concurrent I/O `http` (**2nd, behind only Node** — non-blocking
+sockets deliver to mailboxes). And it beats **both interpreters** (Ruby and Python) on most folds
+and recursion (`reduce`, `sort`, `mandelbrot`, `nqueens`, …).
 
-Against the fair BEAM, though, Brood is **materially behind on compute-, allocation-, and
-recursion-heavy work**: `fib` ~6.8×, `collatz` ~5×, `matmul` ~2.8×, `sort` ~3.2×, `wordcount`
-~7.9×, `spawn` ~9×, `pfib` ~5.9× — and **far behind** at the allocation/recursion extremes,
-`bintree` and `nqueens` **~30–50×** and `errors-deep` **100×+**. Those run **interpreted** (they
-bail the JIT) against BeamAsm-compiled native tuple/recursion code — the **clear optimization
-frontier**. By geometric mean across the single-threaded suite Brood sits **~3× off the fastest
-competitor** and several× behind the BEAM specifically. None of this is architectural: the BEAM
-is a *peer* design (register bytecode VM + a template JIT), so the gaps are **implementation
-headroom**, not a ceiling — and the worst (`bintree`/`nqueens`) point straight at the interpreted
-dispatch loop + JIT coverage. (Brood is young and built for long-running apps — editors, web
-servers — and spends memory for speed via the **mimalloc** backend.) See
+On **single-threaded compute** Brood sits **~10× off the fastest** (.NET) by geometric mean —
+**4th of six: ahead of Ruby and well ahead of Python, behind the JITs (.NET, Node) and the BEAM
+(Elixir)**. The gaps are widest on JIT-friendly numeric and allocation/recursion work the Brood JIT
+doesn't yet cover: `matmul` ~145× (.NET auto-vectorises to ~1 ms), `nqueens` ~38×, `errors-deep`
+~21×, `wordcount` ~20×, `bintree` ~17×, `loop` ~14×, `fib` ~11×. These run **interpreted** — they
+bail the JIT — against JIT-compiled native code, which is the **clear optimization frontier**:
+profiling puts ~60 % of an interpreted benchmark in the bytecode dispatch loop (`vm_run_bc`), so the
+levers are interpreter dispatch + widening JIT coverage. None of it is architectural — Brood is a
+young runtime and these are **implementation headroom**. (Built for long-running apps — editors, web
+servers — it spends some memory for speed via the **mimalloc** backend.) See
 [BENCHMARKS.md](BENCHMARKS.md) for the full per-benchmark picture, a
 [positioning chart](results/positioning.svg), and the code side by side.
 
@@ -220,14 +218,13 @@ peak RSS, checksum), and `positioning.svg` (the compute-vs-memory map).
 
 Numbers in the docs were measured on `whklat`: a 12-core x86-64 Linux 7.0.0
 machine · Brood 0.1.0 (bytecode VM + tier-1 JIT, primitive inlining,
-process-count-aware GC floor) · Elixir 1.20.0 / OTP 28 (BeamAsm JIT) · Erlang/OTP
-28 (BeamAsm JIT) · Python 3.14.4 · Node 22.21.0 (V8) · Ruby 3.3.8 · .NET 10.0.109
-(RyuJIT). Best of 5 runs each (startup best of 15); the concurrency benchmarks
-(`spawn`/`pfib`/`http`) take the best of 7. **Elixir and .NET are precompiled once
-(`elixirc`/`dotnet build`) and run from their compiled artifact — not from source
-per run — so per-run compilation never leaks into the compute measurement; Erlang
-escripts use `-mode(compile)` (negligible compile cost). Brood, Python, Node, and
-Ruby run their source directly, as is their normal mode.**
+process-count-aware GC floor) · Elixir 1.20.0 / OTP 28 (BeamAsm JIT) · Python
+3.14.4 · Node 22.21.0 (V8) · Ruby 3.3.8 · .NET 10.0.109 (RyuJIT). Best of 5 runs
+each (startup best of 15); the concurrency benchmarks (`spawn`/`pfib`/`http`) take
+the best of 7. **Elixir and .NET are precompiled once (`elixirc`/`dotnet build`) and
+run from their compiled artifact — not from source per run — so per-run compilation
+never leaks into the compute measurement. Brood, Python, Node, and Ruby run their
+source directly, as is their normal mode.**
 Each run is CPU-pinned with `taskset` (single-threaded benchmarks to one dedicated
 core, the concurrency ones to all 12) with a 0.25 s settle between runs, so a prior
 run's teardown doesn't contend with the next measurement.

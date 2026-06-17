@@ -32,7 +32,7 @@ ROOT = Path(__file__).resolve().parent          # .../bench
 RESULTS = ROOT.parent / "results"
 
 # Display names for report headers/titles, in the canonical column order.
-NICE = {"brood": "Brood", "elixir": "Elixir", "erlang": "Erlang", "python": "Python",
+NICE = {"brood": "Brood", "elixir": "Elixir", "python": "Python",
         "node": "Node", "ruby": "Ruby", "dotnet": ".NET"}
 
 # ext + how to invoke a single source file. `env` is merged on top of the
@@ -75,7 +75,6 @@ def elixir_cmd(p):
 LANGS = {
     "brood":  {"dir": "brood",  "ext": "blsp", "cmd": lambda p: ["brood", p], "env": {"BROOD_VM": "1"}},
     "elixir": {"dir": "elixir", "ext": "ex",   "cmd": elixir_cmd},
-    "erlang": {"dir": "erlang", "ext": "erl",  "cmd": lambda p: ["escript", p]},
     "python": {"dir": "python", "ext": "py",   "cmd": lambda p: ["python3", p]},
     "node":   {"dir": "node",   "ext": "js",   "cmd": lambda p: ["node", p]},
     "ruby":   {"dir": "ruby",   "ext": "rb",   "cmd": lambda p: ["ruby", p]},
@@ -118,7 +117,6 @@ def probe_version(lang):
     cmd = {
         "brood":  ["brood", "--version"],
         "elixir": ["elixir", "--version"],
-        "erlang": ["erl", "-noshell", "-eval", "io:format(\"Erlang/OTP ~s [BEAM]~n\",[erlang:system_info(otp_release)]),halt()."],
         "python": ["python3", "--version"],
         "node":   ["node", "--version"],
         "ruby":   ["ruby", "--version"],
@@ -446,7 +444,7 @@ def fmt_ms(ms):
 
 
 def build_report(results, args, meta=None):
-    order = ["brood", "elixir", "erlang", "python", "node", "ruby", "dotnet"]
+    order = ["brood", "elixir", "python", "node", "ruby", "dotnet"]
     focus = getattr(args, "focus", "") or ""
     # Title names only the languages that actually produced a result this run.
     present = [l for l in order if any(l in d["langs"] for d in results.values())]
