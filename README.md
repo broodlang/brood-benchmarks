@@ -6,51 +6,20 @@ where the Brood runtime is faster or slower than the alternatives — on
 **startup**, **memory**, **raw performance**, and **concurrency**. The field spans
 interpreters (Python, Ruby) and JITs (Node/V8, Elixir/BeamAsm, .NET/RyuJIT).
 
-> **Engine:** Brood runs on its **bytecode VM** — the closure-compiling engine
-> that superseded the original tree-walker — with **primitive inlining** (core
-> arithmetic/comparison ops run inline as native `i64` operations) and a **tier-1
-> template JIT**. **Back-edge tiering** puts self-tail integer loops (`loop`,
-> `collatz`) on the native path; **`VectorRef` codegen** does the same for indexed
-> array loops; and **native-to-native call linking + a call-site inline cache +
-> call-head elision** extend the native path to **non-tail recursion** (`fib`,
-> `pfib`) — a JIT'd caller invokes a JIT'd callee directly and the compiled arm is
-> cached per call-site. A **process-count-aware GC floor** keeps parallel fan-out's
-> peak memory low (`pfib` peaks ~16 MB), and a **thread-local symbol-interner cache
-> + a sharded allocation counter** removed the global-lock contention that had made
-> allocation-heavy fan-out near-serial. **Top-level-lambda promotion** — freezing an
-> inline `(fn …)`'s body into the immovable RUNTIME region so it no longer drags its
-> whole form onto the tree-walker — moved `matmul`'s matrix build (**~2.2×**) onto the
-> VM (and `pipeline`, before it later moved to the fused path below). And **lowering `and`/`or`** (a comparison result
-> crossing a block boundary now zero-extends to the block-param width) tiered
-> `mandelbrot`'s `esc` escape test — the **biggest single win, ~5.3×**, off the bottom
-> of the table. And **loop-invariant vector hoisting (LICM)** — sound with *no* alias
-> analysis because Brood data is immutable — resolves an invariant vector's element base
-> once at the loop entry and inlines the reads, narrowing `matmul`'s inner `nth` loop
-> (**~241 → ~171 ms compute**, both the local row and the global `b` hoisted, the latter
-> with a back-edge `global_epoch` guard so it stays bit-identical to the VM's late binding).
-> And **fusing lazy pipelines** — `eduction` / `lmap` / `lfilter` build a non-materialising
-> *seq-view* carrying a transducer, so a `filter → map → reduce` chain folds in **one pass with
-> no intermediate lists** (compute-frontier lever 3c). `pipeline` now uses it, matching the
-> lazy/streaming forms its peers use here (Elixir `Stream`, Python generators, .NET LINQ):
-> **31× → 8× off the fastest and 34 → 13 MB** (~3.5× faster, ~2.6× lighter). Eager `map`/`filter`
-> stay eager (Brood iterates them for side effects), so fusion is opt-in.
-> And **`strings` went from last to first** — `(join "," (range n))` streams each integer
-> straight into one buffer in the `%string-join` kernel (no intermediate list, no per-element
-> string, all immutable), matching Elixir's `Enum.join(0..(n-1), ",")`: **~960 ms → ~10 ms**,
-> now the **fastest of six and the lightest** (16 MB).
-> And the **call/dispatch round** attacked the per-call and per-access overhead: **sharing
-> JIT'd native code across a runtime's processes** (a spawned worker installs an
-> already-compiled arm instead of recompiling its own copy) took **`spawn` from ~7.7× to
-> ~1.5× of Elixir** (the fib work runs native, not interpreted); **hoisting loop-invariant
-> *scalar* globals** (the LICM above, extended from vectors) took **`loop` to parity with
-> the BEAM** (99 vs 99 ms) by reading the bound once instead of through the inline cache each
-> iteration; plus a **no-clone + cached fast-link** on the call path (`fib` ~654 → ~480 ms) and
-> **lexical addressing of captured variables** (flat frame slots, not env-chain scans). All
-> keep Emacs-style hot reload (the shared `global_epoch` deopts JIT'd code on a `def`).
-> Still **interpreted** (the suite's weak rows): array math (`matmul`'s per-`k` row `nth`),
-> the immutable map build (`wordcount` — same algorithm as Elixir's `Map.update`, ~5.6× slower
-> on Brood's young CHAMP constant factors, not an immutability cost), and short-lived
-> allocation (`bintree`).
+> **Engine.** Brood runs on a **bytecode VM** (the closure-compiling engine that
+> superseded the tree-walker) with **primitive inlining** — core arithmetic/comparison
+> ops run inline as native `i64` — and a **tier-1 template JIT**. Hot self-tail integer
+> loops, indexed array loops (`VectorRef` + loop-invariant hoisting, sound with no alias
+> analysis because Brood data is immutable), and **non-tail recursion** (`fib`, `pfib`)
+> run as native code: a JIT'd caller links straight to a JIT'd callee through an
+> **epoch-guarded, in-IR call-site fast-link** (the latest win — **fib 502 → 274 ms
+> compute**), and a `def` deopts the affected code so Emacs-style hot reload still holds.
+> **Sharing JIT'd code across a runtime's processes** keeps `spawn`/`pfib` fan-out off the
+> recompile path, and a process-count-aware GC floor keeps their peak memory low. Other
+> kernels close earlier gaps: `strings`'s streaming `%string-join` (last → first), fused
+> lazy `pipeline` (`eduction`, one pass, no intermediate lists), and `mandelbrot`'s lowered
+> `and`/`or`. Still interpreted (the weak rows): the immutable hash-map build (`wordcount`),
+> short-lived allocation (`bintree`), and deep backtracking (`nqueens`).
 
 ## Results
 
@@ -61,36 +30,25 @@ interpreters (Python, Ruby) and JITs (Node/V8, Elixir/BeamAsm, .NET/RyuJIT).
 
 ![Where the languages land — compute speed (startup excluded) vs memory](results/positioning.svg)
 
-> **Methodology note (2026-06-17): Elixir is now precompiled.** An earlier harness ran Elixir as
-> `elixir file.exs`, which **recompiles the program's module every run** — that ~100 ms compile
-> leaked into "compute" (compute = wall − startup, and the startup baseline compiled no module, so
-> it wasn't subtracted), **overstating Elixir's compute by ~100 ms/run and flattering Brood vs
-> Elixir specifically**. Elixir is now `elixirc`'d once and run from its `.beam` (like `.NET`). We
-> cross-checked against raw **Erlang** and confirmed precompiled-Elixir ≈ Erlang (fib 87 vs 75 ms —
-> same BEAM), then dropped Erlang as redundant. The fix mainly moves the *Brood-vs-Elixir* numbers
-> (Brood is behind Elixir on most compute, where the old harness showed it competitive); the
-> overall field position is unchanged. Any comparative figure in the engine notes above predates it.
+**The short version:** Brood's standouts are **memory** (~24 MB base RSS — among the lightest of
+six, ~tied with Ruby and well below Node, Elixir, and .NET) and **fast startup** (~37 ms — ahead of
+Ruby, ~5× ahead of the BEAM's ~200 ms boot). It **wins outright** on two workloads: `strings`
+(**fastest of six** — the streaming `%string-join` kernel builds the whole result in one immutable
+pass) and concurrent I/O `http` (**2nd, behind only Node** — non-blocking sockets deliver to
+mailboxes). And it beats **both interpreters** (Ruby and Python) on most folds and recursion.
 
-**The short version:** Brood's genuine standouts are **memory** (~21 MB geomean RSS — 2nd-lightest
-of six, behind only Python; lighter than Ruby, Node, Elixir, and .NET) and **fast startup** (~36 ms
-— ahead of Elixir and Ruby, ~5× ahead of the BEAM's ~190 ms boot). It **wins outright** on two
-workloads: `strings` (**fastest of six** — the streaming `%string-join` kernel builds the whole
-result in one immutable pass) and concurrent I/O `http` (**2nd, behind only Node** — non-blocking
-sockets deliver to mailboxes). And it beats **both interpreters** (Ruby and Python) on most folds
-and recursion (`reduce`, `sort`, `mandelbrot`, `nqueens`, …).
-
-On **single-threaded compute** Brood sits **~10× off the fastest** (.NET) by geometric mean —
-**4th of six: ahead of Ruby and well ahead of Python, behind the JITs (.NET, Node) and the BEAM
-(Elixir)**. The gaps are widest on JIT-friendly numeric and allocation/recursion work the Brood JIT
-doesn't yet cover: `matmul` ~145× (.NET auto-vectorises to ~1 ms), `nqueens` ~38×, `errors-deep`
-~21×, `wordcount` ~20×, `bintree` ~17×, `loop` ~14×, `fib` ~11×. These run **interpreted** — they
-bail the JIT — against JIT-compiled native code, which is the **clear optimization frontier**:
-profiling puts ~60 % of an interpreted benchmark in the bytecode dispatch loop (`vm_run_bc`), so the
-levers are interpreter dispatch + widening JIT coverage. None of it is architectural — Brood is a
-young runtime and these are **implementation headroom**. (Built for long-running apps — editors, web
-servers — it spends some memory for speed via the **mimalloc** backend.) See
-[BENCHMARKS.md](BENCHMARKS.md) for the full per-benchmark picture, a
-[positioning chart](results/positioning.svg), and the code side by side.
+On **single-threaded compute** Brood sits **~8× off the fastest** (.NET) by aggregate compute —
+**4th of six: ahead of Ruby (~10×) and well ahead of Python (~23×), behind the JITs (.NET, Node) and
+the BEAM (Elixir)**. The gaps are widest on JIT-friendly allocation/recursion work the Brood JIT
+doesn't yet cover: `nqueens` ~41×, `bintree` ~34×, `errors-deep` ~34×, `wordcount` ~26×; while
+`fib` is now **~7×** (down from ~11× after the in-IR call fast-link), `matmul` ~8×, `primes` ~5×,
+and `sort` ~3.5× are closer. These run **interpreted** — they bail the JIT — against JIT-compiled
+native code, the **clear optimization frontier**: profiling puts ~60 % of an interpreted benchmark
+in the bytecode dispatch loop (`vm_run_bc`), so the levers are interpreter dispatch + widening JIT
+coverage. None of it is architectural — Brood is a young runtime and these are **implementation
+headroom**. (Built for long-running apps — editors, web servers — it spends some memory for speed
+via the **mimalloc** backend.) See [BENCHMARKS.md](BENCHMARKS.md) for the full per-benchmark
+picture and the code side by side.
 
 ## The benchmarks (19)
 
