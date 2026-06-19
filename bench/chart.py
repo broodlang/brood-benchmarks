@@ -22,9 +22,10 @@ COMPUTE = ["fib", "loop", "reduce", "primes", "collatz", "mandelbrot",
 COLOR = {
     "brood": "#c0392b", "elixir": "#8e44ad", "python": "#2980b9",
     "node": "#27ae60", "ruby": "#d35400", "dotnet": "#16a085",
+    "clojure": "#e67e22",
 }
 LABEL = {"brood": "Brood", "elixir": "Elixir", "python": "Python",
-         "node": "Node", "ruby": "Ruby", "dotnet": ".NET"}
+         "node": "Node", "ruby": "Ruby", "dotnet": ".NET", "clojure": "Clojure"}
 
 
 def collect(results):
