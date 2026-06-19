@@ -27,3 +27,4 @@ results/report.*.md
 !results/results.whklat.json
 !results/report.whklat.md
 bench/elixir/_build/
+bench/clojure/.cpcache/

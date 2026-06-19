@@ -1,10 +1,12 @@
-# benchmark — Brood vs Elixir vs Python vs Node vs Ruby vs .NET
+# benchmark — Brood vs Clojure vs Elixir vs Python vs Node vs Ruby vs .NET
 
 A cross-language micro-benchmark suite: **19 small programs, each implemented
-six times** (once per language) and run under one identical harness, to see
+seven times** (once per language) and run under one identical harness, to see
 where the Brood runtime is faster or slower than the alternatives — on
 **startup**, **memory**, **raw performance**, and **concurrency**. The field spans
-interpreters (Python, Ruby) and JITs (Node/V8, Elixir/BeamAsm, .NET/RyuJIT).
+interpreters (Python, Ruby), JITs (Node/V8, Elixir/BeamAsm, .NET/RyuJIT), and a
+fellow **immutable-data Lisp on the JVM** (Clojure/HotSpot) — the closest peer to
+Brood's own immutable, functional design.
 
 Brood is a young runtime (a bytecode VM with a tier-1 JIT) measured here against mature,
 production languages — so this is an honest "where does it stand today" snapshot, not a
@@ -21,19 +23,27 @@ claim to lead the field.
 
 **Where Brood stands:**
 
-- **Light and quick to start** — ~24 MB of memory and ~37 ms to boot: among the lightest and
-  fastest-starting of the six (only Python is lighter; Elixir takes ~5× longer to start).
-- **Wins two workloads** — fastest of six at string building (`strings`), and 2nd at concurrent
+- **Light and quick to start** — ~24 MB of memory and ~36 ms to boot: among the lightest and
+  fastest-starting of the seven (only Python is lighter; Elixir takes ~5× and Clojure's JVM ~20×
+  longer to start).
+- **Wins two workloads** — fastest of seven at string building (`strings`), and 2nd at concurrent
   network I/O (`http`, behind only Node).
-- **Beats the interpreters** — faster than Ruby and Python on most folds and recursion.
+- **Beats the interpreters and the JVM Lisp on this suite** — faster than Ruby, Python, and Clojure
+  on most single-shot compute (Clojure's HotSpot JIT can't warm up in one short run — see the
+  caveat below).
 - **Behind the top runtimes on raw number-crunching** — overall single-threaded compute is roughly
-  **8× slower than the fastest** (.NET), landing **4th of six**: ahead of Ruby and Python, behind
-  the heavily-optimised JITs (.NET, Node) and the BEAM (Elixir). The gaps are largest on
-  recursion- and allocation-heavy work; simple loops, sorting, and string work are much closer.
+  **8× slower than the fastest** (.NET), landing **4th of seven**: ahead of Ruby, Clojure, and
+  Python, behind the heavily-optimised JITs (.NET, Node) and the BEAM (Elixir). The gaps are largest
+  on recursion-, allocation-, and map-heavy work (`nqueens`, `bintree`, `wordcount`, `sort`); simple
+  loops, string work, and `matmul` are much closer.
 
 Brood is built for long-running apps — editors, web servers — and trades some memory for speed.
-The full per-benchmark numbers are in [results/report.md](results/report.md) and
-[BENCHMARKS.md](BENCHMARKS.md); the chart above plots compute speed against memory.
+**A caveat on Clojure:** it runs on the JVM, which cold-starts (~0.7 s) on every one of these
+single-shot runs, so HotSpot never JIT-compiles the hot loops — a long-running Clojure service would
+be far faster than these numbers. Brood (and the others) likewise run from source per run; only
+Elixir and .NET are precompiled. The full per-benchmark numbers are in
+[results/report.md](results/report.md) and [BENCHMARKS.md](BENCHMARKS.md); the chart above plots
+compute speed against memory.
 
 ## The benchmarks (19)
 
@@ -48,7 +58,7 @@ The full per-benchmark numbers are in [results/report.md](results/report.md) and
 | `mandelbrot` | floating-point math — escape iterations over a grid |
 | `matmul`     | nested loops + indexing — integer N×N multiply |
 | `strings`    | string building — comma-join 0..n-1 + length (Brood/Elixir join the range directly) |
-| `wordcount`  | hash-map build — **immutable** (Brood/Elixir) vs **mutable** (Python/Node/Ruby/.NET) |
+| `wordcount`  | hash-map build — **immutable** persistent maps (Brood/Elixir/Clojure) vs **mutable** dicts/hashes (Python/Node/Ruby/.NET) |
 | `bintree`    | allocation / GC pressure — build & walk many binary trees |
 | `sort`       | sort a list of ints + an order-sensitive checksum walk |
 | `nqueens`    | backtracking recursion — count N-queens solutions (`N=10`) |
@@ -59,14 +69,15 @@ The full per-benchmark numbers are in [results/report.md](results/report.md) and
 | `pfib`       | parallel CPU — 100 `fib`s computed at once across cores |
 | `http`       | concurrent I/O — N in-flight HTTP GETs to a local server |
 
-`spawn`, `pfib`, and `http` are each implemented in all six languages, using that
-language's idiomatic concurrency. For `spawn` (20k lightweight units): green
+`spawn`, `pfib`, and `http` are each implemented in all seven languages, using that
+language's idiomatic concurrency. For `spawn` (lightweight units): green
 processes + messaging for Brood/Elixir; asyncio coroutines (Python), Promises
-(Node), OS threads (Ruby), thread-pool tasks (.NET). For the CPU-bound `pfib`:
-green processes (Brood/Elixir), `worker_threads` (Node), `Parallel.For` (.NET), a
-forked process pool (Python/Ruby). For the I/O-bound `http`: green processes
-(Brood/Elixir), an async client (Node/.NET), a thread pool / thread-per-request
-(Python/Ruby). Green processes / actors are a first-class Brood & BEAM feature, so
+(Node), OS threads (Ruby), thread-pool tasks (.NET), `future`s (Clojure). For the
+CPU-bound `pfib`: green processes (Brood/Elixir), `worker_threads` (Node),
+`Parallel.For` (.NET), a forked process pool (Python/Ruby), `pmap` across cores
+(Clojure). For the I/O-bound `http`: green processes (Brood/Elixir), an async
+client (Node/.NET), a thread pool / thread-per-request (Python/Ruby), `future`s +
+`java.net.http` (Clojure). Green processes / actors are a first-class Brood & BEAM feature, so
 `spawn` is where that model is exercised head-to-head against threads and event
 loops — the comparison is deliberate, not like-for-like machinery.
 
@@ -77,7 +88,7 @@ For every (benchmark × language) pair the harness records:
 - **Wall time** — total process time, *including* interpreter/VM startup. Best
   of N runs (least-noisy). Measured with `time.perf_counter()` around the child.
 - **Peak RSS** — maximum resident memory, from `/usr/bin/time -v`.
-- **Checksum** — each program prints one integer. The harness asserts all six
+- **Checksum** — each program prints one integer. The harness asserts all seven
   languages produce the **same** checksum, so we know they did equivalent work:
   a mismatch flags the offending row in the report and fails the run (non-zero
   exit), rather than silently publishing incomparable timings.
@@ -93,7 +104,7 @@ Because wall time includes startup, the dedicated `startup` benchmark (a bare
 
 - **Same algorithm, same inputs, same output.** Where data is generated
   (`sort`, `wordcount`) every language runs the *identical* LCG
-  (`x = (x*1103515245 + 12345) & 0x7fffffff`, seed `123456789`), so all six
+  (`x = (x*1103515245 + 12345) & 0x7fffffff`, seed `123456789`), so all seven
   sort/tally the same stream. Checksums confirm it.
   - In **Node** that multiply exceeds the `2^53` safe-integer range, so the LCG
     uses `BigInt` to stay bit-identical to the others. (Python and Ruby have
@@ -103,14 +114,14 @@ Because wall time includes startup, the dedicated `startup` benchmark (a bare
   naturally write it in that language: tail recursion + immutable maps in
   Brood/Elixir, `for` loops + mutable dicts/hashes in Python/Node/Ruby/.NET.
   That's the point — we're comparing the languages as used, not forcing one style.
-  - One consequence worth naming: in `primes` the other five hoist the
+  - One consequence worth naming: in `primes` Python/Ruby/Node/.NET/Elixir hoist the
     trial-division bound out of the inner loop with an integer/float `sqrt`
-    (`isqrt` / `Integer.sqrt` / `Math.sqrt`), while Brood tests `(* d d) > m`
+    (`isqrt` / `Integer.sqrt` / `Math.sqrt`), while Brood AND Clojure test `(* d d) > m`
     every step — a mixed int/float comparison coerces, so a multiply is the
     cheaper Brood idiom. Same primes, same checksum, but Brood does marginally
     *more* work per inner step; the asymmetry, if anything, counts against Brood.
 - Float results (`mandelbrot`) rely on IEEE-754 `f64` behaving identically
-  across all six runtimes — confirmed by matching checksums.
+  across all seven runtimes — confirmed by matching checksums.
 - Workload sizes are picked so even the *fastest* runtime (.NET / Node) spends
   at least ~100 ms of **compute** — below that, `wall − startup` is dominated by
   startup-measurement noise and the ratios are meaningless — while the *slowest*
@@ -139,7 +150,7 @@ python3 bench/harness.py --langs brood,python # subset of languages
 python3 bench/chart.py                         # regenerate results/positioning.svg
 ```
 
-The source programs live under [`bench/`](bench/), six per benchmark, named
+The source programs live under [`bench/`](bench/), seven per benchmark, named
 identically except the extension
 (`fib.blsp` / `fib.exs` / `fib.py` / `fib.js` / `fib.rb` / `fib.cs`) so the
 implementations diff side by side. **.NET** needs compilation, so the harness
@@ -160,14 +171,16 @@ peak RSS, checksum), and `positioning.svg` (the compute-vs-memory map).
 ## Environment
 
 Numbers in the docs were measured on `whklat`: a 12-core x86-64 Linux 7.0.0
-machine · Brood 0.1.0 (bytecode VM + tier-1 JIT) · Elixir 1.20.0 / OTP 28
-(BeamAsm JIT) · Python 3.14.4 · Node 22.21.0 (V8) · Ruby 3.3.8 · .NET 10.0.109
-(RyuJIT). Best of 5 runs
+machine · Brood 0.1.0 (bytecode VM + tier-1 JIT) · Clojure 1.12 / OpenJDK 25
+(HotSpot) · Elixir 1.20.0 / OTP 28 (BeamAsm JIT) · Python 3.14.4 · Node 22.21.0
+(V8) · Ruby 3.3.8 · .NET 10.0.109 (RyuJIT). Best of 5 runs
 each (startup best of 15); the concurrency benchmarks (`spawn`/`pfib`/`http`) take
 the best of 7. **Elixir and .NET are precompiled once (`elixirc`/`dotnet build`) and
 run from their compiled artifact — not from source per run — so per-run compilation
-never leaks into the compute measurement. Brood, Python, Node, and Ruby run their
-source directly, as is their normal mode.**
+never leaks into the compute measurement. Brood, Python, Node, Ruby, and Clojure run
+their source directly, as is their normal mode — note this means the JVM cold-starts
+every run, so HotSpot under-JITs Clojure's short single-shot compute (it would be
+faster warmed; a known caveat for JVM languages in a single-shot suite).**
 Each run is CPU-pinned with `taskset` (single-threaded benchmarks to one dedicated
 core, the concurrency ones to all 12) with a 0.25 s settle between runs, so a prior
 run's teardown doesn't contend with the next measurement.

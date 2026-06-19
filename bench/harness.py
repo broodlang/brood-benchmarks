@@ -59,6 +59,15 @@ DOTNET_APP = DOTNET_DIR / "publish" / "brood-bench"
 ELIXIR_DIR = ROOT / "elixir"
 BEAM_DIR = ELIXIR_DIR / "_build"
 
+# Clojure runs on the JVM. To avoid per-run `clojure` CLI / dependency-resolution overhead, the
+# classpath is resolved once at startup (build_clojure → `clojure -Spath`) and each run is
+# `java -cp <cp> clojure.main file.clj` — the JVM + clojure.main, the fair analog of `node app.js`.
+# The JVM still cold-starts every run (no warmup carries over between the harness's separate
+# processes), so HotSpot under-JITs short single-shot runs — a known caveat for JVM langs in a
+# single-shot suite; the docs flag it.
+CLOJURE_DIR = ROOT / "clojure"
+CLOJURE_CP = None  # resolved by build_clojure()
+
 
 def beam_module(name):
     """The compiled module name for a benchmark — `B` + the name's alphanumerics
@@ -72,14 +81,33 @@ def elixir_cmd(p):
     return ["elixir", "-pa", str(BEAM_DIR), "-e", f"{beam_module(Path(p).stem)}.main()"]
 
 
+def clojure_cmd(p):
+    """Run a Clojure bench file via `java -cp <resolved-cp> clojure.main file.clj`."""
+    return ["java", "-cp", CLOJURE_CP, "clojure.main", str(p)]
+
+
 LANGS = {
     "brood":  {"dir": "brood",  "ext": "blsp", "cmd": lambda p: ["brood", p], "env": {"BROOD_VM": "1"}},
+    "clojure": {"dir": "clojure", "ext": "clj", "cmd": clojure_cmd},
     "elixir": {"dir": "elixir", "ext": "ex",   "cmd": elixir_cmd},
     "python": {"dir": "python", "ext": "py",   "cmd": lambda p: ["python3", p]},
     "node":   {"dir": "node",   "ext": "js",   "cmd": lambda p: ["node", p]},
     "ruby":   {"dir": "ruby",   "ext": "rb",   "cmd": lambda p: ["ruby", p]},
     "dotnet": {"dir": "dotnet", "ext": "cs",   "cmd": lambda p: [str(DOTNET_APP), Path(p).stem]},
 }
+
+
+def build_clojure():
+    """Resolve the Clojure classpath once (`clojure -Spath` from bench/clojure/deps.edn), so each
+    run is `java -cp <cp> clojure.main file.clj` with no per-run CLI / dependency resolution."""
+    global CLOJURE_CP
+    print("resolving Clojure classpath (clojure -Spath)…")
+    r = subprocess.run(
+        ["clojure", "-Spath"], cwd=str(CLOJURE_DIR), capture_output=True, text=True,
+    )
+    if r.returncode != 0:
+        raise RuntimeError("clojure -Spath failed:\n" + r.stdout + r.stderr)
+    CLOJURE_CP = r.stdout.strip()
 
 
 def build_dotnet():
@@ -289,7 +317,7 @@ def main():
                     help="override --runs for the startup benchmark only (default: same as --runs)")
     ap.add_argument("--timeout", type=int, default=300, help="per-run timeout (s)")
     ap.add_argument("--only", default="", help="comma list of benchmark names")
-    ap.add_argument("--langs", default="brood,elixir,python,node,ruby,dotnet")
+    ap.add_argument("--langs", default="brood,clojure,elixir,python,node,ruby,dotnet")
     ap.add_argument("--quick", action="store_true")
     ap.add_argument("--out", default="", help="directory to write result files into (default: results/)")
     ap.add_argument("--label", default="", help="filename suffix, e.g. --label whklat -> results.whklat.json")
@@ -335,11 +363,16 @@ def main():
         print("warning: `dotnet` not found on PATH — skipping the .NET column. "
               "Install it with `sudo apt install dotnet-sdk-10.0`.", file=sys.stderr)
         langs.remove("dotnet")
+    if "clojure" in langs and shutil.which("clojure") is None:
+        print("warning: `clojure` not found on PATH — skipping the Clojure column.", file=sys.stderr)
+        langs.remove("clojure")
 
     if "dotnet" in langs:
         build_dotnet()
     if "elixir" in langs:
         build_beam()
+    if "clojure" in langs:
+        build_clojure()
 
     # Isolation: pin each measured process to dedicated CPUs (so it isn't migrated
     # and contends less with system noise) and settle between runs. On by default

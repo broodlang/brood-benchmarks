@@ -19,17 +19,17 @@ took `fib` compute from ~502 → ~274 ms (~11× → ~7× off the fastest). A `de
 Emacs-style hot reload holds. Workers in `spawn`/`pfib` share one compiled copy of the native code
 instead of each recompiling.
 
-Still interpreted (the weak rows) — these bail the JIT:
+Still interpreted (the weak rows; ratios vs the fastest language) — these bail the JIT:
 
-- **`nqueens` (~41×), `bintree` (~34×)** — backtracking + short-lived allocation the JIT doesn't
+- **`nqueens` (~29×), `bintree` (~20×)** — backtracking + short-lived allocation the JIT doesn't
   cover; the per-step list/tree building dominates.
-- **`wordcount` (~26×)** — *not* an immutability cost: Elixir's immutable `Map.update` is also far
-  faster, so the gap is Brood's young CHAMP map's constant factors (two trie walks per update — no
-  single-pass `map-update` primitive yet — plus per-level path-copy allocation), not the persistent
-  approach.
-- **`matmul` (~8×)** — the inner loop is native; the residual is the one read LICM can't hoist (the
-  per-`k` row) plus the boxed 24-byte `Value` vs .NET's register `long`.
-- **`sort` (~3.5×), `primes` (~5×)** — Brood's closest compute gaps; mostly raw dispatch overhead.
+- **`wordcount` (~18×)** — *not* an immutability cost: both Clojure (528 ms) and Elixir use immutable
+  persistent maps and beat Brood (810 ms), so the gap is Brood's young CHAMP map's constant factors
+  (two trie walks per update — no single-pass `map-update` primitive yet — plus per-level path-copy
+  allocation), not the persistent approach. The two immutable-Lisp peers are the proof.
+- **`matmul` (~24× — noise-sensitive on .NET's ~6 ms)** — the inner loop is native; the residual is
+  the one read LICM can't hoist (the per-`k` row) plus the boxed 24-byte `Value` vs a register `long`.
+- **`sort` (~3.7×), `primes` (~5×)** — Brood's closest compute gaps; mostly raw dispatch overhead.
 
 `errors-deep` is a reminder that a compute-loop-only view misleads: .NET tops the arithmetic rows
 yet is *worst* at deep error recovery (stack-trace capture per throw). It's an axis where Brood is
