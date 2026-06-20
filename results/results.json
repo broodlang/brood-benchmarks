@@ -4,8 +4,8 @@
     "what": "interpreter/VM startup + base memory",
     "langs": {
       "brood": {
-        "wall_ms": 29.8,
-        "rss_kb": 18740,
+        "wall_ms": 26.2,
+        "rss_kb": 18560,
         "checksum": "0"
       }
     }
@@ -15,8 +15,8 @@
     "what": "naive recursion / function-call overhead",
     "langs": {
       "brood": {
-        "wall_ms": 344.7,
-        "rss_kb": 22172,
+        "wall_ms": 259.5,
+        "rss_kb": 22296,
         "checksum": "9227465"
       }
     }
@@ -26,8 +26,8 @@
     "what": "raw iteration (tail recursion vs for-loop)",
     "langs": {
       "brood": {
-        "wall_ms": 72.9,
-        "rss_kb": 22140,
+        "wall_ms": 68.1,
+        "rss_kb": 22136,
         "checksum": "449999985000000"
       }
     }
@@ -37,8 +37,8 @@
     "what": "higher-order fold over a range",
     "langs": {
       "brood": {
-        "wall_ms": 154.4,
-        "rss_kb": 18876,
+        "wall_ms": 29.4,
+        "rss_kb": 18752,
         "checksum": "12499997500000"
       }
     }
@@ -48,8 +48,8 @@
     "what": "integer arithmetic (trial division)",
     "langs": {
       "brood": {
-        "wall_ms": 74.2,
-        "rss_kb": 22016,
+        "wall_ms": 67.5,
+        "rss_kb": 22168,
         "checksum": "13848"
       }
     }
@@ -59,8 +59,8 @@
     "what": "integer arithmetic + tight inner loop",
     "langs": {
       "brood": {
-        "wall_ms": 400.9,
-        "rss_kb": 36564,
+        "wall_ms": 115.6,
+        "rss_kb": 22100,
         "checksum": "442"
       }
     }
@@ -70,8 +70,8 @@
     "what": "floating-point math (escape iterations)",
     "langs": {
       "brood": {
-        "wall_ms": 264.3,
-        "rss_kb": 22152,
+        "wall_ms": 267.8,
+        "rss_kb": 22112,
         "checksum": "6129302"
       }
     }
@@ -81,8 +81,8 @@
     "what": "nested loops + indexing (integer NxN)",
     "langs": {
       "brood": {
-        "wall_ms": 139.5,
-        "rss_kb": 35108,
+        "wall_ms": 127.5,
+        "rss_kb": 35132,
         "checksum": "654353666"
       }
     }
@@ -92,8 +92,8 @@
     "what": "string building (join) + length",
     "langs": {
       "brood": {
-        "wall_ms": 43.8,
-        "rss_kb": 29084,
+        "wall_ms": 39.1,
+        "rss_kb": 29136,
         "checksum": "3388889"
       }
     }
@@ -103,8 +103,8 @@
     "what": "hash-map build (immutable vs mutable)",
     "langs": {
       "brood": {
-        "wall_ms": 457.0,
-        "rss_kb": 92940,
+        "wall_ms": 426.1,
+        "rss_kb": 92572,
         "checksum": "374854840"
       }
     }
@@ -114,8 +114,8 @@
     "what": "allocation / GC pressure (build+walk trees)",
     "langs": {
       "brood": {
-        "wall_ms": 130.5,
-        "rss_kb": 37824,
+        "wall_ms": 131.7,
+        "rss_kb": 37724,
         "checksum": "1638200"
       }
     }
@@ -125,8 +125,8 @@
     "what": "sort a list of ints + checksum walk",
     "langs": {
       "brood": {
-        "wall_ms": 202.0,
-        "rss_kb": 132964,
+        "wall_ms": 208.0,
+        "rss_kb": 132896,
         "checksum": "46468819"
       }
     }
@@ -136,8 +136,8 @@
     "what": "backtracking recursion \u2014 count N-queens solutions",
     "langs": {
       "brood": {
-        "wall_ms": 164.5,
-        "rss_kb": 32608,
+        "wall_ms": 136.5,
+        "rss_kb": 32272,
         "checksum": "724"
       }
     }
@@ -147,8 +147,8 @@
     "what": "error handling \u2014 raise + recover a value N times",
     "langs": {
       "brood": {
-        "wall_ms": 223.0,
-        "rss_kb": 34424,
+        "wall_ms": 217.3,
+        "rss_kb": 34488,
         "checksum": "9900000"
       }
     }
@@ -158,8 +158,8 @@
     "what": "error propagation \u2014 throw 50 frames deep, catch at top",
     "langs": {
       "brood": {
-        "wall_ms": 308.0,
-        "rss_kb": 33816,
+        "wall_ms": 334.1,
+        "rss_kb": 34956,
         "checksum": "2475000"
       }
     }
@@ -169,8 +169,8 @@
     "what": "filter/map/reduce pipeline over a range",
     "langs": {
       "brood": {
-        "wall_ms": 65.3,
-        "rss_kb": 22120,
+        "wall_ms": 63.4,
+        "rss_kb": 22152,
         "checksum": "155553889038886"
       }
     }
@@ -180,8 +180,8 @@
     "what": "lightweight concurrent units + result collection",
     "langs": {
       "brood": {
-        "wall_ms": 147.5,
-        "rss_kb": 84228,
+        "wall_ms": 130.0,
+        "rss_kb": 75988,
         "checksum": "6100000"
       }
     }
@@ -191,8 +191,8 @@
     "what": "parallel fib \u2014 100 computed at once across cores",
     "langs": {
       "brood": {
-        "wall_ms": 393.4,
-        "rss_kb": 27360,
+        "wall_ms": 384.5,
+        "rss_kb": 26408,
         "checksum": "31781100"
       }
     }
@@ -202,8 +202,8 @@
     "what": "concurrent HTTP \u2014 N in-flight GETs to a local server",
     "langs": {
       "brood": {
-        "wall_ms": 176.5,
-        "rss_kb": 121080,
+        "wall_ms": 175.8,
+        "rss_kb": 117364,
         "checksum": "500"
       }
     }
@@ -212,7 +212,7 @@
     "host": "whklat",
     "cores": 12,
     "platform": "Linux-7.0.0-22-generic-x86_64-with-glibc2.43",
-    "date": "2026-06-20 07:59",
+    "date": "2026-06-20 17:29",
     "versions": {
       "brood": "brood 0.1.0"
     },
