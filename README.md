@@ -23,19 +23,19 @@ claim to lead the field.
 
 **Where Brood stands:**
 
-- **Light and quick to start** — ~24 MB of memory and ~36 ms to boot: among the lightest and
-  fastest-starting of the seven (only Python is lighter; Elixir takes ~5× and Clojure's JVM ~20×
+- **Light and quick to start** — ~22 MB of memory and ~29 ms to boot: among the lightest and
+  fastest-starting of the seven (only Python is lighter; Elixir takes ~7× and Clojure's JVM ~26×
   longer to start).
-- **Wins two workloads** — fastest of seven at string building (`strings`), and 2nd at concurrent
-  network I/O (`http`, behind only Node).
+- **Wins two workloads outright** — fastest of seven at `reduce` and `strings`; 2nd at `errors`,
+  `errors-deep`, `collatz`, and `http` (behind only Node on I/O).
 - **Beats the interpreters and the JVM Lisp on this suite** — faster than Ruby, Python, and Clojure
   on most single-shot compute (Clojure's HotSpot JIT can't warm up in one short run — see the
   caveat below).
 - **Behind the top runtimes on raw number-crunching** — overall single-threaded compute is roughly
-  **8× slower than the fastest** (.NET), landing **4th of seven**: ahead of Ruby, Clojure, and
+  **4.8× slower than the fastest** (.NET), landing **4th of seven**: ahead of Ruby, Clojure, and
   Python, behind the heavily-optimised JITs (.NET, Node) and the BEAM (Elixir). The gaps are largest
-  on recursion-, allocation-, and map-heavy work (`nqueens`, `bintree`, `wordcount`, `sort`); simple
-  loops, string work, and `matmul` are much closer.
+  on allocation- and map-heavy work (`bintree`, `wordcount`, `pipeline`); simple loops, string work,
+  error handling, and `matmul` are much closer.
 
 Brood is built for long-running apps — editors, web servers — and trades some memory for speed.
 **A caveat on Clojure:** it runs on the JVM, which cold-starts (~0.7 s) on every one of these
@@ -173,7 +173,7 @@ peak RSS, checksum), and `positioning.svg` (the compute-vs-memory map).
 Numbers in the docs were measured on `whklat`: a 12-core x86-64 Linux 7.0.0
 machine · Brood 0.1.0 (bytecode VM + tier-1 JIT) · Clojure 1.12 / OpenJDK 25
 (HotSpot) · Elixir 1.20.0 / OTP 28 (BeamAsm JIT) · Python 3.14.4 · Node 22.21.0
-(V8) · Ruby 3.3.8 · .NET 10.0.109 (RyuJIT). Best of 5 runs
+(V8) · Ruby 3.3.8 · .NET 10.0.109 (RyuJIT). 2026-06-25. Best of 5 runs
 each (startup best of 15); the concurrency benchmarks (`spawn`/`pfib`/`http`) take
 the best of 7. **Elixir and .NET are precompiled once (`elixirc`/`dotnet build`) and
 run from their compiled artifact — not from source per run — so per-run compilation
