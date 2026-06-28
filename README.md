@@ -32,10 +32,11 @@ claim to lead the field.
   on most single-shot compute (Clojure's HotSpot JIT can't warm up in one short run — see the
   caveat below).
 - **Behind the top runtimes on raw number-crunching** — overall single-threaded compute is roughly
-  **4.6× slower than the fastest** (.NET), landing **4th of seven**: ahead of Clojure, Ruby, and
-  Python, behind the heavily-optimised JITs (.NET, Node) and the BEAM (Elixir). The gaps are largest
-  on allocation- and map-heavy work (`wordcount`, `pipeline`, `bintree`); simple loops, string work,
-  error handling, and `matmul` are much closer.
+  **3.8× slower than the fastest** (.NET), landing **4th of seven**: ahead of Clojure, Ruby, and
+  Python, behind the heavily-optimised JITs (.NET, Node) and the BEAM (Elixir). Improved from 4.6×
+  on the previous run after the LINMAP optimisation closed the `wordcount` gap (7th → 4th, now
+  beating Elixir). The remaining gaps are largest on allocation-heavy work (`bintree`, `nqueens`,
+  `pipeline`) and float math (`mandelbrot`).
 
 Brood is built for long-running apps — editors, web servers — and trades some memory for speed.
 **A caveat on Clojure:** it runs on the JVM, which cold-starts (~0.35 s here) on every one of these
