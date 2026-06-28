@@ -6,7 +6,7 @@ per-language ranks) see [`results/report.md`](results/report.md) and
 analysis of *why* Brood lands where it does and what would move it, see
 [`FRONTIER.md`](FRONTIER.md).
 
-Machine: `whklat`, 12-core x86-64, Linux 7.0.0, 2026-06-25 · Brood 0.1.0 · Clojure 1.12 / JDK 25 ·
+Machine: `whklat`, 12-core x86-64, Linux 7.0.0, 2026-06-28 · Brood 0.1.0 · Clojure 1.12 / JDK 25 ·
 Elixir 1.20.0 / OTP 28 · Python 3.14.4 · Node 22.21.0 · Ruby 3.3.8 · .NET 10.0.109. Best of 5 runs (startup best of 15, spawn/pfib/http best of 7).
 Each run is `taskset`-pinned (single-threaded → one dedicated core, concurrency → all 12) with a 0.25 s settle.
 Every program prints one integer and the harness asserts all seven agree, so the work is provably equivalent.
@@ -17,47 +17,44 @@ Lower is better. **Bold** = Brood. "Rank" is Brood's place by compute among the 
 
 | benchmark | Brood | Clojure | Elixir | Python | Node | Ruby | .NET | Brood rank |
 |---|---|---|---|---|---|---|---|---|
-| `fib` | **242ms** | 507ms | 83ms | 825ms | 82ms | 688ms | 44ms | 4/7 |
-| `loop` | **39ms** | 406ms | 69ms | 2.4s | 31ms | 591ms | 13ms | 3/7 |
-| `reduce` | **3ms** | 414ms | 32ms | 118ms | 247ms | 252ms | 13ms | **1/7** |
-| `primes` | **34ms** | 446ms | 5ms | 122ms | 10ms | 117ms | 8ms | 4/7 |
-| `collatz` | **82ms** | 618ms | 94ms | 2.5s | 182ms | 895ms | 46ms | 2/7 |
-| `mandelbrot` | **220ms** | 377ms | 242ms | 1.4s | 21ms | 432ms | 18ms | 3/7 |
-| `matmul` | **101ms** | 502ms | 49ms | 465ms | 24ms | 309ms | 5ms | 4/7 |
-| `strings` | **10ms** | 377ms | 102ms | 45ms | 60ms | 84ms | 32ms | **1/7** |
-| `wordcount` | **475ms** | 727ms | 221ms | 206ms | 41ms | 89ms | 44ms | 6/7 |
-| `bintree` | **116ms** | 597ms | 28ms | 111ms | 28ms | 115ms | 18ms | 6/7 |
-| `sort` | **194ms** | 786ms | 138ms | 211ms | 125ms | 85ms | 74ms | 5/7 |
-| `nqueens` | **114ms** | 613ms | 19ms | 60ms | 14ms | 141ms | 22ms | 5/7 |
-| `errors` | **40ms** | 1.5s | 29ms | 56ms | 656ms | 127ms | 332ms | 2/7 |
-| `errors-deep` | **55ms** | 1.9s | 15ms | 253ms | 239ms | 130ms | 788ms | 2/7 |
-| `pipeline` | **33ms** | 448ms | 12ms | 5ms | 11ms | 10ms | 10ms | 6/7 |
-| `spawn` | **117ms** | †0ms | ‡0ms | 557ms | 55ms | 1.6s | 18ms | 5/7 |
-| `pfib` | **384ms** | †0ms | 54ms | 726ms | 122ms | 499ms | 36ms | 5/7 |
-| `http` | **146ms** | 433ms | 564ms | 181ms | 137ms | 260ms | 183ms | 2/7 |
-| `startup` (wall) | **29ms** | 762ms | 212ms | 11ms | 19ms | 45ms | 23ms | 4/7 |
+| `fib` | **250ms** | 467ms | 73ms | 780ms | 78ms | 659ms | 43ms | 4/7 |
+| `loop` | **59ms** | 374ms | 65ms | 2.4s | 37ms | 628ms | 13ms | 3/7 |
+| `reduce` | **3ms** | 376ms | 27ms | 115ms | 236ms | 235ms | 14ms | **1/7** |
+| `primes` | **33ms** | 406ms | 15ms | 138ms | 10ms | 122ms | 11ms | 4/7 |
+| `collatz` | **90ms** | 654ms | 105ms | 2.5s | 178ms | 904ms | 46ms | 2/7 |
+| `mandelbrot` | **230ms** | 434ms | 265ms | 1.5s | 22ms | 448ms | 33ms | 3/7 |
+| `matmul` | **103ms** | 527ms | 58ms | 484ms | 36ms | 303ms | 7ms | 4/7 |
+| `strings` | **19ms** | 584ms | 116ms | 44ms | 60ms | 89ms | 32ms | **1/7** |
+| `wordcount` | **392ms** | 601ms | 182ms | 183ms | 35ms | 78ms | 40ms | 6/7 |
+| `bintree` | **107ms** | 519ms | 18ms | 103ms | 25ms | 106ms | 16ms | 6/7 |
+| `sort` | **171ms** | 678ms | 108ms | 196ms | 113ms | 74ms | 77ms | 5/7 |
+| `nqueens` | **95ms** | 530ms | 14ms | 56ms | 10ms | 130ms | 21ms | 5/7 |
+| `errors` | **58ms** | 1.4s | 20ms | 50ms | 609ms | 123ms | 314ms | 3/7 |
+| `errors-deep` | **51ms** | 2.1s | 11ms | 235ms | 223ms | 124ms | 751ms | 2/7 |
+| `pipeline` | **30ms** | 405ms | 7ms | 5ms | 9ms | 10ms | 17ms | 6/7 |
+| `spawn` | **118ms** | †0ms | 12ms | 555ms | 61ms | 1.6s | 19ms | 5/7 |
+| `pfib` | **421ms** | †0ms | 82ms | 719ms | 120ms | 483ms | 37ms | 5/7 |
+| `http` | **151ms** | 504ms | 623ms | 181ms | 126ms | 221ms | 148ms | 3/7 |
+| `startup` (wall) | **28ms** | 713ms | 200ms | 10ms | 18ms | 40ms | 21ms | 4/7 |
 
-† Clojure's `spawn`/`pfib` finish faster than its own ~762 ms JVM boot, so `compute = wall − startup`
+† Clojure's `spawn`/`pfib` finish faster than its own ~713 ms JVM boot, so `compute = wall − startup`
 clamps to ~0 — startup-dominated, not a meaningful compute figure.
-
-‡ Elixir's `spawn` wall time (209 ms) is also slightly under the BEAM boot (212 ms) in this run,
-so its compute likewise clamps to ~0.
 
 ## Memory (peak RSS) and startup
 
-- **Base RSS** (the `startup` row): Brood ~22 MB — only Python (~10 MB) is
-  lighter; Ruby ~24 MB, .NET ~26 MB, Node ~43 MB, Elixir ~70 MB, Clojure ~98 MB (the JVM, heaviest). Brood stays
-  light across the suite, including under `pfib`'s 12-core fan-out.
-- **Startup**: Brood ~29 ms — ahead of Ruby (~45 ms), well ahead of Elixir (~212 ms) and Clojure
-  (~762 ms, JVM boot); Python/Node/.NET boot faster.
+- **Base RSS** (the `startup` row): Brood ~22 MB — 3rd-lightest, behind Python (~10 MB) and
+  Ruby (~19 MB); ahead of .NET (~26 MB), Node (~43 MB), Elixir (~70 MB), Clojure (~98 MB, the JVM,
+  heaviest). Brood stays light across the suite, including under `pfib`'s 12-core fan-out.
+- **Startup**: Brood ~28 ms — ahead of Ruby (~40 ms), well ahead of Elixir (~200 ms) and Clojure
+  (~713 ms, JVM boot); Python/Node/.NET boot faster.
 
 ## How to read it
 
 - **Aggregate single-threaded compute** (the positioning chart's x-axis, the sum of the pure-compute
-  rows normalised to the fastest): .NET 1.0× · Node 2.7× · Elixir 3.4× · **Brood 4.8×** · Ruby 11.6× ·
-  Clojure 18.2× · Python 26.5×. Brood is **4th of seven** — ahead of Ruby, Clojure, and Python.
-- **Brood is fastest** at `reduce` and `strings`; 2nd at `collatz`, `errors`, `errors-deep`, and
-  `http`; 3rd at `loop` and `mandelbrot`. (Clojure runs cold each single-shot run — HotSpot never
+  rows normalised to the fastest): .NET 1.0× · Node 2.5× · Elixir 3.1× · **Brood 4.4×** · Ruby 11.0× ·
+  Clojure 16.9× · Python 25.2×. Brood is **4th of seven** — ahead of Ruby, Clojure, and Python.
+- **Brood is fastest** at `reduce` and `strings`; 2nd at `collatz` and `errors-deep`; 3rd at `loop`,
+  `mandelbrot`, `errors`, and `http`. (Clojure runs cold each single-shot run — HotSpot never
   JITs the hot loops — so its compute here is well below its warmed potential; see the README caveat.)
 - **Brood is last or near-last** on `pipeline`/`wordcount`/`bintree` — allocation- and map-heavy
   work where list-iteration and CHAMP-trie constant factors dominate. `sort` and `nqueens` improved
@@ -65,14 +62,14 @@ so its compute likewise clamps to ~0.
 - **`reduce` is Brood's fastest benchmark** (3 ms compute, 1st/7): the JIT dispatch fast path
   (2026-06-21) lets Rust builtins call JIT-compiled closures directly, bypassing `vm_run_bc`'s
   per-invocation overhead — a tight higher-order fold is almost free.
-- **`errors` / `errors-deep`**: Brood is 2nd both rows (behind only Elixir), in large part because
-  the IC stale-LOCAL-env fix (2026-06-25) removed a code path that fell through to the tree-walker
-  on IC misses in tight error-handling loops.
-- **`wordcount`**: both Brood (475 ms) and Clojure (727 ms) use *immutable* persistent maps — both
+- **`errors` / `errors-deep`**: Brood is 3rd on `errors` and 2nd on `errors-deep`, in large part
+  because the IC stale-LOCAL-env fix (2026-06-25) removed a code path that fell through to the
+  tree-walker on IC misses in tight error-handling loops.
+- **`wordcount`**: both Brood (392 ms) and Clojure (601 ms) use *immutable* persistent maps — both
   lose to mutable hash maps. The gap is persistent-map constant factors vs mutable `Dictionary`, not
-  the immutable approach per se. (Elixir's immutable map at 221 ms is faster than both.)
-- **`errors-deep`** is the row where **.NET is slow** (~788 ms — a full stack-trace capture per
-  throw scales with depth); Clojure is even heavier (~1.9 s). Brood is 2nd there.
+  the immutable approach per se. (Elixir's immutable map at 182 ms is faster than both.)
+- **`errors-deep`** is the row where **.NET is slow** (~751 ms — a full stack-trace capture per
+  throw scales with depth); Clojure is even heavier (~2.1 s). Brood is 2nd there.
 
 The per-language source for every benchmark lives under [`bench/`](bench/), seven files per benchmark
 named identically except the extension, so the implementations diff side by side. Run the suite with
