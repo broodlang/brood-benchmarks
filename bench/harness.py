@@ -214,6 +214,11 @@ QUICK = {  # smaller sizes for a fast smoke run
 }
 
 RSS_RE = re.compile(r"Maximum resident set size \(kbytes\):\s*(\d+)")
+# Strip ANSI colour/SGR escapes from a benchmark's stdout before checksumming —
+# a runtime that auto-colourises (e.g. Node when FORCE_COLOR is set in the env)
+# prints the SAME integer wrapped in escapes; without this the string compare
+# would spuriously flag a checksum mismatch.
+ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
 
 
 def run_once(cmd, n, timeout, extra_env=None, pin=None, settle=0.0):
@@ -239,7 +244,7 @@ def run_once(cmd, n, timeout, extra_env=None, pin=None, settle=0.0):
     rss = int(m.group(1)) if m else None
     if p.returncode != 0:
         return (False, wall_ms, rss, f"EXIT {p.returncode}: {p.stderr.strip().splitlines()[-1:]}" )
-    return (True, wall_ms, rss, p.stdout.strip())
+    return (True, wall_ms, rss, ANSI_RE.sub("", p.stdout).strip())
 
 
 def bench_lang(lang, name, n, runs, timeout, pin=None, settle=0.0):
@@ -329,9 +334,14 @@ def main():
                          "runs, to avoid contention (default: on when taskset is present)")
     ap.add_argument("--no-isolate", dest="isolate", action="store_false",
                     help="disable CPU pinning / settle (run unpinned, back-to-back)")
-    ap.add_argument("--pin-core", type=int, default=None,
-                    help="core to pin single-threaded benchmarks to (default: last core); "
-                         "the concurrency benchmarks always get every core")
+    ap.add_argument("--pin-cores", type=int, default=4,
+                    help="how many cores to pin compute benchmarks to (default: 4, the last "
+                         "N cores). The workload stays single-threaded; a small SET (not a "
+                         "single core) lets a runtime's background JIT/GC threads — the JVM's "
+                         "most of all — run without contending for the work core, which a "
+                         "single-core pin otherwise penalises ~2× for the JVM while leaving "
+                         "genuinely single-threaded runtimes unchanged. Concurrency benchmarks "
+                         "always get every core.")
     ap.add_argument("--settle", type=float, default=0.25,
                     help="seconds to idle before each measured run (default: 0.25)")
     args = ap.parse_args()
@@ -376,8 +386,17 @@ def main():
 
     # Isolation: pin each measured process to dedicated CPUs (so it isn't migrated
     # and contends less with system noise) and settle between runs. On by default
-    # when taskset is available; single-threaded benchmarks pin to one core, the
+    # when taskset is available; compute benchmarks pin to a small core SET, the
     # concurrency ones (NOISY) get every core so their parallelism story holds.
+    #
+    # Why a set and not a single core: a single-threaded *workload* still uses
+    # background threads for the runtime's own housekeeping — JIT compilation and
+    # GC. The JVM leans on these hardest, so pinning it to one core (where its
+    # compiler/GC threads fight the work thread) roughly DOUBLES its time, while
+    # genuinely single-threaded runtimes (Brood, Python, Ruby — and, as measured,
+    # Elixir and .NET at these sizes) are unchanged. A small set isolates the work
+    # from system noise without penalising background-threaded runtimes; the work
+    # itself is still single-threaded, so no language parallelises across the set.
     ncpu = os.cpu_count() or 1
     isolate = args.isolate
     if isolate is None:
@@ -385,10 +404,11 @@ def main():
     if isolate and shutil.which("taskset") is None:
         print("warning: --isolate requested but `taskset` not found — running unpinned.", file=sys.stderr)
         isolate = False
-    pin_core = args.pin_core if args.pin_core is not None else ncpu - 1
+    n_compute = max(1, min(args.pin_cores, ncpu))
+    compute_cores = str(ncpu - 1) if n_compute == 1 else f"{ncpu - n_compute}-{ncpu - 1}"
     all_cores = f"0-{ncpu - 1}"
     if isolate:
-        print(f"isolation: taskset pin (compute→core {pin_core}, concurrency→{all_cores}), "
+        print(f"isolation: taskset pin (compute→cores {compute_cores}, concurrency→{all_cores}), "
               f"{args.settle}s settle before each run")
 
     startup_runs = args.startup_runs if args.startup_runs is not None else args.runs
@@ -413,7 +433,7 @@ def main():
             server = start_http_server(port)
             os.environ["BENCH_HTTP_PORT"] = str(port)
         if isolate:
-            pin = all_cores if name in NOISY else str(pin_core)
+            pin = all_cores if name in NOISY else compute_cores
             settle = args.settle
         else:
             pin, settle = None, 0.0
@@ -436,7 +456,7 @@ def main():
 
     meta = collect_meta(langs)
     meta["isolation"] = (
-        f"taskset pin (compute→core {pin_core}, concurrency→{all_cores}); {args.settle}s settle"
+        f"taskset pin (compute→cores {compute_cores}, concurrency→{all_cores}); {args.settle}s settle"
         if isolate else "none (unpinned, back-to-back)")
     out_dir = Path(args.out) if args.out else RESULTS
     out_dir.mkdir(parents=True, exist_ok=True)

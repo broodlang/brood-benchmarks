@@ -25,23 +25,26 @@ claim to lead the field.
 
 - **Light and quick to start** — ~22 MB of memory and ~28 ms to boot: among the lightest and
   fastest-starting of the seven (Python and Ruby are lighter on memory; Elixir takes ~7× and
-  Clojure's JVM ~25× longer to start).
+  Clojure's JVM ~12× longer to start).
 - **Wins two workloads outright** — fastest of seven at `reduce` and `strings`; 2nd at `collatz`
-  and `errors-deep`; 3rd at `loop`, `mandelbrot`, `errors`, and `http`.
+  and `errors-deep`; 3rd at `loop`, `errors`, and `http`.
 - **Beats the interpreters and the JVM Lisp on this suite** — faster than Ruby, Python, and Clojure
   on most single-shot compute (Clojure's HotSpot JIT can't warm up in one short run — see the
   caveat below).
 - **Behind the top runtimes on raw number-crunching** — overall single-threaded compute is roughly
-  **4.4× slower than the fastest** (.NET), landing **4th of seven**: ahead of Ruby, Clojure, and
+  **4.6× slower than the fastest** (.NET), landing **4th of seven**: ahead of Clojure, Ruby, and
   Python, behind the heavily-optimised JITs (.NET, Node) and the BEAM (Elixir). The gaps are largest
-  on allocation- and map-heavy work (`bintree`, `wordcount`, `pipeline`); simple loops, string work,
+  on allocation- and map-heavy work (`wordcount`, `pipeline`, `bintree`); simple loops, string work,
   error handling, and `matmul` are much closer.
 
 Brood is built for long-running apps — editors, web servers — and trades some memory for speed.
-**A caveat on Clojure:** it runs on the JVM, which cold-starts (~0.7 s) on every one of these
-single-shot runs, so HotSpot never JIT-compiles the hot loops — a long-running Clojure service would
-be far faster than these numbers. Brood (and the others) likewise run from source per run; only
-Elixir and .NET are precompiled. The full per-benchmark numbers are in
+**A caveat on Clojure:** it runs on the JVM, which cold-starts (~0.35 s here) on every one of these
+single-shot runs, and HotSpot never fully JIT-compiles the hot loops in that short a window — a
+long-running Clojure service would be far faster than these numbers. (Earlier runs also pinned each
+compute benchmark to a single core, which roughly *doubled* Clojure's time by starving its background
+JIT/GC threads; the harness now pins compute work to 4 cores, so these are the JVM's fair single-shot
+numbers.) Brood (and the others) likewise run from source per run; only Elixir and .NET are
+precompiled. The full per-benchmark numbers are in
 [results/report.md](results/report.md) and [BENCHMARKS.md](BENCHMARKS.md); the chart above plots
 compute speed against memory.
 
@@ -181,6 +184,10 @@ never leaks into the compute measurement. Brood, Python, Node, Ruby, and Clojure
 their source directly, as is their normal mode — note this means the JVM cold-starts
 every run, so HotSpot under-JITs Clojure's short single-shot compute (it would be
 faster warmed; a known caveat for JVM languages in a single-shot suite).**
-Each run is CPU-pinned with `taskset` (single-threaded benchmarks to one dedicated
-core, the concurrency ones to all 12) with a 0.25 s settle between runs, so a prior
-run's teardown doesn't contend with the next measurement.
+Each run is CPU-pinned with `taskset` (compute benchmarks to 4 dedicated cores, the
+concurrency ones to all 12) with a 0.25 s settle between runs, so a prior run's
+teardown doesn't contend with the next measurement. The compute *workload* is
+single-threaded; pinning it to 4 cores rather than 1 keeps it isolated from system
+noise without serialising a runtime's own background JIT/GC threads onto the work
+core — a single-core pin otherwise penalised the JVM ~2× while leaving the genuinely
+single-threaded runtimes unchanged.
