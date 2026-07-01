@@ -6,8 +6,8 @@ per-language ranks) see [`results/report.md`](results/report.md) and
 analysis of *why* Brood lands where it does and what would move it, see
 [`FRONTIER.md`](FRONTIER.md).
 
-Machine: `whklat`, 12-core x86-64, Linux 7.0.0, 2026-06-28 · Brood 0.1.0 · Clojure 1.12 / JDK 25 ·
-Elixir 1.20.0 / OTP 28 · Python 3.14.4 · Node 22.21.0 · Ruby 3.3.8 · .NET 10.0.109. Best of 3 runs (startup best of 15, spawn/pfib/http best of 7).
+Machine: `whklat`, 12-core x86-64, Linux 7.0.0, 2026-07-01 · Brood 0.1.0 · Clojure 1.12.5 / JDK 25.0.3 ·
+Elixir 1.20.0 / OTP 28 · Python 3.14.4 · Node 22.21.0 · Ruby 3.3.8 · .NET 10.0.109. Best of 3 runs (spawn/pfib/http best of 7).
 Each run is `taskset`-pinned (compute → 4 dedicated cores, concurrency → all 12) with a 0.25 s settle.
 The compute *workload* is single-threaded, but pinning it to 4 cores rather than 1 keeps it isolated
 from system noise **without** serialising a runtime's background JIT/GC threads onto the work core —
@@ -21,59 +21,59 @@ Lower is better. **Bold** = Brood. "Rank" is Brood's place by compute among the 
 
 | benchmark | Brood | Clojure | Elixir | Python | Node | Ruby | .NET | Brood rank |
 |---|---|---|---|---|---|---|---|---|
-| `fib` | **244ms** | 574ms | 92ms | 795ms | 93ms | 655ms | 42ms | 5/7 |
-| `loop` | **39ms** | 542ms | 58ms | 2.4s | 32ms | 612ms | 13ms | 3/7 |
-| `reduce` | **3ms** | 566ms | 25ms | 131ms | 244ms | 254ms | 14ms | **1/7** |
-| `primes` | **36ms** | 541ms | 23ms | 132ms | 10ms | 123ms | 9ms | 4/7 |
-| `collatz` | **80ms** | 837ms | 110ms | 2.7s | 189ms | 938ms | 49ms | 2/7 |
-| `mandelbrot` | **235ms** | 561ms | 292ms | 1.6s | 22ms | 475ms | 20ms | 4/7 |
-| `matmul` | **100ms** | 588ms | 57ms | 533ms | 18ms | 327ms | 4ms | 4/7 |
-| `strings` | **11ms** | 582ms | 124ms | 45ms | 69ms | 88ms | 33ms | **1/7** |
-| `wordcount` | **118ms** | 675ms | 167ms | 211ms | 32ms | 73ms | 39ms | 4/7 |
-| `bintree` | **109ms** | 538ms | 7ms | 101ms | 22ms | 119ms | 15ms | 5/7 |
-| `sort` | **187ms** | 647ms | 126ms | 211ms | 112ms | 75ms | 70ms | 5/7 |
-| `nqueens` | **105ms** | 640ms | 7ms | 57ms | 8ms | 133ms | 20ms | 5/7 |
-| `errors` | **41ms** | 1.5s | 18ms | 51ms | 607ms | 114ms | 305ms | 2/7 |
-| `errors-deep` | **54ms** | 1.8s | <1ms | 239ms | 228ms | 123ms | 782ms | 2/7 |
-| `pipeline` | **35ms** | 521ms | 8ms | 4ms | 9ms | 8ms | 8ms | 6/7 |
-| `spawn` | **144ms** | — | 15ms | 591ms | 57ms | 1.7s | 18ms | 4/7 |
-| `pfib` | **452ms** | — | 78ms | 775ms | 122ms | 502ms | 35ms | 5/7 |
-| `http` | **151ms** | — | 613ms | 182ms | 129ms | 216ms | 157ms | 2/7 |
-| `startup` (wall) | **33ms** | — | 196ms | 11ms | 19ms | 44ms | 24ms | 4/7 |
+| `fib` | **221ms** | 200ms | 74ms | 728ms | 73ms | 616ms | 39ms | 5/7 |
+| `loop` | **37ms** | 145ms | 58ms | 2.3s | 29ms | 590ms | 11ms | 3/7 |
+| `reduce` | **3ms** | 181ms | 33ms | 108ms | 223ms | 223ms | 12ms | **1/7** |
+| `primes` | **34ms** | 150ms | 20ms | 120ms | 9ms | 116ms | 8ms | 4/7 |
+| `collatz` | **74ms** | 436ms | 106ms | 2.5s | 174ms | 837ms | 45ms | 2/7 |
+| `mandelbrot` | **216ms** | 168ms | 249ms | 1.3s | 21ms | 409ms | 18ms | 4/7 |
+| `matmul` | **92ms** | 198ms | 63ms | 443ms | 16ms | 280ms | 4ms | 4/7 |
+| `strings` | **12ms** | 166ms | 122ms | 42ms | 64ms | 82ms | 30ms | **1/7** |
+| `wordcount` | **105ms** | 278ms | 171ms | 168ms | 29ms | 69ms | 37ms | 4/7 |
+| `bintree` | **98ms** | 170ms | 15ms | 93ms | 20ms | 95ms | 15ms | 6/7 |
+| `sort` | **174ms** | 242ms | 120ms | 186ms | 102ms | 71ms | 65ms | 5/7 |
+| `nqueens` | **97ms** | 204ms | 13ms | 53ms | 7ms | 134ms | 20ms | 5/7 |
+| `errors` | **39ms** | 1.1s | 23ms | 48ms | 560ms | 109ms | 284ms | 2/7 |
+| `errors-deep` | **49ms** | 1.3s | 8ms | 216ms | 207ms | 114ms | 689ms | 2/7 |
+| `pipeline` | **32ms** | 136ms | 10ms | 5ms | 8ms | 8ms | 7ms | 6/7 |
+| `spawn` | **112ms** | 205ms | 27ms | 548ms | 52ms | 1.6s | 18ms | 4/7 |
+| `pfib` | **398ms** | 218ms | 78ms | 685ms | 110ms | 423ms | 34ms | 5/7 |
+| `http` | **145ms** | 825ms | 554ms | 172ms | 117ms | 212ms | 151ms | 2/7 |
+| `startup` (wall) | **30ms** | 335ms | 180ms | 11ms | 18ms | 39ms | 22ms | 4/7 |
 
 ## Memory (peak RSS) and startup
 
 - **Base RSS** (the `startup` row): Brood ~24 MB — 3rd-lightest, behind Python (~10 MB) and
-  Ruby (~19 MB); ahead of .NET (~26 MB), Node (~43 MB), Elixir (~70 MB), Clojure (~104 MB, the JVM,
-  heaviest — it now spins up more JIT/GC threads on the 4-core pin). Brood stays light across the
+  Ruby (~19 MB); ahead of .NET (~26 MB), Node (~42 MB), Elixir (~73 MB), Clojure (~103 MB, the JVM,
+  heaviest — it spins up more JIT/GC threads on the 4-core pin). Brood stays light across the
   suite, including under `pfib`'s 12-core fan-out.
-- **Startup**: Brood ~33 ms — ahead of Ruby (~44 ms), Elixir (~196 ms); Python/Node/.NET boot faster.
+- **Startup**: Brood ~30 ms — ahead of Ruby (~39 ms), Elixir (~180 ms); Python/Node/.NET boot faster.
 
 ## How to read it
 
 - **Aggregate single-threaded compute** (the positioning chart's x-axis — Σ wall−startup over 11
-  core-compute rows, normalised to the fastest total): .NET 1.0× · Node 2.8× · Elixir 3.5× · **Brood 3.8×** ·
-  Clojure 8.6× · Ruby 12.2× · Python 29.1×. Brood is **4th of seven** — ahead of Clojure, Ruby, and
-  Python. Improved from 4.6× on the previous run, primarily from the LINMAP wordcount optimisation.
+  core-compute rows, normalised to the fastest total): .NET 1.0× · Node 2.7× · Elixir 3.6× · **Brood 3.8×** ·
+  Clojure 8.2× · Ruby 12.0× · Python 28.3×. Brood is **4th of seven** — ahead of Clojure, Ruby, and
+  Python, and within a hair of Elixir.
 - **Clojure** runs cold each single-shot run — HotSpot never fully JITs the hot loops in that window
   — so its compute here remains below its warmed potential; see the README caveat.
-- **Brood is fastest** at `reduce` and `strings`; 2nd at `collatz`, `errors`, and `errors-deep`; 3rd at
-  `loop` and `http`.
-- **`wordcount` closed sharply** (7th/7 at 410 ms → **4th/7 at 118 ms**, now beating Elixir at 167 ms):
+- **Brood is fastest** at `reduce` and `strings`; 2nd at `collatz`, `errors`, `errors-deep`, and
+  `http`; 3rd at `loop`.
+- **`wordcount`** sits at **4th/7 (105 ms)**, beating Elixir (171 ms) and Python (168 ms):
   the LINMAP pass detects self-tail-recursive functions that thread an immutable-map accumulator and
   rewrites them to use a mutable Table internally, seeded once and frozen at return. The integer-count
   accumulator in the wordcount loop (`map-int-add → table-incr`) is exactly the pattern it targets.
-- **Brood is 6th on `pipeline`** — allocation- and lazy-seq–heavy work where the structure-walkers
-  still run interpreted. `bintree`, `sort`, and `nqueens` sit at 5th.
+- **Brood is 6th on `pipeline` and `bintree`** — allocation- and lazy-seq–heavy work where the
+  structure-walkers still run interpreted. `sort` and `nqueens` sit at 5th.
 - **`reduce` is Brood's fastest benchmark** (3 ms compute, 1st/7): the JIT dispatch fast path
   (2026-06-21) lets Rust builtins call JIT-compiled closures directly, bypassing `vm_run_bc`'s
   per-invocation overhead — a tight higher-order fold is almost free.
 - **`errors` / `errors-deep`**: Brood is 2nd on both; the IC stale-LOCAL-env fix (2026-06-25)
   removed a code path that fell through to the tree-walker on IC misses in tight error-handling loops.
-  Elixir (OTP 28) is now essentially free on `errors-deep` (<1 ms for 50k deep throws); .NET is
-  slowest (~782 ms, a full stack-trace capture per throw at that depth).
-- **`errors-deep`** is the row where **.NET is slow** (~782 ms — a full stack-trace capture per
-  throw scales with depth); Clojure is even heavier (~1.8 s). Brood is 2nd there.
+  Elixir (OTP 28) is fastest on both (~8 ms for 50k deep throws); .NET is
+  slowest on `errors-deep` (~689 ms, a full stack-trace capture per throw at that depth).
+- **`errors-deep`** is the row where **.NET is slow** (~689 ms — a full stack-trace capture per
+  throw scales with depth); Clojure is even heavier (~1.3 s). Brood is 2nd there.
 
 The per-language source for every benchmark lives under [`bench/`](bench/), seven files per benchmark
 named identically except the extension, so the implementations diff side by side. Run the suite with

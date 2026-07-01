@@ -32,8 +32,8 @@ ROOT = Path(__file__).resolve().parent          # .../bench
 RESULTS = ROOT.parent / "results"
 
 # Display names for report headers/titles, in the canonical column order.
-NICE = {"brood": "Brood", "elixir": "Elixir", "python": "Python",
-        "node": "Node", "ruby": "Ruby", "dotnet": ".NET"}
+NICE = {"brood": "Brood", "clojure": "Clojure", "elixir": "Elixir",
+        "python": "Python", "node": "Node", "ruby": "Ruby", "dotnet": ".NET"}
 
 # ext + how to invoke a single source file. `env` is merged on top of the
 # inherited environment for that language's child process.
@@ -142,6 +142,24 @@ def probe_version(lang):
     """The runtime's `--version` first line (for elixir, the `Elixir …` line), or
     None if the binary isn't on PATH. Stamped into the report so a result file
     says which machine + toolchain produced it."""
+    # Clojure runs as `java -cp … clojure.main` — the meaningful provenance is the
+    # Clojure lib version (pinned in deps.edn, reported by `clojure-version`) plus
+    # the JDK it runs on, not the `clojure` CLI launcher version.
+    if lang == "clojure":
+        if shutil.which("clojure") is None:
+            return None
+        try:
+            cv = subprocess.run(["clojure", "-M", "-e", "(print (clojure-version))"],
+                                cwd=str(CLOJURE_DIR), capture_output=True, text=True, timeout=60)
+            jv = subprocess.run(["java", "-version"], capture_output=True, text=True, timeout=15)
+        except Exception:
+            return None
+        clj = (cv.stdout or "").strip()
+        jline = next((ln for ln in (jv.stderr or jv.stdout).splitlines() if "version" in ln), "")
+        jver = jline.split('"')[1] if '"' in jline else ""
+        if not clj:
+            return None
+        return f"Clojure {clj}" + (f" / JDK {jver}" if jver else "")
     cmd = {
         "brood":  ["brood", "--version"],
         "elixir": ["elixir", "--version"],
@@ -497,7 +515,7 @@ def fmt_ms(ms):
 
 
 def build_report(results, args, meta=None):
-    order = ["brood", "elixir", "python", "node", "ruby", "dotnet"]
+    order = ["brood", "clojure", "elixir", "python", "node", "ruby", "dotnet"]
     focus = getattr(args, "focus", "") or ""
     # Title names only the languages that actually produced a result this run.
     present = [l for l in order if any(l in d["langs"] for d in results.values())]

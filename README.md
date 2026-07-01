@@ -23,20 +23,20 @@ claim to lead the field.
 
 **Where Brood stands:**
 
-- **Light and quick to start** — ~22 MB of memory and ~28 ms to boot: among the lightest and
-  fastest-starting of the seven (Python and Ruby are lighter on memory; Elixir takes ~7× and
-  Clojure's JVM ~12× longer to start).
-- **Wins two workloads outright** — fastest of seven at `reduce` and `strings`; 2nd at `collatz`
-  and `errors-deep`; 3rd at `loop`, `errors`, and `http`.
+- **Light and quick to start** — ~24 MB of memory and ~30 ms to boot: among the lightest and
+  fastest-starting of the seven (Python and Ruby are lighter on memory; Elixir takes ~6× and
+  Clojure's JVM ~11× longer to start).
+- **Wins two workloads outright** — fastest of seven at `reduce` and `strings`; 2nd at `collatz`,
+  `errors`, `errors-deep`, and `http`; 3rd at `loop`.
 - **Beats the interpreters and the JVM Lisp on this suite** — faster than Ruby, Python, and Clojure
   on most single-shot compute (Clojure's HotSpot JIT can't warm up in one short run — see the
   caveat below).
 - **Behind the top runtimes on raw number-crunching** — overall single-threaded compute is roughly
   **3.8× slower than the fastest** (.NET), landing **4th of seven**: ahead of Clojure, Ruby, and
-  Python, behind the heavily-optimised JITs (.NET, Node) and the BEAM (Elixir). Improved from 4.6×
-  on the previous run after the LINMAP optimisation closed the `wordcount` gap (7th → 4th, now
-  beating Elixir). The remaining gaps are largest on allocation-heavy work (`bintree`, `nqueens`,
-  `pipeline`) and float math (`mandelbrot`).
+  Python, within a hair of Elixir, and behind the heavily-optimised JITs (.NET, Node). The LINMAP
+  optimisation earlier closed the `wordcount` gap (7th → 4th, now beating Elixir and Python). The
+  remaining gaps are largest on allocation-heavy work (`bintree`, `pipeline`, `nqueens`) and float
+  math (`mandelbrot`).
 
 Brood is built for long-running apps — editors, web servers — and trades some memory for speed.
 **A caveat on Clojure:** it runs on the JVM, which cold-starts (~0.35 s here) on every one of these
@@ -175,10 +175,10 @@ peak RSS, checksum), and `positioning.svg` (the compute-vs-memory map).
 ## Environment
 
 Numbers in the docs were measured on `whklat`: a 12-core x86-64 Linux 7.0.0
-machine · Brood 0.1.0 (bytecode VM + tier-1 JIT) · Clojure 1.12 / OpenJDK 25
+machine · Brood 0.1.0 (bytecode VM + tier-1 JIT) · Clojure 1.12.5 / OpenJDK 25.0.3
 (HotSpot) · Elixir 1.20.0 / OTP 28 (BeamAsm JIT) · Python 3.14.4 · Node 22.21.0
-(V8) · Ruby 3.3.8 · .NET 10.0.109 (RyuJIT). 2026-06-28. Best of 5 runs
-each (startup best of 15); the concurrency benchmarks (`spawn`/`pfib`/`http`) take
+(V8) · Ruby 3.3.8 · .NET 10.0.109 (RyuJIT). 2026-07-01. Best of 3 runs
+each; the concurrency benchmarks (`spawn`/`pfib`/`http`) take
 the best of 7. **Elixir and .NET are precompiled once (`elixirc`/`dotnet build`) and
 run from their compiled artifact — not from source per run — so per-run compilation
 never leaks into the compute measurement. Brood, Python, Node, Ruby, and Clojure run
