@@ -35,8 +35,13 @@ language on that row. Several old headline gaps have closed or inverted:
 - **`nqueens` (~14×)** — backtracking recursion; the `reduce`-over-`range` per node and the
   non-tail `solve`/`safe?` recursion dominate (pair `first`/`rest` in `safe?` already inline). Node
   (~7 ms) and Elixir (~12 ms) lead.
-- **`mandelbrot` (~11×)** — float-comparison loop *is* JIT'd, yet 212 ms vs .NET's 19 ms: the
-  residual is boxed `f64` values and the escape-count inner body the JIT doesn't fully lower.
+- **`mandelbrot` (~11×)** — `esc` *is* JIT'd **and** its `f64` loop params are already
+  register-carried (native `fadd`/`fmul`, block-param phis; verified via CLIF), yet 212 ms
+  vs .NET's 19 ms. The residual is the boxed 24-byte `Value` tagging *in the arithmetic
+  itself* (tag-check + box/unbox around each op) plus per-iteration loop overhead — **not**
+  the frame stores: eliding the back-edge slot stores was prototyped and gave ~0 (they're
+  absorbed by the CPU store buffer). See the Brood repo devlog (2026-07-01, "store-elision").
+  `mandelbrot` is near the current JIT floor.
 - **`pipeline` (~7×)** — lazy-seq and filter/map/reduce composition the JIT doesn't cover;
   allocation churn dominates.
 - **`wordcount` (~3.5×)** — **closed from ~13× in an earlier run** by the LINMAP compile-time
@@ -53,8 +58,10 @@ fastest there (~10 ms for 50k throws). It's an axis where Brood is already 2nd.
 
 ## Candidate levers (rough priority)
 
-1. **Float lowering** (`mandelbrot`, ~11×, 212 ms) — the float loop already JITs, but values stay
-   boxed `f64`; keeping them in registers through the escape-count body is the lever here.
+1. ~~**Float lowering** (`mandelbrot`)~~ — **closed / dead end.** `esc`'s floats are already
+   register-carried; the residual is `Value` tagging in the arithmetic, not stores. Eliding
+   the back-edge stores was tried (2026-07-01) and gave ~0 — the stores are free (store
+   buffer). Don't re-attempt. `mandelbrot` is near the JIT floor.
 2. **Heap-walking / allocation-heavy code** (`nqueens`, `pipeline`, ~7–14×) — the structure-walkers
    still don't tier and some heap reads go through per-op FFI callbacks. The inline small-vector
    storage + read (2026-07-01, which closed `bintree`) is the proven template; extending it to
