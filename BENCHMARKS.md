@@ -21,58 +21,63 @@ Lower is better. **Bold** = Brood. "Rank" is Brood's place by compute among the 
 
 | benchmark | Brood | Clojure | Elixir | Python | Node | Ruby | .NET | Brood rank |
 |---|---|---|---|---|---|---|---|---|
-| `fib` | **221ms** | 200ms | 74ms | 728ms | 73ms | 616ms | 39ms | 5/7 |
-| `loop` | **37ms** | 145ms | 58ms | 2.3s | 29ms | 590ms | 11ms | 3/7 |
-| `reduce` | **3ms** | 181ms | 33ms | 108ms | 223ms | 223ms | 12ms | **1/7** |
-| `primes` | **34ms** | 150ms | 20ms | 120ms | 9ms | 116ms | 8ms | 4/7 |
-| `collatz` | **74ms** | 436ms | 106ms | 2.5s | 174ms | 837ms | 45ms | 2/7 |
-| `mandelbrot` | **216ms** | 168ms | 249ms | 1.3s | 21ms | 409ms | 18ms | 4/7 |
-| `matmul` | **92ms** | 198ms | 63ms | 443ms | 16ms | 280ms | 4ms | 4/7 |
-| `strings` | **12ms** | 166ms | 122ms | 42ms | 64ms | 82ms | 30ms | **1/7** |
-| `wordcount` | **105ms** | 278ms | 171ms | 168ms | 29ms | 69ms | 37ms | 4/7 |
-| `bintree` | **98ms** | 170ms | 15ms | 93ms | 20ms | 95ms | 15ms | 6/7 |
-| `sort` | **174ms** | 242ms | 120ms | 186ms | 102ms | 71ms | 65ms | 5/7 |
-| `nqueens` | **97ms** | 204ms | 13ms | 53ms | 7ms | 134ms | 20ms | 5/7 |
-| `errors` | **39ms** | 1.1s | 23ms | 48ms | 560ms | 109ms | 284ms | 2/7 |
-| `errors-deep` | **49ms** | 1.3s | 8ms | 216ms | 207ms | 114ms | 689ms | 2/7 |
-| `pipeline` | **32ms** | 136ms | 10ms | 5ms | 8ms | 8ms | 7ms | 6/7 |
-| `spawn` | **112ms** | 205ms | 27ms | 548ms | 52ms | 1.6s | 18ms | 4/7 |
-| `pfib` | **398ms** | 218ms | 78ms | 685ms | 110ms | 423ms | 34ms | 5/7 |
-| `http` | **145ms** | 825ms | 554ms | 172ms | 117ms | 212ms | 151ms | 2/7 |
-| `startup` (wall) | **30ms** | 335ms | 180ms | 11ms | 18ms | 39ms | 22ms | 4/7 |
+| `fib` | **225ms** | 190ms | 77ms | 722ms | 72ms | 606ms | 39ms | 5/7 |
+| `loop` | **37ms** | 142ms | 68ms | 2.2s | 29ms | 592ms | 12ms | 3/7 |
+| `reduce` | **4ms** | 171ms | 35ms | 109ms | 220ms | 243ms | 12ms | **1/7** |
+| `primes` | **34ms** | 146ms | 17ms | 120ms | 9ms | 115ms | 8ms | 4/7 |
+| `collatz` | **75ms** | 419ms | 103ms | 2.5s | 173ms | 875ms | 45ms | 2/7 |
+| `mandelbrot` | **212ms** | 156ms | 255ms | 1.3s | 20ms | 410ms | 19ms | 4/7 |
+| `matmul` | **95ms** | 203ms | 61ms | 463ms | 16ms | 293ms | 4ms | 4/7 |
+| `strings` | **11ms** | 161ms | 119ms | 43ms | 64ms | 83ms | 31ms | **1/7** |
+| `wordcount` | **109ms** | 288ms | 177ms | 169ms | 31ms | 76ms | 40ms | 4/7 |
+| `bintree` | **85ms** | 176ms | 14ms | 96ms | 21ms | 98ms | 14ms | 4/7 |
+| `sort` | **173ms** | 260ms | 112ms | 188ms | 102ms | 72ms | 65ms | 5/7 |
+| `nqueens` | **100ms** | 190ms | 12ms | 53ms | 7ms | 124ms | 20ms | 5/7 |
+| `errors` | **40ms** | 1.1s | 21ms | 47ms | 556ms | 107ms | 284ms | 2/7 |
+| `errors-deep` | **51ms** | 1.3s | 10ms | 215ms | 204ms | 112ms | 672ms | 2/7 |
+| `pipeline` | **33ms** | 131ms | 15ms | 4ms | 9ms | 8ms | 8ms | 6/7 |
+| `spawn` | **120ms** | 185ms | 25ms | 551ms | 53ms | 1.6s | 18ms | 4/7 |
+| `pfib` | **396ms** | 225ms | 89ms | 687ms | 113ms | 432ms | 32ms | 5/7 |
+| `http` | **155ms** | 807ms | 542ms | 176ms | 120ms | 209ms | 153ms | 3/7 |
+| `startup` (wall) | **29ms** | 340ms | 180ms | 10ms | 17ms | 39ms | 22ms | 4/7 |
 
 ## Memory (peak RSS) and startup
 
 - **Base RSS** (the `startup` row): Brood ~24 MB — 3rd-lightest, behind Python (~10 MB) and
-  Ruby (~19 MB); ahead of .NET (~26 MB), Node (~42 MB), Elixir (~73 MB), Clojure (~103 MB, the JVM,
+  Ruby (~19 MB); ahead of .NET (~26 MB), Node (~42 MB), Elixir (~72 MB), Clojure (~103 MB, the JVM,
   heaviest — it spins up more JIT/GC threads on the 4-core pin). Brood stays light across the
   suite, including under `pfib`'s 12-core fan-out.
-- **Startup**: Brood ~30 ms — ahead of Ruby (~39 ms), Elixir (~180 ms); Python/Node/.NET boot faster.
+- **Startup**: Brood ~29 ms — ahead of Ruby (~39 ms), Elixir (~180 ms); Python/Node/.NET boot faster.
 
 ## How to read it
 
 - **Aggregate single-threaded compute** (the positioning chart's x-axis — Σ wall−startup over 11
-  core-compute rows, normalised to the fastest total): .NET 1.0× · Node 2.7× · Elixir 3.6× · **Brood 3.8×** ·
-  Clojure 8.2× · Ruby 12.0× · Python 28.3×. Brood is **4th of seven** — ahead of Clojure, Ruby, and
+  core-compute rows, normalised to the fastest total): .NET 1.0× · Node 2.6× · Elixir 3.6× · **Brood 3.7×** ·
+  Clojure 8.0× · Ruby 12.0× · Python 27.5×. Brood is **4th of seven** — ahead of Clojure, Ruby, and
   Python, and within a hair of Elixir.
 - **Clojure** runs cold each single-shot run — HotSpot never fully JITs the hot loops in that window
   — so its compute here remains below its warmed potential; see the README caveat.
-- **Brood is fastest** at `reduce` and `strings`; 2nd at `collatz`, `errors`, `errors-deep`, and
-  `http`; 3rd at `loop`.
-- **`wordcount`** sits at **4th/7 (105 ms)**, beating Elixir (171 ms) and Python (168 ms):
+- **Brood is fastest** at `reduce` and `strings`; 2nd at `collatz`, `errors`, and `errors-deep`;
+  3rd at `loop` and `http`.
+- **`bintree` closed 6th → 4th** (98 ms → **85 ms**, now beating Python (96 ms) and Ruby (98 ms)):
+  small vectors now store their elements **inline in the slab slot** instead of each being a
+  separately heap-allocated `Vec`, so a 2-element tree node allocates with no `malloc` (a bump-push,
+  like a `cons`), and the JIT inlines the `(nth node 0/1)` reads the way it already inlines a pair
+  `first`/`rest`. Allocation- and GC-pressure work that used to be double-digit × off is now single.
+- **`wordcount`** sits at **4th/7 (109 ms)**, beating Elixir (177 ms) and Python (169 ms):
   the LINMAP pass detects self-tail-recursive functions that thread an immutable-map accumulator and
   rewrites them to use a mutable Table internally, seeded once and frozen at return. The integer-count
   accumulator in the wordcount loop (`map-int-add → table-incr`) is exactly the pattern it targets.
-- **Brood is 6th on `pipeline` and `bintree`** — allocation- and lazy-seq–heavy work where the
-  structure-walkers still run interpreted. `sort` and `nqueens` sit at 5th.
-- **`reduce` is Brood's fastest benchmark** (3 ms compute, 1st/7): the JIT dispatch fast path
+- **Brood is 6th on `pipeline`** — lazy-seq / transducer composition the JIT doesn't cover; allocation
+  churn dominates. `sort` and `nqueens` sit at 5th.
+- **`reduce` is Brood's fastest benchmark** (~4 ms compute, 1st/7): the JIT dispatch fast path
   (2026-06-21) lets Rust builtins call JIT-compiled closures directly, bypassing `vm_run_bc`'s
   per-invocation overhead — a tight higher-order fold is almost free.
 - **`errors` / `errors-deep`**: Brood is 2nd on both; the IC stale-LOCAL-env fix (2026-06-25)
   removed a code path that fell through to the tree-walker on IC misses in tight error-handling loops.
-  Elixir (OTP 28) is fastest on both (~8 ms for 50k deep throws); .NET is
-  slowest on `errors-deep` (~689 ms, a full stack-trace capture per throw at that depth).
-- **`errors-deep`** is the row where **.NET is slow** (~689 ms — a full stack-trace capture per
+  Elixir (OTP 28) is fastest on both (~10 ms for 50k deep throws); .NET is
+  slowest on `errors-deep` (~672 ms, a full stack-trace capture per throw at that depth).
+- **`errors-deep`** is the row where **.NET is slow** (~672 ms — a full stack-trace capture per
   throw scales with depth); Clojure is even heavier (~1.3 s). Brood is 2nd there.
 
 The per-language source for every benchmark lives under [`bench/`](bench/), seven files per benchmark
