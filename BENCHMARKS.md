@@ -31,7 +31,7 @@ Lower is better. **Bold** = Brood. "Rank" is Brood's place by compute among the 
 | `strings` | **11ms** | 161ms | 119ms | 43ms | 64ms | 83ms | 31ms | **1/7** |
 | `wordcount` | **109ms** | 288ms | 177ms | 169ms | 31ms | 76ms | 40ms | 4/7 |
 | `bintree` | **85ms** | 176ms | 14ms | 96ms | 21ms | 98ms | 14ms | 4/7 |
-| `sort` | **173ms** | 260ms | 112ms | 188ms | 102ms | 72ms | 65ms | 5/7 |
+| `sort` | **151ms** | 241ms | 107ms | 179ms | 106ms | 75ms | 64ms | 5/7 |
 | `nqueens` | **100ms** | 190ms | 12ms | 53ms | 7ms | 124ms | 20ms | 5/7 |
 | `errors` | **40ms** | 1.1s | 21ms | 47ms | 556ms | 107ms | 284ms | 2/7 |
 | `errors-deep` | **51ms** | 1.3s | 10ms | 215ms | 204ms | 112ms | 672ms | 2/7 |
