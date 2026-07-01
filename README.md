@@ -23,20 +23,21 @@ claim to lead the field.
 
 **Where Brood stands:**
 
-- **Light and quick to start** — ~24 MB of memory and ~30 ms to boot: among the lightest and
+- **Light and quick to start** — ~24 MB of memory and ~29 ms to boot: among the lightest and
   fastest-starting of the seven (Python and Ruby are lighter on memory; Elixir takes ~6× and
-  Clojure's JVM ~11× longer to start).
+  Clojure's JVM ~12× longer to start).
 - **Wins two workloads outright** — fastest of seven at `reduce` and `strings`; 2nd at `collatz`,
-  `errors`, `errors-deep`, and `http`; 3rd at `loop`.
+  `errors`, and `errors-deep`; 3rd at `loop` and `http`.
 - **Beats the interpreters and the JVM Lisp on this suite** — faster than Ruby, Python, and Clojure
   on most single-shot compute (Clojure's HotSpot JIT can't warm up in one short run — see the
   caveat below).
 - **Behind the top runtimes on raw number-crunching** — overall single-threaded compute is roughly
-  **3.8× slower than the fastest** (.NET), landing **4th of seven**: ahead of Clojure, Ruby, and
-  Python, within a hair of Elixir, and behind the heavily-optimised JITs (.NET, Node). The LINMAP
-  optimisation earlier closed the `wordcount` gap (7th → 4th, now beating Elixir and Python). The
-  remaining gaps are largest on allocation-heavy work (`bintree`, `pipeline`, `nqueens`) and float
-  math (`mandelbrot`).
+  **3.7× slower than the fastest** (.NET), landing **4th of seven**: ahead of Clojure, Ruby, and
+  Python, within a hair of Elixir, and behind the heavily-optimised JITs (.NET, Node). Recent work
+  closed two big gaps: inline small-vector storage took `bintree` 6th → 4th (now beating Python and
+  Ruby), and the LINMAP optimisation took `wordcount` 7th → 4th (now beating Elixir and Python). The
+  remaining gaps are largest on lazy-seq / transducer work (`pipeline`), backtracking (`nqueens`),
+  and float math (`mandelbrot`).
 
 Brood is built for long-running apps — editors, web servers — and trades some memory for speed.
 **A caveat on Clojure:** it runs on the JVM, which cold-starts (~0.35 s here) on every one of these
