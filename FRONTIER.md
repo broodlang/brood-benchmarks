@@ -49,8 +49,12 @@ language on that row. Several old headline gaps have closed or inverted:
   use a mutable Table internally (`map-int-add → table-incr`), avoiding the CHAMP path-copy on
   every step. Brood (109 ms) now beats Elixir (177 ms) and Python (169 ms) here; Node and .NET stay
   ahead with mutable hash maps (~31–40 ms).
-- **`sort` (~2.7×), `primes` (~4×), `loop` (~3.3×)** — Brood's closest compute gaps; mostly raw
-  dispatch overhead.
+- **`sort` (~2.4×)** — the numeric `(sort nums)` already uses the native `%sort-asc`, so the
+  benchmark's cost is **building** the input list, which was GC-bound: the collector re-copied the
+  growing all-live accumulator. Cut 173→151 ms (2026-07-01) by scaling the nursery threshold with
+  *total* live (young+old, not young-only — a tenuring build left young ≈ 0 and collapsed it to the
+  floor) and making majors on an all-live old gen rarer. General to any large list/sequence build.
+- **`primes` (~4×), `loop` (~3.3×)** — Brood's closest compute gaps; mostly raw dispatch overhead.
 
 `errors-deep` is a reminder that a compute-loop-only view misleads: .NET tops the arithmetic rows
 yet is *worst* at deep error recovery (stack-trace capture per throw, ~672 ms). Elixir (OTP 28) is
