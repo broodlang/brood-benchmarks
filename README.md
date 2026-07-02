@@ -32,10 +32,11 @@ claim to lead the field.
   on most single-shot compute (Clojure's HotSpot JIT can't warm up in one short run — see the
   caveat below).
 - **Behind the top runtimes on raw number-crunching** — overall single-threaded compute is roughly
-  **3.7× slower than the fastest** (.NET), landing **4th of seven**: ahead of Clojure, Ruby, and
-  Python, within a hair of Elixir, and behind the heavily-optimised JITs (.NET, Node). Recent work
-  closed two big gaps: inline small-vector storage took `bintree` 6th → 4th (now beating Python and
-  Ruby), and the LINMAP optimisation took `wordcount` 7th → 4th (now beating Elixir and Python). The
+  **3.5× slower than the fastest** (.NET), landing **4th of seven**: ahead of Clojure, Ruby, and
+  Python, essentially tied with Elixir, and behind the heavily-optimised JITs (.NET, Node). Recent work
+  closed several gaps: inline small-vector storage took `bintree` 6th → 4th (now beating Python and
+  Ruby), an adaptive GC nursery/major policy cut list-building allocation cost (`sort` 173 → 156 ms),
+  and the LINMAP optimisation took `wordcount` 7th → 4th (now beating Elixir and Python). The
   remaining gaps are largest on lazy-seq / transducer work (`pipeline`), backtracking (`nqueens`),
   and float math (`mandelbrot`).
 
@@ -178,7 +179,7 @@ peak RSS, checksum), and `positioning.svg` (the compute-vs-memory map).
 Numbers in the docs were measured on `whklat`: a 12-core x86-64 Linux 7.0.0
 machine · Brood 0.1.0 (bytecode VM + tier-1 JIT) · Clojure 1.12.5 / OpenJDK 25.0.3
 (HotSpot) · Elixir 1.20.0 / OTP 28 (BeamAsm JIT) · Python 3.14.4 · Node 22.21.0
-(V8) · Ruby 3.3.8 · .NET 10.0.109 (RyuJIT). 2026-07-01. Best of 3 runs
+(V8) · Ruby 3.3.8 · .NET 10.0.109 (RyuJIT). 2026-07-02. Best of 3 runs
 each; the concurrency benchmarks (`spawn`/`pfib`/`http`) take
 the best of 7. **Elixir and .NET are precompiled once (`elixirc`/`dotnet build`) and
 run from their compiled artifact — not from source per run — so per-run compilation
