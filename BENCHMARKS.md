@@ -21,7 +21,7 @@ Lower is better. **Bold** = Brood. "Rank" is Brood's place by compute among the 
 
 | benchmark | Brood | Clojure | Elixir | Python | Node | Ruby | .NET | Brood rank |
 |---|---|---|---|---|---|---|---|---|
-| `fib` | **227ms** | 200ms | 75ms | 737ms | 76ms | 602ms | 40ms | 5/7 |
+| `fib` | **53ms** | 209ms | 75ms | 748ms | 79ms | 609ms | 40ms | 2/7 |
 | `loop` | **36ms** | 145ms | 53ms | 2.2s | 30ms | 588ms | 13ms | 3/7 |
 | `reduce` | **3ms** | 174ms | 33ms | 112ms | 222ms | 229ms | 12ms | **1/7** |
 | `primes` | **34ms** | 143ms | 13ms | 122ms | 10ms | 119ms | 10ms | 4/7 |
@@ -37,7 +37,7 @@ Lower is better. **Bold** = Brood. "Rank" is Brood's place by compute among the 
 | `errors-deep` | **51ms** | 1.4s | 8ms | 238ms | 210ms | 115ms | 700ms | 2/7 |
 | `pipeline` | **32ms** | 142ms | 10ms | 4ms | 8ms | 8ms | 8ms | 6/7 |
 | `spawn` | **124ms** | 191ms | 18ms | 544ms | 52ms | 1.6s | 20ms | 4/7 |
-| `pfib` | **847ms** | 393ms | 332ms | 2.6s | 300ms | 1.9s | 116ms | 5/7 |
+| `pfib` | **152ms** | 407ms | 312ms | 2.6s | 299ms | 1.9s | 116ms | 2/7 |
 | `http` | **151ms** | 822ms | 556ms | 173ms | 116ms | 208ms | 146ms | 3/7 |
 | `startup` (wall) | **30ms** | 341ms | 186ms | 10ms | 18ms | 39ms | 21ms | 4/7 |
 
@@ -52,9 +52,9 @@ Lower is better. **Bold** = Brood. "Rank" is Brood's place by compute among the 
 ## How to read it
 
 - **Aggregate single-threaded compute** (the positioning chart's x-axis — Σ wall−startup over 11
-  core-compute rows, normalised to the fastest total): .NET 1.0× · Node 2.6× · Elixir 3.4× · **Brood 3.5×** ·
-  Clojure 7.9× · Ruby 11.5× · Python 26.9×. Brood is **4th of seven** — ahead of Clojure, Ruby, and
-  Python, and essentially tied with Elixir.
+  core-compute rows, normalised to the fastest total): .NET 1.0× · Node 2.6× · **Brood 3.0×** · Elixir 3.5× ·
+  Clojure 8.0× · Ruby 11.7× · Python 26.7×. Brood is **3rd of seven** — behind only .NET and Node, and
+  now **ahead of Elixir** (the unboxed-`i64` JIT path took `fib` 227→53 ms, 5th→2nd).
 - **Clojure** runs cold each single-shot run — HotSpot never fully JITs the hot loops in that window
   — so its compute here remains below its warmed potential; see the README caveat.
 - **Brood is fastest** at `reduce` and `strings`; 2nd at `collatz`, `errors`, and `errors-deep`;

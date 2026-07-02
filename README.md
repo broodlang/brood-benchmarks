@@ -26,19 +26,20 @@ claim to lead the field.
 - **Light and quick to start** — ~24 MB of memory and ~29 ms to boot: among the lightest and
   fastest-starting of the seven (Python and Ruby are lighter on memory; Elixir takes ~6× and
   Clojure's JVM ~12× longer to start).
-- **Wins two workloads outright** — fastest of seven at `reduce` and `strings`; 2nd at `collatz`,
-  `errors`, and `errors-deep`; 3rd at `loop` and `http`.
+- **Wins two workloads outright** — fastest of seven at `reduce` and `strings`; **2nd at `fib`,
+  `pfib`**, `collatz`, `errors`, and `errors-deep`; 3rd at `loop` and `http`.
 - **Beats the interpreters and the JVM Lisp on this suite** — faster than Ruby, Python, and Clojure
   on most single-shot compute (Clojure's HotSpot JIT can't warm up in one short run — see the
   caveat below).
-- **Behind the top runtimes on raw number-crunching** — overall single-threaded compute is roughly
-  **3.5× slower than the fastest** (.NET), landing **4th of seven**: ahead of Clojure, Ruby, and
-  Python, essentially tied with Elixir, and behind the heavily-optimised JITs (.NET, Node). Recent work
-  closed several gaps: inline small-vector storage took `bintree` 6th → 4th (now beating Python and
-  Ruby), an adaptive GC nursery/major policy cut list-building allocation cost (`sort` 173 → 156 ms),
-  and the LINMAP optimisation took `wordcount` 7th → 4th (now beating Elixir and Python). The
-  remaining gaps are largest on lazy-seq / transducer work (`pipeline`), backtracking (`nqueens`),
-  and float math (`mandelbrot`).
+- **3rd of seven on raw number-crunching, now ahead of Elixir** — overall single-threaded compute is
+  roughly **3.0× slower than the fastest** (.NET), behind only .NET and Node. Recent work closed several
+  gaps: an **unboxed-`i64` JIT calling convention** for int-only recursion took `fib` **227 → 53 ms
+  (5th → 2nd, beating Elixir)** and the parallel `pfib` **847 → 152 ms (5th → 2nd)** — a register
+  calling convention that drops the boxing/dispatch at recursive call boundaries; inline small-vector
+  storage took `bintree` 6th → 4th; an adaptive GC nursery/major policy cut list-building cost
+  (`sort`); and the LINMAP optimisation took `wordcount` 7th → 4th. The remaining gaps are largest on
+  lazy-seq / transducer work (`pipeline`), backtracking (`nqueens`), and array math (`matmul`,
+  `mandelbrot` — the boxed 24-byte value in array elements).
 
 Brood is built for long-running apps — editors, web servers — and trades some memory for speed.
 **A caveat on Clojure:** it runs on the JVM, which cold-starts (~0.35 s here) on every one of these

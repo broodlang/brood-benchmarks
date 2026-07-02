@@ -16,8 +16,11 @@ The tier-1 JIT covers: integer self-tail loops (`loop`, `collatz`), float-compar
 with no alias analysis because Brood data is immutable), **non-tail recursion** (`fib`), and
 **inline small-vector reads** (`(nth v <const>)` on a LOCAL vector, the analog of the pair
 `first`/`rest` inline — `bintree`). A JIT'd caller links straight to a JIT'd callee through an
-epoch-guarded, in-IR call-site fast-link; `fib` compute is now ~225 ms, ~5.7× off the fastest (down
-from ~502 ms before the fast-link). A `def` deopts affected code, so Emacs-style hot reload holds.
+epoch-guarded, in-IR call-site fast-link. For int-only single-arg recursion (`fib`) an **unboxed-`i64`
+register calling convention** (2026-07-02) drops the boxing + roots-staging + fast-link dispatch at the
+recursive call boundary entirely — args/results ride in registers, overflow-checked with a deopt to the
+VM (BigInt) on overflow — taking `fib` compute **227 → 53 ms (5th → 2nd, beating Elixir)**. A `def`
+deopts affected code, so Emacs-style hot reload holds.
 Workers in `spawn`/`pfib` share one compiled copy of the native code instead of each recompiling.
 
 Still interpreted (or only partly JIT'd) — the weak rows; ratios are Brood's compute vs the fastest
@@ -60,22 +63,17 @@ language on that row. Several old headline gaps have closed or inverted:
 yet is *worst* at deep error recovery (stack-trace capture per throw, ~672 ms). Elixir (OTP 28) is
 fastest there (~10 ms for 50k throws). It's an axis where Brood is already 2nd.
 
-- **`pfib` (~7.3× — the parallel-native scaling row)** — two JIT parallel-scaling fixes landed
-  2026-07-02 (Brood repo devlog), and this row's **N was bumped 28 → 31** so it actually exercises
-  parallel-native *scaling* rather than task startup/teardown (at N=28 even .NET spent only ~33 ms of
-  compute, below the suite's ~100 ms floor). (1) The two-stage-tiering *inlined-upgrade* swap used
-  the **shared** global epoch to re-point its own call sites, which invalidated every peer green
-  process's arm too → a cross-process re-tier/re-swap/re-bump cascade that pushed nearly every call
-  onto the slow IC-dispatch path (~2–3× the instructions); the swap now invalidates only the swapping
-  process's fast-links to that callee. (2) The *inlined* native (the recursive self-inline, ~1.7× on
-  `fib`) was compiled **per-process**, so for a short fan-out most workers finished before their own
-  deferred compile landed and never got the inline win; it's now **shared across processes** via a
-  companion cache (`RuntimeCode::jit_inline_cache`) exactly as the small native already was — one
-  inlined compile serves every worker (this is how the BEAM/BeamAsm shares module native code). At
-  N=32 the two together took the 100-way fan-out **337B→~119B instructions and 4.7s→1.42s (~3.3×)**.
-  The gap to .NET on this row narrowed from ~12× (warmup-dominated N=28) to **~7.3×** at N=31, where
-  the run is real steady-state parallel compute. Remaining headroom is `fib`'s own single-thread gap
-  (~5.7×, the true call-inlining lever below) plus green-scheduler/coroutine overhead vs OS threads.
+- **`pfib` (~1.3× — 2nd, beating Elixir)** — three wins landed 2026-07-02 (Brood repo devlog). First
+  the N was bumped 28 → 31 so the row exercises parallel-native *scaling* not task startup/teardown.
+  Then two JIT fixes: (1) the two-stage-tiering inlined-upgrade swap used the **shared** global epoch,
+  invalidating every peer green process's arm → a cross-process re-tier cascade onto the slow
+  IC-dispatch path; the swap now invalidates only the swapping process's fast-links. (2) The inlined
+  native was compiled **per-process**; it's now **shared across processes** (one compile serves every
+  worker, like the BEAM). Finally the **unboxed-`i64` calling convention** (see `fib` above) removed
+  the recursive-call boxing: `pfib` went **847 → 152 ms**, from 5th to **2nd (1.3× off .NET)**, ahead
+  of Elixir (312 ms) and Node (299 ms). Parallel scaling itself is already ~93% of the machine's
+  OS-process ceiling (Brood green 3.93× vs 4.20× for independent OS processes on this 12-core box —
+  it even beats Elixir's 3.30×), so the residual is just `fib`'s single-thread gap (now ~1.3×).
 
 ## Candidate levers (rough priority)
 
