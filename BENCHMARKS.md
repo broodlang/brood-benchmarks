@@ -37,7 +37,7 @@ Lower is better. **Bold** = Brood. "Rank" is Brood's place by compute among the 
 | `errors-deep` | **51ms** | 1.4s | 8ms | 238ms | 210ms | 115ms | 700ms | 2/7 |
 | `pipeline` | **32ms** | 142ms | 10ms | 4ms | 8ms | 8ms | 8ms | 6/7 |
 | `spawn` | **124ms** | 191ms | 18ms | 544ms | 52ms | 1.6s | 20ms | 4/7 |
-| `pfib` | **401ms** | 215ms | 73ms | 690ms | 110ms | 431ms | 34ms | 5/7 |
+| `pfib` | **847ms** | 393ms | 332ms | 2.6s | 300ms | 1.9s | 116ms | 5/7 |
 | `http` | **151ms** | 822ms | 556ms | 173ms | 116ms | 208ms | 146ms | 3/7 |
 | `startup` (wall) | **30ms** | 341ms | 186ms | 10ms | 18ms | 39ms | 21ms | 4/7 |
 

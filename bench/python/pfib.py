@@ -4,7 +4,7 @@
 import os
 import multiprocessing as mp
 
-N = int(os.environ.get("BENCH_N", "28"))
+N = int(os.environ.get("BENCH_N", "31"))
 TASKS = 100
 
 

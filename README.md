@@ -72,7 +72,7 @@ compute speed against memory.
 | `errors-deep` | error propagation — throw 50 frames deep, catch at the top |
 | `pipeline`   | a `filter → map → reduce` composition over a range, written in each language's lazy/streaming style (Elixir `Stream`, Python generators, .NET LINQ) |
 | `spawn`      | lightweight concurrent units + result collection |
-| `pfib`       | parallel CPU — 100 `fib`s computed at once across cores |
+| `pfib`       | parallel CPU — 100 `fib(31)`s computed at once across cores |
 | `http`       | concurrent I/O — N in-flight HTTP GETs to a local server |
 
 `spawn`, `pfib`, and `http` are each implemented in all seven languages, using that
