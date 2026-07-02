@@ -60,16 +60,22 @@ language on that row. Several old headline gaps have closed or inverted:
 yet is *worst* at deep error recovery (stack-trace capture per throw, ~672 ms). Elixir (OTP 28) is
 fastest there (~10 ms for 50k throws). It's an axis where Brood is already 2nd.
 
-- **`pfib` (~12× — the parallel-native scaling row)** — a JIT parallel-scaling bug was fixed
-  2026-07-02 (Brood repo devlog): the two-stage-tiering *inlined-upgrade* swap used the **shared**
-  global epoch to re-point its own call sites, which invalidated every peer green process's arm too
-  → a cross-process re-tier/re-swap/re-bump cascade that pushed nearly every call onto the slow
-  IC-dispatch path (~2–3× the instructions). Now the swap invalidates only the swapping process's
-  fast-links to that callee. The effect only bites once each task runs long enough for the inlined
-  upgrade to land *mid-flight*: at this benchmark's **N=28 the run finishes first, so the row is
-  unchanged**, but at N=32 the same 100-way fan-out went **337B→120B instructions and 4.7s→1.6s
-  (~2.7×)**. Worth considering bumping `pfib`'s N so the row actually exercises parallel-native
-  scaling rather than short-task startup/teardown.
+- **`pfib` (~7.3× — the parallel-native scaling row)** — two JIT parallel-scaling fixes landed
+  2026-07-02 (Brood repo devlog), and this row's **N was bumped 28 → 31** so it actually exercises
+  parallel-native *scaling* rather than task startup/teardown (at N=28 even .NET spent only ~33 ms of
+  compute, below the suite's ~100 ms floor). (1) The two-stage-tiering *inlined-upgrade* swap used
+  the **shared** global epoch to re-point its own call sites, which invalidated every peer green
+  process's arm too → a cross-process re-tier/re-swap/re-bump cascade that pushed nearly every call
+  onto the slow IC-dispatch path (~2–3× the instructions); the swap now invalidates only the swapping
+  process's fast-links to that callee. (2) The *inlined* native (the recursive self-inline, ~1.7× on
+  `fib`) was compiled **per-process**, so for a short fan-out most workers finished before their own
+  deferred compile landed and never got the inline win; it's now **shared across processes** via a
+  companion cache (`RuntimeCode::jit_inline_cache`) exactly as the small native already was — one
+  inlined compile serves every worker (this is how the BEAM/BeamAsm shares module native code). At
+  N=32 the two together took the 100-way fan-out **337B→~119B instructions and 4.7s→1.42s (~3.3×)**.
+  The gap to .NET on this row narrowed from ~12× (warmup-dominated N=28) to **~7.3×** at N=31, where
+  the run is real steady-state parallel compute. Remaining headroom is `fib`'s own single-thread gap
+  (~5.7×, the true call-inlining lever below) plus green-scheduler/coroutine overhead vs OS threads.
 
 ## Candidate levers (rough priority)
 

@@ -24,7 +24,7 @@ switch (name)
     case "errors":     Bench.Errors.Run(N(200000)); break;
     case "errors-deep": Bench.ErrorsDeep.Run(N(50000)); break;
     case "pipeline":   Bench.Pipeline.Run(N(100000)); break;
-    case "pfib":       Bench.Pfib.Run(N(28)); break;
+    case "pfib":       Bench.Pfib.Run(N(31)); break;
     case "spawn":      await Bench.Spawn.Run(N(10000)); break;
     case "http":       await Bench.Http.Run(N(500)); break;
     default:

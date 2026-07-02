@@ -5,7 +5,7 @@
 const { Worker, isMainThread, parentPort, workerData } = require("worker_threads");
 const os = require("os");
 
-const N = parseInt(process.env.BENCH_N || "28", 10);
+const N = parseInt(process.env.BENCH_N || "31", 10);
 const TASKS = 100;
 
 function fib(n) {

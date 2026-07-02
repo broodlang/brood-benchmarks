@@ -214,7 +214,7 @@ BENCHES = [
     ("errors-deep", 50000,   "all", "error propagation — throw 50 frames deep, catch at top"),
     ("pipeline",   100000,   "all", "filter/map/reduce pipeline over a range"),
     ("spawn",      10000,    "all", "lightweight concurrent units + result collection"),
-    ("pfib",       28,       "all", "parallel fib — 100 computed at once across cores"),
+    ("pfib",       31,       "all", "parallel fib — 100 computed at once across cores"),
     ("http",       500,      "all", "concurrent HTTP — N in-flight GETs to a local server"),
 ]
 
