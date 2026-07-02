@@ -60,6 +60,17 @@ language on that row. Several old headline gaps have closed or inverted:
 yet is *worst* at deep error recovery (stack-trace capture per throw, ~672 ms). Elixir (OTP 28) is
 fastest there (~10 ms for 50k throws). It's an axis where Brood is already 2nd.
 
+- **`pfib` (~12× — the parallel-native scaling row)** — a JIT parallel-scaling bug was fixed
+  2026-07-02 (Brood repo devlog): the two-stage-tiering *inlined-upgrade* swap used the **shared**
+  global epoch to re-point its own call sites, which invalidated every peer green process's arm too
+  → a cross-process re-tier/re-swap/re-bump cascade that pushed nearly every call onto the slow
+  IC-dispatch path (~2–3× the instructions). Now the swap invalidates only the swapping process's
+  fast-links to that callee. The effect only bites once each task runs long enough for the inlined
+  upgrade to land *mid-flight*: at this benchmark's **N=28 the run finishes first, so the row is
+  unchanged**, but at N=32 the same 100-way fan-out went **337B→120B instructions and 4.7s→1.6s
+  (~2.7×)**. Worth considering bumping `pfib`'s N so the row actually exercises parallel-native
+  scaling rather than short-task startup/teardown.
+
 ## Candidate levers (rough priority)
 
 1. ~~**Float lowering** (`mandelbrot`)~~ — **closed / dead end.** `esc`'s floats are already
