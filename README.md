@@ -23,18 +23,18 @@ claim to lead the field.
 
 **Where Brood stands:**
 
-- **Light and quick to start** — ~24 MB of memory and ~29 ms to boot: among the lightest and
+- **Light and quick to start** — ~25 MB of memory and ~32 ms to boot: among the lightest and
   fastest-starting of the seven (Python and Ruby are lighter on memory; Elixir takes ~6× and
-  Clojure's JVM ~12× longer to start).
+  Clojure's JVM ~11× longer to start).
 - **Wins two workloads outright** — fastest of seven at `reduce` and `strings`; **2nd at `fib`,
-  `pfib`**, `collatz`, `errors`, and `errors-deep`; 3rd at `loop` and `http`.
+  `pfib`**, `collatz`, `errors`, `errors-deep`, and `http`; 3rd at `loop`.
 - **Beats the interpreters and the JVM Lisp on this suite** — faster than Ruby, Python, and Clojure
   on most single-shot compute (Clojure's HotSpot JIT can't warm up in one short run — see the
   caveat below).
 - **3rd of seven on raw number-crunching, now ahead of Elixir** — overall single-threaded compute is
-  roughly **3.0× slower than the fastest** (.NET), behind only .NET and Node. Recent work closed several
-  gaps: an **unboxed-`i64` JIT calling convention** for int-only recursion took `fib` **227 → 53 ms
-  (5th → 2nd, beating Elixir)** and the parallel `pfib` **847 → 152 ms (5th → 2nd)** — a register
+  roughly **3.1× slower than the fastest** (.NET), behind only .NET and Node. Recent work closed several
+  gaps: an **unboxed-`i64` JIT calling convention** for int-only recursion took `fib` **227 → 56 ms
+  (5th → 2nd, beating Elixir)** and the parallel `pfib` **847 → 173 ms (5th → 2nd)** — a register
   calling convention that drops the boxing/dispatch at recursive call boundaries; inline small-vector
   storage took `bintree` 6th → 4th; an adaptive GC nursery/major policy cut list-building cost
   (`sort`); and the LINMAP optimisation took `wordcount` 7th → 4th. The remaining gaps are largest on
@@ -180,7 +180,7 @@ peak RSS, checksum), and `positioning.svg` (the compute-vs-memory map).
 Numbers in the docs were measured on `whklat`: a 12-core x86-64 Linux 7.0.0
 machine · Brood 0.1.0 (bytecode VM + tier-1 JIT) · Clojure 1.12.5 / OpenJDK 25.0.3
 (HotSpot) · Elixir 1.20.0 / OTP 28 (BeamAsm JIT) · Python 3.14.4 · Node 22.21.0
-(V8) · Ruby 3.3.8 · .NET 10.0.109 (RyuJIT). 2026-07-02. Best of 3 runs
+(V8) · Ruby 3.3.8 · .NET 10.0.109 (RyuJIT). 2026-07-05. Best of 3 runs
 each; the concurrency benchmarks (`spawn`/`pfib`/`http`) take
 the best of 7. **Elixir and .NET are precompiled once (`elixirc`/`dotnet build`) and
 run from their compiled artifact — not from source per run — so per-run compilation
