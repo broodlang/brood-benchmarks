@@ -19,61 +19,62 @@ with no alias analysis because Brood data is immutable), **non-tail recursion** 
 epoch-guarded, in-IR call-site fast-link. For int-only single-arg recursion (`fib`) an **unboxed-`i64`
 register calling convention** (2026-07-02) drops the boxing + roots-staging + fast-link dispatch at the
 recursive call boundary entirely — args/results ride in registers, overflow-checked with a deopt to the
-VM (BigInt) on overflow — taking `fib` compute **227 → 53 ms (5th → 2nd, beating Elixir)**. A `def`
+VM (BigInt) on overflow — taking `fib` compute **227 → 56 ms (5th → 2nd, beating Elixir)**. A `def`
 deopts affected code, so Emacs-style hot reload holds.
 Workers in `spawn`/`pfib` share one compiled copy of the native code instead of each recompiling.
 
 Still interpreted (or only partly JIT'd) — the weak rows; ratios are Brood's compute vs the fastest
 language on that row. Several old headline gaps have closed or inverted:
 
-- **`matmul` (~23× — .NET is only ~4 ms)** — the inner loop is native, so the ~95 ms absolute is
+- **`matmul` (~20× — .NET is only ~5 ms)** — the inner loop is native, so the ~108 ms absolute is
   respectable; the ratio is inflated by .NET's tiny denominator. The residual is the one read LICM
   can't hoist (the per-`k` row) plus the boxed 24-byte `Value` vs a register `long`.
-- **`bintree` (~6.1×)** — **closed from ~6.7× / 6th → 4th (98 ms → 85 ms)** by inline small-vector
+- **`bintree` (~9.6× — Elixir's BEAM is unusually fast here at ~10 ms)** — **closed 6th → 4th
+  (98 ms → 92 ms)** by inline small-vector
   storage (2026-07-01): a small vector's elements live **inline in its slab slot** (not a separately
   `malloc`'d `Vec`), so a 2-element node allocates as a bump-push (like a `cons`), and the JIT inlines
-  the `(nth node 0/1)` reads. Brood now beats Python (96 ms) and Ruby (98 ms); .NET/Elixir (~14 ms)
-  stay ahead. Remaining headroom is the non-tail-call safepoints in `check`/`make` that block the
-  in-arm alloc inline.
-- **`nqueens` (~14×)** — backtracking recursion; the `reduce`-over-`range` per node and the
+  the `(nth node 0/1)` reads. Brood now beats Python (99 ms) and Ruby (103 ms); Elixir (~10 ms) and
+  .NET (~15 ms) stay ahead. Remaining headroom is the non-tail-call safepoints in `check`/`make` that
+  block the in-arm alloc inline.
+- **`nqueens` (~11×)** — backtracking recursion; the `reduce`-over-`range` per node and the
   non-tail `solve`/`safe?` recursion dominate (pair `first`/`rest` in `safe?` already inline). Node
-  (~7 ms) and Elixir (~12 ms) lead.
-- **`mandelbrot` (~11×)** — `esc` *is* JIT'd **and** its `f64` loop params are already
-  register-carried (native `fadd`/`fmul`, block-param phis; verified via CLIF), yet 212 ms
-  vs .NET's 19 ms. The residual is the boxed 24-byte `Value` tagging *in the arithmetic
+  (~8 ms) and Elixir (~20 ms) lead.
+- **`mandelbrot` (~12×)** — `esc` *is* JIT'd **and** its `f64` loop params are already
+  register-carried (native `fadd`/`fmul`, block-param phis; verified via CLIF), yet 236 ms
+  vs .NET's 20 ms. The residual is the boxed 24-byte `Value` tagging *in the arithmetic
   itself* (tag-check + box/unbox around each op) plus per-iteration loop overhead — **not**
   the frame stores: eliding the back-edge slot stores was prototyped and gave ~0 (they're
   absorbed by the CPU store buffer). See the Brood repo devlog (2026-07-01, "store-elision").
   `mandelbrot` is near the current JIT floor.
-- **`pipeline` (~7×)** — lazy-seq and filter/map/reduce composition the JIT doesn't cover;
+- **`pipeline` (~8×)** — lazy-seq and filter/map/reduce composition the JIT doesn't cover;
   allocation churn dominates.
-- **`wordcount` (~3.5×)** — **closed from ~13× in an earlier run** by the LINMAP compile-time
+- **`wordcount` (~3.7×)** — **closed from ~13× in an earlier run** by the LINMAP compile-time
   pass (2026-06-28): self-tail-recursive integer-count accumulators are detected and rewritten to
   use a mutable Table internally (`map-int-add → table-incr`), avoiding the CHAMP path-copy on
-  every step. Brood (109 ms) now beats Elixir (177 ms) and Python (169 ms) here; Node and .NET stay
-  ahead with mutable hash maps (~31–40 ms).
-- **`sort` (~2.3×)** — the numeric `(sort nums)` already uses the native `%sort-asc`, so the
+  every step. Brood (120 ms) now beats Elixir (169 ms) and Python (175 ms) here; Node and .NET stay
+  ahead with mutable hash maps (~32–38 ms).
+- **`sort` (~2.4×)** — the numeric `(sort nums)` already uses the native `%sort-asc`, so the
   benchmark's cost is **building** the input list, which was GC-bound: the collector re-copied the
   growing all-live accumulator. Cut 173→156 ms (2026-07-01) by scaling the nursery threshold with
   *total* live (young+old, not young-only — a tenuring build left young ≈ 0 and collapsed it to the
   floor) and making majors on an all-live old gen rarer. General to any large list/sequence build.
-- **`primes` (~4×), `loop` (~3.3×)** — Brood's closest compute gaps; mostly raw dispatch overhead.
+- **`primes` (~4.5×), `loop` (~2.9×)** — Brood's closest compute gaps; mostly raw dispatch overhead.
 
 `errors-deep` is a reminder that a compute-loop-only view misleads: .NET tops the arithmetic rows
-yet is *worst* at deep error recovery (stack-trace capture per throw, ~672 ms). Elixir (OTP 28) is
+yet is *worst* at deep error recovery (stack-trace capture per throw, ~714 ms). Elixir (OTP 28) is
 fastest there (~10 ms for 50k throws). It's an axis where Brood is already 2nd.
 
-- **`pfib` (~1.3× — 2nd, beating Elixir)** — three wins landed 2026-07-02 (Brood repo devlog). First
+- **`pfib` (~1.5× — 2nd, beating Elixir)** — three wins landed 2026-07-02 (Brood repo devlog). First
   the N was bumped 28 → 31 so the row exercises parallel-native *scaling* not task startup/teardown.
   Then two JIT fixes: (1) the two-stage-tiering inlined-upgrade swap used the **shared** global epoch,
   invalidating every peer green process's arm → a cross-process re-tier cascade onto the slow
   IC-dispatch path; the swap now invalidates only the swapping process's fast-links. (2) The inlined
   native was compiled **per-process**; it's now **shared across processes** (one compile serves every
   worker, like the BEAM). Finally the **unboxed-`i64` calling convention** (see `fib` above) removed
-  the recursive-call boxing: `pfib` went **847 → 152 ms**, from 5th to **2nd (1.3× off .NET)**, ahead
-  of Elixir (312 ms) and Node (299 ms). Parallel scaling itself is already ~93% of the machine's
+  the recursive-call boxing: `pfib` went **847 → 173 ms**, from 5th to **2nd (1.5× off .NET)**, ahead
+  of Elixir (349 ms) and Node (320 ms). Parallel scaling itself is already ~93% of the machine's
   OS-process ceiling (Brood green 3.93× vs 4.20× for independent OS processes on this 12-core box —
-  it even beats Elixir's 3.30×), so the residual is just `fib`'s single-thread gap (now ~1.3×).
+  it even beats Elixir's 3.30×), so the residual is just `fib`'s single-thread gap (now ~1.5×).
 
 ## Candidate levers (rough priority)
 
@@ -81,12 +82,12 @@ fastest there (~10 ms for 50k throws). It's an axis where Brood is already 2nd.
    register-carried; the residual is `Value` tagging in the arithmetic, not stores. Eliding
    the back-edge stores was tried (2026-07-01) and gave ~0 — the stores are free (store
    buffer). Don't re-attempt. `mandelbrot` is near the JIT floor.
-2. **Heap-walking / allocation-heavy code** (`nqueens`, `pipeline`, ~7–14×) — the structure-walkers
+2. **Heap-walking / allocation-heavy code** (`nqueens`, `pipeline`, ~8–11×) — the structure-walkers
    still don't tier and some heap reads go through per-op FFI callbacks. The inline small-vector
    storage + read (2026-07-01, which closed `bintree`) is the proven template; extending it to
    variable-index reads and to in-arm alloc (blocked today by non-tail-call safepoints) is the
    remaining win toward Elixir. `nqueens` also wants the `reduce`-over-`range` per node cheaper.
-3. **`matmul`** (~25× ratio, but .NET is only 4 ms so it's noise-sensitive; 100 ms absolute is not
+3. **`matmul`** (~20× ratio, but .NET is only 5 ms so it's noise-sensitive; 108 ms absolute is not
    a priority) — the ratio is inflated by .NET's tiny denominator more than by any Brood weakness.
 4. **True call inlining / bounded unroll** — removes calls rather than cheapening them; the remaining
    `fib`-class lever (~5.7×) after the in-IR fast-link. (Note: a measured attempt to push the
