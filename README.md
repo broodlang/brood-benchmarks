@@ -23,7 +23,7 @@ claim to lead the field.
 
 **Where Brood stands:**
 
-- **Light and quick to start** — ~25 MB of memory and ~32 ms to boot: among the lightest and
+- **Light and quick to start** — ~26 MB of memory and ~31 ms to boot: among the lightest and
   fastest-starting of the seven (Python and Ruby are lighter on memory; Elixir takes ~6× and
   Clojure's JVM ~11× longer to start).
 - **Wins two workloads outright** — fastest of seven at `reduce` and `strings`; **2nd at `fib`,
@@ -32,9 +32,9 @@ claim to lead the field.
   on most single-shot compute (Clojure's HotSpot JIT can't warm up in one short run — see the
   caveat below).
 - **3rd of seven on raw number-crunching, now ahead of Elixir** — overall single-threaded compute is
-  roughly **3.1× slower than the fastest** (.NET), behind only .NET and Node. Recent work closed several
-  gaps: an **unboxed-`i64` JIT calling convention** for int-only recursion took `fib` **227 → 56 ms
-  (5th → 2nd, beating Elixir)** and the parallel `pfib` **847 → 173 ms (5th → 2nd)** — a register
+  roughly **2.9× slower than the fastest** (.NET), behind only .NET and Node. Recent work closed several
+  gaps: an **unboxed-`i64` JIT calling convention** for int-only recursion took `fib` **227 → 54 ms
+  (5th → 2nd, beating Elixir)** and the parallel `pfib` **847 → 168 ms (5th → 2nd)** — a register
   calling convention that drops the boxing/dispatch at recursive call boundaries; inline small-vector
   storage took `bintree` 6th → 4th; an adaptive GC nursery/major policy cut list-building cost
   (`sort`); and the LINMAP optimisation took `wordcount` 7th → 4th. The remaining gaps are largest on
