@@ -195,3 +195,8 @@ single-threaded; pinning it to 4 cores rather than 1 keeps it isolated from syst
 noise without serialising a runtime's own background JIT/GC threads onto the work
 core — a single-core pin otherwise penalised the JVM ~2× while leaving the genuinely
 single-threaded runtimes unchanged.
+
+## License
+
+Licensed under the GNU Affero General Public License v3.0 (`AGPL-3.0-only`); see
+[`LICENSE`](LICENSE). Copyright © 2026 Wilhelm Kirschbaum.
