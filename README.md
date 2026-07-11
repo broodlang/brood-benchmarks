@@ -31,18 +31,19 @@ claim to lead the field.
 - **Beats the interpreters and the JVM Lisp on this suite** — faster than Ruby, Python, and Clojure
   on most single-shot compute (Clojure's HotSpot JIT can't warm up in one short run — see the
   caveat below).
-- **3rd of seven on raw number-crunching, now level with Elixir** — overall single-threaded compute is
-  roughly **3.5× slower than the fastest** (.NET), behind only .NET and Node, tied with Elixir. This
-  slipped from a prior **2.9×** (then ahead of Elixir): a **`matmul` +63% regression** (94 → 204 ms,
-  from a change since the last baseline — not concurrency, under investigation) plus a broad ~3–8%
-  compute drift. Earlier work had closed several gaps — an **unboxed-`i64` JIT calling convention** for
-  int-only recursion (`fib`, `pfib`), inline small-vector storage (`bintree`), an adaptive GC policy
-  (`sort`), and the LINMAP optimisation (`wordcount`). The remaining gaps are largest on array math
-  (`matmul`, `mandelbrot` — the boxed 24-byte value in array elements) and lazy-seq work (`pipeline`).
-- **⚠ `spawn` regressed to 7/7 (last) this run** — 141 ms → 1.7 s. The now-unconditional 2-generation
-  RUNTIME collector had a **~300× catastrophe** (45 s) that the latest fix cut back to ~1.7 s, but that
-  is still ~10× the pre-multigen collector; it doesn't touch the aggregate above (which excludes the
-  concurrency rows), but it is real and open. See [BENCHMARKS.md](BENCHMARKS.md) and the brood devlog.
+- **3rd of seven on raw number-crunching, level with Elixir** — overall single-threaded compute is
+  roughly **3.3× slower than the fastest** (.NET), behind only .NET and Node, tied with Elixir. A
+  **`matmul` regression** (94 → 204 ms) — RUNTIME-handle reads paying an `ArcSwap::load` per deref after
+  the multigen collector landed — was **mostly fixed** (brood `c3b55dd`, back to 163 ms via a
+  per-process generation-pin cache); the residual gap vs a prior 2.9× is that plus a broad ~3–8% compute
+  drift. Earlier work had closed several gaps — an **unboxed-`i64` JIT calling convention** for int-only
+  recursion (`fib`, `pfib`), inline small-vector storage (`bintree`), an adaptive GC policy (`sort`),
+  and the LINMAP optimisation (`wordcount`). The remaining gaps are largest on array math (`matmul`,
+  `mandelbrot` — the boxed 24-byte value in array elements) and lazy-seq work (`pipeline`).
+- **⚠ `spawn` is 7/7 (last)** — 141 ms → 1.6 s. The now-unconditional 2-generation RUNTIME collector had
+  a **~300× catastrophe** (45 s) that the fix cut back to ~1.6 s, but that is still ~10× the pre-multigen
+  collector; it doesn't touch the aggregate above (which excludes the concurrency rows), but it is real
+  and open. See [BENCHMARKS.md](BENCHMARKS.md) and the brood devlog.
 
 Brood is built for long-running apps — editors, web servers — and trades some memory for speed.
 **A caveat on Clojure:** it runs on the JVM, which cold-starts (~0.35 s here) on every one of these
