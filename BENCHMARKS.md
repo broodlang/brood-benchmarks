@@ -22,23 +22,23 @@ Lower is better. **Bold** = Brood. "Rank" is Brood's place by compute among the 
 | benchmark | Brood | Clojure | Elixir | Python | Node | Ruby | .NET | Brood rank |
 |---|---|---|---|---|---|---|---|---|
 | `fib` | **85ms** | 559ms | 267ms | 796ms | 101ms | 685ms | 66ms | 2/7 |
-| `loop` | **70ms** | 503ms | 235ms | 2.4s | 49ms | 635ms | 34ms | 3/7 |
-| `reduce` | **35ms** | 520ms | 211ms | 121ms | 242ms | 292ms | 34ms | 2/7 |
+| `loop` | **71ms** | 503ms | 235ms | 2.4s | 49ms | 635ms | 34ms | 3/7 |
+| `reduce` | **36ms** | 520ms | 211ms | 121ms | 242ms | 292ms | 34ms | 2/7 |
 | `primes` | **71ms** | 487ms | 204ms | 134ms | 27ms | 155ms | 30ms | 3/7 |
 | `collatz` | **110ms** | 773ms | 289ms | 2.7s | 196ms | 926ms | 67ms | 2/7 |
-| `mandelbrot` | **254ms** | 508ms | 457ms | 1.4s | 40ms | 470ms | 42ms | 3/7 |
-| `matmul` | **159ms** | 580ms | 277ms | 504ms | 41ms | 331ms | 28ms | 3/7 |
+| `mandelbrot` | **250ms** | 508ms | 457ms | 1.4s | 40ms | 470ms | 42ms | 3/7 |
+| `matmul` | **160ms** | 580ms | 277ms | 504ms | 41ms | 331ms | 28ms | 3/7 |
 | `strings` | **43ms** | 526ms | 319ms | 54ms | 84ms | 122ms | 53ms | **1/7** |
-| `wordcount` | **140ms** | 631ms | 361ms | 184ms | 51ms | 116ms | 60ms | 4/7 |
-| `bintree` | **123ms** | 533ms | 197ms | 116ms | 40ms | 141ms | 37ms | 4/7 |
-| `sort` | **195ms** | 662ms | 297ms | 197ms | 121ms | 111ms | 88ms | 4/7 |
-| `nqueens` | **120ms** | 567ms | 188ms | 65ms | 25ms | 164ms | 43ms | 4/7 |
-| `errors` | **70ms** | 1.5s | 216ms | 60ms | 592ms | 151ms | 308ms | 2/7 |
-| `errors-deep` | **87ms** | 1.7s | 192ms | 247ms | 229ms | 152ms | 700ms | **1/7** |
+| `wordcount` | **146ms** | 631ms | 361ms | 184ms | 51ms | 116ms | 60ms | 4/7 |
+| `bintree` | **124ms** | 533ms | 197ms | 116ms | 40ms | 141ms | 37ms | 4/7 |
+| `sort` | **193ms** | 662ms | 297ms | 197ms | 121ms | 111ms | 88ms | 4/7 |
+| `nqueens` | **114ms** | 567ms | 188ms | 65ms | 25ms | 164ms | 43ms | 4/7 |
+| `errors` | **69ms** | 1.5s | 216ms | 60ms | 592ms | 151ms | 308ms | 2/7 |
+| `errors-deep` | **86ms** | 1.7s | 192ms | 247ms | 229ms | 152ms | 700ms | **1/7** |
 | `pipeline` | **62ms** | 480ms | 189ms | 15ms | 26ms | 47ms | 30ms | 5/7 |
 | `spawn` | **1.4s** | 541ms | 202ms | 564ms | 72ms | 1.6s | 39ms | 6/7 |
-| `pfib` | **194ms** | 722ms | 506ms | 2.5s | 315ms | 1.9s | 135ms | 2/7 |
-| `http` | **182ms** | 1.2s | 770ms | 186ms | 138ms | 238ms | 173ms | 3/7 |
+| `pfib` | **198ms** | 722ms | 506ms | 2.5s | 315ms | 1.9s | 135ms | 2/7 |
+| `http` | **183ms** | 1.2s | 770ms | 186ms | 138ms | 238ms | 173ms | 3/7 |
 | `startup` (wall) | **32ms** | 350ms | 195ms | 11ms | 19ms | 40ms | 23ms | 4/7 |
 
 > **State of the two multigen regressions (vs the prior baseline, brood `e11e1c0`):**
@@ -56,6 +56,13 @@ Lower is better. **Bold** = Brood. "Rank" is Brood's place by compute among the 
 >   ~1.6 s; the scheduler **direct-handoff** (brood `236b71f`, see below) then trimmed it to ~1.4 s,
 >   moving Brood off last place (past Ruby). It is still ~9× the pre-multigen single-gen collector
 >   (`BROOD_RT_GC_FLOOR=∞` → 0.16 s) — cutting the residual per-spawn drain overhead is open work.
+
+> **Brood re-run (2026-07-11, after the closure-template cache, brood `15cfd6b`):** every compute /
+> `spawn` / `pfib` / `http` figure moved only within run-to-run noise (±5 %, no rank or aggregate
+> change) — as expected. That optimization memoises each `(fn …)` literal's parsed arms so a closure
+> built in a loop skips the per-creation re-parse; its payoff is **message-passing latency**, which
+> this suite doesn't isolate. It cut green↔green ping-pong (500 k round-trips) ~2.13 s → ~1.97 s
+> (~7.5 %) — the same latency axis the `spawn` row doesn't exercise.
 
 This run's Elixir compute figures all resolve to real numbers (no ~0 ms flooring): its ~189 ms boot
 and the pinned-core settle land the subtraction above the noise floor on `bintree`/`nqueens`/
