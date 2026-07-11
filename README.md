@@ -189,7 +189,7 @@ peak RSS, checksum), and `positioning.svg` (the compute-vs-memory map).
 
 Numbers in the docs were measured on `whklat`: a 12-core x86-64 Linux 7.0.0
 machine · Brood 0.1.0 (bytecode VM + tier-1 JIT) · Clojure 1.12.5 / OpenJDK 25.0.3
-(HotSpot) · Elixir 1.20.0 / OTP 28 (BeamAsm JIT) · Python 3.14.4 · Node 22.21.0
+(HotSpot) · Elixir 1.21.0-dev / OTP 28 (BeamAsm JIT) · Python 3.14.4 · Node 22.21.0
 (V8) · Ruby 3.3.8 · .NET 10.0.109 (RyuJIT). 2026-07-11 (Brood re-run: scheduler
 direct-handoff). Best of 3 runs
 each; the concurrency benchmarks (`spawn`/`pfib`/`http`) take
