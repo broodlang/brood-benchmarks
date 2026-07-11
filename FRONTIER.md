@@ -26,9 +26,11 @@ Workers in `spawn`/`pfib` share one compiled copy of the native code instead of 
 Still interpreted (or only partly JIT'd) — the weak rows; ratios are Brood's compute vs the fastest
 language on that row. Several old headline gaps have closed or inverted:
 
-- **`matmul` (~19× — .NET is only ~5 ms)** — the inner loop is native, so the ~94 ms absolute is
-  respectable; the ratio is inflated by .NET's tiny denominator. The residual is the one read LICM
-  can't hoist (the per-`k` row) plus the boxed 24-byte `Value` vs a register `long`.
+- **`matmul` (~7.6× — .NET is ~27 ms) — ⚠ REGRESSED 94 → 204 ms this run.** The inner loop is native,
+  and the residual has always been the one read LICM can't hoist (the per-`k` row) plus the boxed 24-byte
+  `Value` vs a register `long` — but the absolute more than doubled from a change since the prior
+  baseline (brood `e11e1c0`). It is **not** multigen (identical with the RUNTIME collector disabled) and
+  not concurrency-related. First target of the post-benchmark regression hunt.
 - **`bintree` (~9.6× — Elixir's BEAM is unusually fast here at ~10 ms)** — **closed 6th → 4th
   (98 ms → 90 ms)** by inline small-vector
   storage (2026-07-01): a small vector's elements live **inline in its slab slot** (not a separately
