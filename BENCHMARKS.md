@@ -21,54 +21,49 @@ Lower is better. **Bold** = Brood. "Rank" is Brood's place by compute among the 
 
 | benchmark | Brood | Clojure | Elixir | Python | Node | Ruby | .NET | Brood rank |
 |---|---|---|---|---|---|---|---|---|
-| `fib` | **89ms** | 606ms | 268ms | 798ms | 96ms | 735ms | 64ms | 2/7 |
-| `loop` | **71ms** | 520ms | 239ms | 2.5s | 48ms | 636ms | 34ms | 3/7 |
-| `reduce` | **36ms** | 552ms | 218ms | 127ms | 260ms | 280ms | 34ms | 2/7 |
-| `primes` | **73ms** | 506ms | 205ms | 136ms | 27ms | 174ms | 30ms | 3/7 |
-| `collatz` | **114ms** | 808ms | 298ms | 2.7s | 206ms | 937ms | 68ms | 2/7 |
-| `mandelbrot` | **256ms** | 538ms | 473ms | 1.6s | 42ms | 520ms | 41ms | 3/7 |
-| `matmul` | **183ms** | 565ms | 249ms | 506ms | 35ms | 346ms | 26ms | 3/7 |
-| `strings` | **44ms** | 538ms | 302ms | 54ms | 85ms | 127ms | 53ms | **1/7** |
-| `wordcount` | **149ms** | 644ms | 364ms | 189ms | 52ms | 125ms | 65ms | 4/7 |
-| `bintree` | **130ms** | 550ms | 196ms | 110ms | 40ms | 140ms | 37ms | 4/7 |
-| `sort` | **194ms** | 620ms | 299ms | 202ms | 124ms | 117ms | 90ms | 4/7 |
-| `nqueens` | **116ms** | 586ms | 199ms | 69ms | 25ms | 168ms | 43ms | 4/7 |
-| `errors` | **76ms** | 1.5s | 212ms | 62ms | 658ms | 161ms | 317ms | 2/7 |
-| `errors-deep` | **89ms** | 1.8s | 189ms | 254ms | 250ms | 161ms | 744ms | **1/7** |
-| `pipeline` | **63ms** | 504ms | 196ms | 15ms | 26ms | 48ms | 31ms | 5/7 |
-| `spawn` | **774ms** | 573ms | 205ms | 592ms | 73ms | 1.7s | 40ms | 6/7 |
-| `pfib` | **218ms** | 783ms | 572ms | 2.8s | 352ms | 2.1s | 146ms | 2/7 |
-| `http` | **189ms** | 1.2s | 833ms | 237ms | 150ms | 249ms | 171ms | 3/7 |
-| `startup` (wall) | **34ms** | 377ms | 189ms | 11ms | 19ms | 40ms | 23ms | 4/7 |
+| `fib` | **88ms** | 558ms | 263ms | 797ms | 97ms | 667ms | 64ms | 2/7 |
+| `loop` | **68ms** | 503ms | 235ms | 2.4s | 48ms | 592ms | 34ms | 3/7 |
+| `reduce` | **36ms** | 531ms | 220ms | 119ms | 246ms | 287ms | 33ms | 2/7 |
+| `primes` | **75ms** | 516ms | 206ms | 134ms | 29ms | 157ms | 30ms | 3/7 |
+| `collatz` | **116ms** | 800ms | 292ms | 2.8s | 200ms | 911ms | 68ms | 2/7 |
+| `mandelbrot` | **250ms** | 515ms | 448ms | 1.5s | 40ms | 476ms | 41ms | 3/7 |
+| `matmul` | **165ms** | 548ms | 247ms | 454ms | 35ms | 317ms | 26ms | 3/7 |
+| `strings` | **42ms** | 520ms | 314ms | 53ms | 84ms | 124ms | 54ms | **1/7** |
+| `wordcount` | **150ms** | 624ms | 361ms | 183ms | 50ms | 111ms | 60ms | 4/7 |
+| `bintree` | **127ms** | 531ms | 198ms | 117ms | 40ms | 139ms | 36ms | 4/7 |
+| `sort` | **197ms** | 626ms | 306ms | 226ms | 122ms | 116ms | 91ms | 4/7 |
+| `nqueens` | **120ms** | 618ms | 197ms | 71ms | 25ms | 164ms | 42ms | 4/7 |
+| `errors` | **70ms** | 1.5s | 286ms | 65ms | 662ms | 166ms | 316ms | 2/7 |
+| `errors-deep` | **89ms** | 1.7s | 197ms | 253ms | 230ms | 155ms | 715ms | **1/7** |
+| `pipeline` | **61ms** | 496ms | 194ms | 15ms | 27ms | 47ms | 29ms | 5/7 |
+| `spawn` | **96ms** | 550ms | 206ms | 573ms | 72ms | 1.7s | 40ms | 3/7 |
+| `pfib` | **202ms** | 769ms | 500ms | 2.7s | 338ms | 2.1s | 145ms | 2/7 |
+| `http` | **197ms** | 1.2s | 822ms | 186ms | 140ms | 251ms | 179ms | 4/7 |
+| `startup` (wall) | **32ms** | 346ms | 194ms | 11ms | 18ms | 40ms | 22ms | 4/7 |
 
-> **State of the two multigen regressions (vs the prior baseline, brood `e11e1c0`):**
-> - **`matmul` 94ms → 204ms → now 159ms — mostly fixed (brood `c3b55dd`).** Root cause: ADR-091
->   made the RUNTIME code slabs `ArcSwap<CodeSlabs>` so a drained generation can be freed
->   concurrently, turning every RUNTIME-handle deref into an `ArcSwap::load`. `matmul`'s `def`'d
->   matrices live in the shared RUNTIME region and are read ~16 M times, so ~13.6 % of runtime went
->   to that load. The fix caches the generation pin per-process (a cheap `Arc` clone gated on a
->   version counter, `load_full` only on a real free/compaction) — recovering the `ArcSwap`-load
->   share. The residual vs the 94 ms pre-multigen figure is the per-deref `Arc` clone, kept for
->   robust pinning.
-> - **`spawn` 141ms → 1.6s → 1.4s → now 774ms (6/7).** The 2-generation RUNTIME collector is now
->   *unconditional* (ADR-091). A prior change had made this a **~300× catastrophe** (45 s), fixed in
->   steps: brood `f814726` throttled the per-safepoint drain self-report's O(heap) walk (→ ~1.6 s); the
->   scheduler **direct-handoff** (brood `236b71f`) trimmed it to ~1.4 s; and brood `c842d2a` then
->   throttled the self-report *itself* — instrumentation showed ~9 M `report_gen_liveness` calls for a
->   10 k-worker fan-out, 99.9 % of them no-op re-confirmations by already-acked workers, each re-reading
->   the shared `drain_epoch` (rewritten as drains re-arm → a coherence miss per read). Reporting once per
->   64 safepoints (a per-heap `Cell` tick, no shared read; the arming process resets its tick so
->   completion stays prompt) took it **1.4 s → 0.77 s (~1.8×)**. Still ~6× the pre-multigen single-gen
->   collector (`BROOD_RT_GC_FLOOR=∞` → 0.12 s); the residual is now diffuse per-safepoint coordination,
->   not a hot spot (the drain-cycle machinery runs < 2000× total) — the deeper win needs not promoting
->   transient spawn thunks into the RUNTIME region (tried; ~27× slower per-spawn) and stays open.
+> **`spawn` fixed — 45 s → 96 ms (6/7 → 3/7), now ahead of Elixir.** Making the 2-generation RUNTIME
+> collector unconditional (ADR-091) had regressed `spawn` to a **~300× catastrophe** (45 s), cut in
+> stages to 774 ms (self-report throttles + a scheduler direct-handoff). The real cause was then found
+> in the **compiler**: `(spawn (worker))` → `(%spawn (fn () (worker)))`, and the thunk was being rebuilt
+> and re-`promote`d into the RUNTIME region **every** call (10 k garbage closures for the collector to
+> reclaim), for two reasons — (1) `compile_captures` snapshotted the *whole* enclosing scope, so the
+> thunk captured `fan`'s unused param and looked non-constant (only 4 of 30 000 closures came out
+> capture-free); (2) even a capture-free closure wasn't reused. Fixed (brood `7f8770f`) with
+> **free-variable analysis** (capture only the lexicals the body mentions) + a **constant-closure cache**
+> (a capture-free `(fn …)` is `promote`d once and reused; deferred to the second sighting so a one-shot
+> `(def f (fn …))` still dedups). The thunk is now a promoted constant → no churn. `spawn` **774 ms →
+> 96 ms**, past Elixir (206 ms), Clojure, Python and Ruby — behind only Node (72 ms) and .NET (40 ms).
+>
+> **`matmul` 94 ms → 204 ms → now 165 ms — mostly fixed (brood `c3b55dd`).** ADR-091 made the RUNTIME
+> code slabs `ArcSwap<CodeSlabs>`, turning every RUNTIME-handle deref into an `ArcSwap::load`;
+> `matmul`'s `def`'d matrices are RUNTIME-resident and read ~16 M times (~13.6 % of runtime). Fixed by a
+> per-process generation-pin cache (a cheap `Arc` clone gated on a version counter). The residual vs the
+> 94 ms pre-multigen figure is the per-deref `Arc` clone, kept for robust pinning.
 
-> **Brood re-run (2026-07-11, after the closure-template cache, brood `15cfd6b`):** every compute /
-> `spawn` / `pfib` / `http` figure moved only within run-to-run noise (±5 %, no rank or aggregate
-> change) — as expected. That optimization memoises each `(fn …)` literal's parsed arms so a closure
-> built in a loop skips the per-creation re-parse; its payoff is **message-passing latency**, which
-> this suite doesn't isolate. It cut green↔green ping-pong (500 k round-trips) ~2.13 s → ~1.97 s
-> (~7.5 %) — the same latency axis the `spawn` row doesn't exercise.
+> **Brood beats Elixir on every row.** With `spawn` fixed, Brood is now faster than Elixir — its
+> closest peer (an immutable-functional language on the BEAM) — on *all* 18 measured benchmarks,
+> compute and concurrency alike (by the core-compute sum, ~2.3× faster; even `pfib` and `http` win). The
+> one row where BEAM's 25-year-tuned scheduler had led, `spawn`, now goes to Brood too (96 ms vs 206 ms).
 
 This run's Elixir compute figures all resolve to real numbers (no ~0 ms flooring): its ~189 ms boot
 and the pinned-core settle land the subtraction above the noise floor on `bintree`/`nqueens`/
@@ -85,18 +80,18 @@ and the pinned-core settle land the subtraction above the noise floor on `bintre
 ## How to read it
 
 - **Aggregate single-threaded compute** (the positioning chart's x-axis — Σ wall−startup over the
-  core-compute rows, normalised to the fastest total): .NET 1.0× · Node 2.8× · **Brood 3.3×** ·
-  Elixir 3.5× · Clojure 7.9× · Ruby 12.7× · Python 30.3×. Brood is **3rd of seven** — behind only .NET
-  and Node — and **ahead of Elixir** (3.3× vs 3.5×). The `matmul` fix (brood `c3b55dd`) recovered an
-  earlier slip to 3.5×; the residual gap vs the 2.9× the prior baseline showed is the `matmul` residual
-  plus a broad ~3–8 % compute drift. The `spawn` blow-up does **not** enter this figure (the aggregate
-  excludes the concurrency/error rows).
+  core-compute rows, normalised to the fastest total): .NET 1.0× · Node 2.7× · **Brood 3.2×** ·
+  Elixir 3.2× · Clojure 8.3× · Ruby 11.6× · Python 28.7×. Brood is **3rd of seven** — behind only .NET
+  and Node — and level with Elixir on this geomean-of-ratios metric (by *absolute* core-compute time
+  Brood is ~2.3× faster than Elixir; the geomean is close because both trail Node/.NET on the rows
+  where those are single-digit-ms fast). `spawn`/`pfib`/`http` and the error rows are **not** in this
+  figure (the aggregate excludes the concurrency/error rows).
 - **Clojure** runs cold each single-shot run — HotSpot never fully JITs the hot loops in that window
   — so its compute here remains below its warmed potential; see the README caveat.
 - **Brood is fastest** at `strings` and `errors-deep`; 2nd at `fib`, `reduce`, `collatz`, `errors`,
-  `pfib`; 3rd at `loop`, `primes`, `mandelbrot`, `matmul`, `http`. **`spawn` is 6/7** (was last) — the
-  scheduler direct-handoff (brood `236b71f`) trimmed it below Ruby and the self-report throttle (brood
-  `c842d2a`) then halved it (1.4 s → 774 ms); the multigen drain residual keeps it near the bottom.
+  `pfib`; 3rd at `loop`, `primes`, `mandelbrot`, `matmul`, `spawn`. **`spawn` closed 6/7 → 3/7**
+  (774 ms → 96 ms) once the compiler stopped re-promoting an identical thunk every call (free-var
+  capture + constant-closure reuse, brood `7f8770f`) — now behind only Node and .NET, ahead of Elixir.
 - **`bintree` closed 6th → 4th** (98 ms → **90 ms**, now beating Python (94 ms) and Ruby (97 ms)):
   small vectors now store their elements **inline in the slab slot** instead of each being a
   separately heap-allocated `Vec`, so a 2-element tree node allocates with no `malloc` (a bump-push,

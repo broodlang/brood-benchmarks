@@ -26,7 +26,7 @@ Workers in `spawn`/`pfib` share one compiled copy of the native code instead of 
 Still interpreted (or only partly JIT'd) — the weak rows; ratios are Brood's compute vs the fastest
 language on that row. Several old headline gaps have closed or inverted:
 
-- **`matmul` (~7× — .NET is ~26 ms) — regressed 94 → 204 ms, now mostly fixed at ~183 ms.** The inner
+- **`matmul` (~7× — .NET is ~26 ms) — regressed 94 → 204 ms, now mostly fixed at ~165 ms.** The inner
   loop is native, and the residual has always been the one read LICM can't hoist (the per-`k` row) plus
   the boxed 24-byte `Value` vs a register `long`. The doubling to 204 ms was root-caused (bisect →
   ADR-091): its `def`'d matrices live in the shared RUNTIME region, and multigen made every RUNTIME-handle
