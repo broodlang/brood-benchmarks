@@ -31,19 +31,25 @@ claim to lead the field.
 - **Beats the interpreters and the JVM Lisp on this suite** — faster than Ruby, Python, and Clojure
   on most single-shot compute (Clojure's HotSpot JIT can't warm up in one short run — see the
   caveat below).
-- **3rd of seven on raw number-crunching, level with Elixir** — overall single-threaded compute is
-  roughly **3.3× slower than the fastest** (.NET), behind only .NET and Node, tied with Elixir. A
+- **3rd of seven on raw number-crunching, now a hair ahead of Elixir** — overall single-threaded
+  compute is roughly **3.2× slower than the fastest** (.NET), behind only .NET and Node, and level
+  with Elixir (3.21× vs 3.33×). A
   **`matmul` regression** (94 → 204 ms) — RUNTIME-handle reads paying an `ArcSwap::load` per deref after
-  the multigen collector landed — was **mostly fixed** (brood `c3b55dd`, back to 163 ms via a
+  the multigen collector landed — was **mostly fixed** (brood `c3b55dd`, back to ~159 ms via a
   per-process generation-pin cache); the residual gap vs a prior 2.9× is that plus a broad ~3–8% compute
   drift. Earlier work had closed several gaps — an **unboxed-`i64` JIT calling convention** for int-only
   recursion (`fib`, `pfib`), inline small-vector storage (`bintree`), an adaptive GC policy (`sort`),
   and the LINMAP optimisation (`wordcount`). The remaining gaps are largest on array math (`matmul`,
   `mandelbrot` — the boxed 24-byte value in array elements) and lazy-seq work (`pipeline`).
-- **⚠ `spawn` is 7/7 (last)** — 141 ms → 1.6 s. The now-unconditional 2-generation RUNTIME collector had
-  a **~300× catastrophe** (45 s) that the fix cut back to ~1.6 s, but that is still ~10× the pre-multigen
-  collector; it doesn't touch the aggregate above (which excludes the concurrency rows), but it is real
-  and open. See [BENCHMARKS.md](BENCHMARKS.md) and the brood devlog.
+- **⚠ `spawn` is 6/7** — 141 ms → 1.4 s. The now-unconditional 2-generation RUNTIME collector had a
+  **~300× catastrophe** (45 s) since cut to ~1.6 s (throttled Phase-2 self-report), and a scheduler
+  **direct-handoff on message wake** (`236b71f`) trimmed another ~14% to 1.4 s — now ahead of Ruby. But
+  it's still ~10× the pre-multigen baseline: the per-spawn RUNTIME-collector cost dominates here, not
+  message wakeup. It doesn't touch the aggregate above (which excludes the concurrency rows), but it is
+  real and open. **The direct-handoff's real payoff is message-passing *latency*, which this suite
+  doesn't isolate**: green↔green ping-pong dropped ~1.5× (≈1M → ≈4k OS context switches), because a
+  `send` that readies a parked receiver now runs it on the *same* worker in userspace instead of a
+  cross-thread futex wake — BEAM's scheduler behaviour. See [BENCHMARKS.md](BENCHMARKS.md) and the brood devlog.
 
 Brood is built for long-running apps — editors, web servers — and trades some memory for speed.
 **A caveat on Clojure:** it runs on the JVM, which cold-starts (~0.35 s here) on every one of these
@@ -184,7 +190,8 @@ peak RSS, checksum), and `positioning.svg` (the compute-vs-memory map).
 Numbers in the docs were measured on `whklat`: a 12-core x86-64 Linux 7.0.0
 machine · Brood 0.1.0 (bytecode VM + tier-1 JIT) · Clojure 1.12.5 / OpenJDK 25.0.3
 (HotSpot) · Elixir 1.20.0 / OTP 28 (BeamAsm JIT) · Python 3.14.4 · Node 22.21.0
-(V8) · Ruby 3.3.8 · .NET 10.0.109 (RyuJIT). 2026-07-05. Best of 3 runs
+(V8) · Ruby 3.3.8 · .NET 10.0.109 (RyuJIT). 2026-07-11 (Brood re-run: scheduler
+direct-handoff). Best of 3 runs
 each; the concurrency benchmarks (`spawn`/`pfib`/`http`) take
 the best of 7. **Elixir and .NET are precompiled once (`elixirc`/`dotnet build`) and
 run from their compiled artifact — not from source per run — so per-run compilation
