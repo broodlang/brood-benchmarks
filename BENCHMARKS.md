@@ -6,8 +6,8 @@ per-language ranks) see [`results/report.md`](results/report.md) and
 analysis of *why* Brood lands where it does and what would move it, see
 [`FRONTIER.md`](FRONTIER.md).
 
-Machine: `whklat`, 12-core x86-64, Linux 7.0.0, 2026-07-06 · Brood 0.1.0 · Clojure 1.12.5 / JDK 25.0.3 ·
-Elixir 1.20.0 / OTP 28 · Python 3.14.4 · Node 22.21.0 · Ruby 3.3.8 · .NET 10.0.109. Best of 3 runs (spawn/pfib/http best of 7).
+Machine: `whklat`, 12-core x86-64, Linux 7.0.0, 2026-07-11 · Brood 0.1.0 · Clojure 1.12.5 / JDK 25.0.3 ·
+Elixir 1.21.0-dev / OTP 28 · Python 3.14.4 · Node 22.21.0 · Ruby 3.3.8 · .NET 10.0.109. Best of 3 runs (spawn/pfib/http best of 7).
 Each run is `taskset`-pinned (compute → 4 dedicated cores, concurrency → all 12) with a 0.25 s settle.
 The compute *workload* is single-threaded, but pinning it to 4 cores rather than 1 keeps it isolated
 from system noise **without** serialising a runtime's background JIT/GC threads onto the work core —
@@ -21,30 +21,39 @@ Lower is better. **Bold** = Brood. "Rank" is Brood's place by compute among the 
 
 | benchmark | Brood | Clojure | Elixir | Python | Node | Ruby | .NET | Brood rank |
 |---|---|---|---|---|---|---|---|---|
-| `fib` | **54ms** | 219ms | 71ms | 748ms | 74ms | 616ms | 44ms | 2/7 |
-| `loop` | **38ms** | 158ms | 55ms | 2.5s | 31ms | 579ms | 14ms | 3/7 |
-| `reduce` | **3ms** | 200ms | 25ms | 116ms | 227ms | 222ms | 13ms | **1/7** |
-| `primes` | **37ms** | 166ms | 7ms | 124ms | 11ms | 117ms | 9ms | 4/7 |
-| `collatz` | **81ms** | 452ms | 94ms | 2.4s | 175ms | 872ms | 47ms | 2/7 |
-| `mandelbrot` | **217ms** | 165ms | 273ms | 1.4s | 23ms | 412ms | 21ms | 4/7 |
-| `matmul` | **94ms** | 197ms | 49ms | 458ms | 17ms | 318ms | 5ms | 4/7 |
-| `strings` | **12ms** | 169ms | 105ms | 43ms | 65ms | 83ms | 32ms | **1/7** |
-| `wordcount` | **114ms** | 279ms | 150ms | 175ms | 30ms | 75ms | 38ms | 4/7 |
-| `bintree` | **90ms** | 176ms | 0ms | 94ms | 22ms | 97ms | 16ms | 4/7 |
-| `sort` | **148ms** | 266ms | 102ms | 186ms | 102ms | 74ms | 66ms | 5/7 |
-| `nqueens` | **81ms** | 237ms | 0ms | 54ms | 8ms | 127ms | 20ms | 5/7 |
-| `errors` | **43ms** | 1.1s | 10ms | 50ms | 574ms | 106ms | 285ms | 2/7 |
-| `errors-deep` | **52ms** | 1.4s | 0ms | 225ms | 211ms | 115ms | 710ms | 2/7 |
-| `pipeline` | **27ms** | 152ms | 0ms | 4ms | 8ms | 6ms | 8ms | 6/7 |
-| `spawn` | **110ms** | 206ms | 15ms | 552ms | 54ms | 1.6s | 19ms | 4/7 |
-| `pfib` | **168ms** | 403ms | 297ms | 2.6s | 301ms | 1.9s | 114ms | 2/7 |
-| `http` | **148ms** | 807ms | 588ms | 173ms | 124ms | 203ms | 154ms | 2/7 |
-| `startup` (wall) | **31ms** | 340ms | 195ms | 10ms | 18ms | 41ms | 21ms | 4/7 |
+| `fib` | **86ms** | 559ms | 263ms | 765ms | 93ms | 657ms | 64ms | 2/7 |
+| `loop` | **70ms** | 501ms | 243ms | 2.4s | 49ms | 669ms | 34ms | 3/7 |
+| `reduce` | **36ms** | 529ms | 223ms | 120ms | 249ms | 272ms | 34ms | 2/7 |
+| `primes` | **73ms** | 500ms | 203ms | 131ms | 27ms | 166ms | 31ms | 3/7 |
+| `collatz` | **111ms** | 771ms | 300ms | 2.7s | 196ms | 930ms | 69ms | 2/7 |
+| `mandelbrot` | **254ms** | 509ms | 449ms | 1.4s | 39ms | 485ms | 41ms | 3/7 |
+| `matmul` | **204ms** | 540ms | 247ms | 450ms | 35ms | 323ms | 27ms | 3/7 |
+| `strings` | **42ms** | 505ms | 299ms | 53ms | 84ms | 123ms | 53ms | **1/7** |
+| `wordcount` | **148ms** | 609ms | 353ms | 185ms | 49ms | 112ms | 59ms | 4/7 |
+| `bintree` | **123ms** | 520ms | 198ms | 108ms | 39ms | 141ms | 36ms | 4/7 |
+| `sort` | **187ms** | 596ms | 289ms | 194ms | 123ms | 111ms | 88ms | 4/7 |
+| `nqueens` | **120ms** | 566ms | 189ms | 64ms | 25ms | 161ms | 41ms | 4/7 |
+| `errors` | **69ms** | 1.4s | 204ms | 59ms | 593ms | 147ms | 322ms | 2/7 |
+| `errors-deep` | **85ms** | 1.7s | 189ms | 242ms | 227ms | 152ms | 708ms | **1/7** |
+| `pipeline` | **62ms** | 475ms | 197ms | 14ms | 26ms | 47ms | 30ms | 5/7 |
+| `spawn` | **1.7s** | 529ms | 204ms | 566ms | 72ms | 1.6s | 39ms | 7/7 |
+| `pfib` | **194ms** | 719ms | 486ms | 2.5s | 309ms | 1.9s | 134ms | 2/7 |
+| `http` | **173ms** | 1.2s | 741ms | 186ms | 138ms | 246ms | 166ms | 3/7 |
+| `startup` (wall) | **32ms** | 353ms | 189ms | 11ms | 19ms | 40ms | 23ms | 4/7 |
 
-Elixir shows `0ms` on `bintree`, `nqueens`, `errors-deep`, and `pipeline`: its precompiled BEAM runs
-these so fast that the compute (wall − startup) falls below the run-to-run variance of its own ~195 ms
-boot, so the subtraction floors at ~0. It's genuinely fastest of the seven on those rows — the metric
-just can't resolve how fast (this is why the chart's aggregate excludes the concurrency/error rows).
+> **⚠ Two regressions in this run vs the prior baseline (brood `e11e1c0`).**
+> - **`spawn` 141ms → 1.7s (now 7/7, last).** The 2-generation RUNTIME collector is now
+>   *unconditional* (ADR-091). A prior change had made this a **~300× catastrophe** (45 s);
+>   the fix in brood `f814726` throttles the per-safepoint drain self-report's O(heap) walk
+>   and restores it to ~1.7 s — but that is still ~10× the pre-multigen single-gen collector
+>   (`BROOD_RT_GC_FLOOR=∞` → 0.16 s). Cutting the residual per-spawn drain overhead is open work.
+> - **`matmul` 94ms → 204ms.** A *separate* regression from other changes since `e11e1c0` —
+>   **not** multigen (same ~0.20 s with the collector disabled) and not concurrency-related.
+>   Under investigation.
+
+This run's Elixir compute figures all resolve to real numbers (no ~0 ms flooring): its ~189 ms boot
+and the pinned-core settle land the subtraction above the noise floor on `bintree`/`nqueens`/
+`errors-deep`/`pipeline` this time, unlike earlier runs where BEAM's speed on those floored them to ~0.
 
 ## Memory (peak RSS) and startup
 
@@ -57,13 +66,17 @@ just can't resolve how fast (this is why the chart's aggregate excludes the conc
 ## How to read it
 
 - **Aggregate single-threaded compute** (the positioning chart's x-axis — Σ wall−startup over the
-  core-compute rows, normalised to the fastest total): .NET 1.0× · Node 2.6× · **Brood 2.9×** · Elixir 3.1× ·
-  Clojure 8.0× · Ruby 11.4× · Python 27.0×. Brood is **3rd of seven** — behind only .NET and Node, and
-  **ahead of Elixir** (the unboxed-`i64` JIT path took `fib` 227→54 ms, 5th→2nd).
+  core-compute rows, normalised to the fastest total): .NET 1.0× · Node 2.7× · **Brood 3.5×** ·
+  Elixir 3.5× · Clojure 8.0× · Ruby 12.5× · Python 29.8×. Brood is **3rd of seven** — behind only .NET
+  and Node — but now **level with Elixir** (was ahead at 2.9× vs 3.1×). The slip from 2.9× → 3.5× is
+  mostly the **`matmul` +63% regression** (see the ⚠ note above) plus a broad ~3–8% compute drift since
+  the prior baseline; the `spawn` blow-up does **not** enter this figure (the aggregate excludes the
+  concurrency/error rows).
 - **Clojure** runs cold each single-shot run — HotSpot never fully JITs the hot loops in that window
   — so its compute here remains below its warmed potential; see the README caveat.
-- **Brood is fastest** at `reduce` and `strings`; 2nd at `fib`, `collatz`, `errors`, `errors-deep`,
-  `pfib`, and `http`; 3rd at `loop`.
+- **Brood is fastest** at `strings` and `errors-deep`; 2nd at `fib`, `reduce`, `collatz`, `errors`,
+  `pfib`; 3rd at `loop`, `primes`, `mandelbrot`, `matmul`, `http`. **Slowest (7/7) at `spawn`** — the
+  multigen drain residual.
 - **`bintree` closed 6th → 4th** (98 ms → **90 ms**, now beating Python (94 ms) and Ruby (97 ms)):
   small vectors now store their elements **inline in the slab slot** instead of each being a
   separately heap-allocated `Vec`, so a 2-element tree node allocates with no `malloc` (a bump-push,
