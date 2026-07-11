@@ -3,15 +3,17 @@
 ;; map / filter / reduce pipeline over a range: keep the multiples of 3 or 5,
 ;; square them, sum the squares. Checksum = that sum.
 ;;
-;; Uses the FUSED form (`eduction` over transducers) — the fair match to the
+;; Uses the LAZY/streaming form (`lfilter`/`lmap`) — the fair match to the
 ;; lazy/streaming pipelines the other languages use here: Elixir `Stream`,
-;; Python generator expression, and .NET LINQ all fuse without building
-;; intermediate collections. Brood's `eduction` does the same (compute-frontier
-;; lever 3c / ADR-111): one pass over the range, no intermediate lists. The eager
-;; `(->> (range n) (filter …) (map …) (reduce …))` is still idiomatic Brood and
-;; would build a cons list per stage (~3× slower, ~13× more memory at n=1e6).
+;; Python generator expression, and .NET LINQ all stream without building
+;; intermediate collections. Brood's `lfilter`/`lmap` build lazy sequences, so the
+;; range flows through filter → map → reduce one element at a time (no fully
+;; materialized intermediate lists). The eager `(->> (range n) (filter …) (map …)
+;; (reduce …))` is still idiomatic Brood and would build a cons list per stage.
 (defn mult35? (i) (or (= 0 (rem i 3)) (= 0 (rem i 5))))
 
 (println
-  (reduce + 0
-    (eduction (xfilter mult35?) (xmap (fn (i) (* i i))) (range n))))
+  (->> (range n)
+       (lfilter mult35?)
+       (lmap (fn (i) (* i i)))
+       (reduce + 0)))

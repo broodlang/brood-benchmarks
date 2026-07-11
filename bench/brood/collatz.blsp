@@ -6,9 +6,9 @@
     (= (rem m 2) 0) (steps (quot m 2) (+ s 1))
     :else (steps (+ (* 3 m) 1) (+ s 1))))
 
-(defn scan (k best)
+(defn sweep (k best)
   (if (>= k n)
     best
-    (scan (+ k 1) (max best (steps k 0)))))
+    (sweep (+ k 1) (max best (steps k 0)))))
 
-(println (scan 1 0))
+(println (sweep 1 0))
