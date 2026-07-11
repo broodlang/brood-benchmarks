@@ -26,11 +26,14 @@ Workers in `spawn`/`pfib` share one compiled copy of the native code instead of 
 Still interpreted (or only partly JIT'd) — the weak rows; ratios are Brood's compute vs the fastest
 language on that row. Several old headline gaps have closed or inverted:
 
-- **`matmul` (~7.6× — .NET is ~27 ms) — ⚠ REGRESSED 94 → 204 ms this run.** The inner loop is native,
-  and the residual has always been the one read LICM can't hoist (the per-`k` row) plus the boxed 24-byte
-  `Value` vs a register `long` — but the absolute more than doubled from a change since the prior
-  baseline (brood `e11e1c0`). It is **not** multigen (identical with the RUNTIME collector disabled) and
-  not concurrency-related. First target of the post-benchmark regression hunt.
+- **`matmul` (~5.8× — .NET is ~28 ms) — regressed 94 → 204 ms, now mostly fixed at 163 ms.** The inner
+  loop is native, and the residual has always been the one read LICM can't hoist (the per-`k` row) plus
+  the boxed 24-byte `Value` vs a register `long`. The doubling to 204 ms was root-caused (bisect →
+  ADR-091): its `def`'d matrices live in the shared RUNTIME region, and multigen made every RUNTIME-handle
+  deref pay an `ArcSwap::load` (~13.6 % of runtime, ~16 M reads). Fixed by a per-process generation-pin
+  cache (brood `c3b55dd`) that clones a cached `Arc` gated on a version counter instead of loading the
+  ArcSwap per deref — 204 → 163 ms. The remaining ~163 vs 94 ms is the per-deref `Arc` clone (kept for
+  robust pinning) plus the LICM/boxing residual above.
 - **`bintree` (~9.6× — Elixir's BEAM is unusually fast here at ~10 ms)** — **closed 6th → 4th
   (98 ms → 90 ms)** by inline small-vector
   storage (2026-07-01): a small vector's elements live **inline in its slab slot** (not a separately
