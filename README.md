@@ -1,6 +1,6 @@
 # benchmark — Brood vs Clojure vs Elixir vs Python vs Node vs Ruby vs .NET
 
-A cross-language micro-benchmark suite: **19 small programs, each implemented
+A cross-language micro-benchmark suite: **28 small programs, each implemented
 seven times** (once per language) and run under one identical harness, to see
 where the Brood runtime is faster or slower than the alternatives — on
 **startup**, **memory**, **raw performance**, and **concurrency**. The field spans
@@ -26,18 +26,22 @@ claim to lead the field.
 - **Light and quick to start** — ~26 MB of memory and ~31 ms to boot: among the lightest and
   fastest-starting of the seven (Python and Ruby are lighter on memory; Elixir takes ~6× and
   Clojure's JVM ~11× longer to start).
-- **Wins two workloads outright** — fastest of seven at `strings` and `errors-deep`; **2nd at `fib`,
-  `reduce`, `pfib`**, `collatz`, and `errors`; 3rd at `loop`, `primes`, `mandelbrot`, `spawn`, `http`.
-- **Faster than Elixir on every row** — its closest peer (an immutable-functional language on the BEAM)
-  is beaten on *all 18* benchmarks, compute and concurrency alike (~2.3× faster by absolute
-  core-compute time; even `pfib`/`http` win). With `spawn` fixed, the one row BEAM's scheduler had led
-  now goes to Brood too.
+- **Wins the string workload outright** — fastest of seven at `strings`; **2nd at `fib`, `reduce`,
+  `pfib`**, `collatz`, `errors`, and `errors-deep`; 3rd at `loop`, `spawn`, `http`.
+- **Leads Elixir on the original core suite, trails it on the new axes** — Brood beats its closest peer
+  (an immutable-functional language on the BEAM) on essentially all of the original 18 rows, compute
+  and concurrency alike. But the 2026-07-12 wider-range additions invert that: **Elixir wins every new
+  row** — decisively on message-passing latency (`pingpong` 47 ms vs Brood 663 ms, ~14×; `ring` too),
+  and on the pure-Brood text/immutable rows where it uses native codecs and mutable arrays. Those are
+  the gaps the wider range was built to surface (see below and FRONTIER.md).
 - **Beats the interpreters and the JVM Lisp on this suite** — faster than Ruby, Python, and Clojure
   on most single-shot compute (Clojure's HotSpot JIT can't warm up in one short run — see the
   caveat below).
-- **3rd of seven on raw number-crunching** — overall single-threaded compute is roughly **3.2× slower
-  than the fastest** (.NET), behind only .NET and Node, level with Elixir on the geomean metric (and
-  ~2.3× faster than Elixir by absolute time). A **`matmul` regression** (94 → 204 ms) — RUNTIME-handle
+- **3rd of seven on raw number-crunching** — overall single-threaded compute is roughly **3.1× slower
+  than the fastest** (.NET), behind only .NET and Node, just ahead of Elixir on the geomean metric.
+  (This aggregate is the original core-compute rows only — it excludes the concurrency rows *and* the
+  new wider-range rows, which are library/representation-bound outliers reported on their own.)
+  A **`matmul` regression** (94 → 204 ms) — RUNTIME-handle
   reads paying an `ArcSwap::load` per deref after the multigen collector landed — was **mostly fixed**
   (brood `c3b55dd`, back to ~165 ms via a per-process generation-pin cache). Earlier work had closed
   several gaps — an **unboxed-`i64` JIT calling convention** for int-only recursion (`fib`, `pfib`),
@@ -63,7 +67,7 @@ precompiled. The full per-benchmark numbers are in
 [results/report.md](results/report.md) and [BENCHMARKS.md](BENCHMARKS.md); the chart above plots
 compute speed against memory.
 
-## The benchmarks (19)
+## The benchmarks (28)
 
 | name | stresses |
 |------|----------|
@@ -83,9 +87,18 @@ compute speed against memory.
 | `errors`      | error handling — raise + recover a value-carrying exception N times |
 | `errors-deep` | error propagation — throw 50 frames deep, catch at the top |
 | `pipeline`   | a `filter → map → reduce` composition over a range, written in each language's lazy/streaming style (Elixir `Stream`, Python generators, .NET LINQ) |
+| `ackermann`  | deep non-tail double-recursion — `ack(3,9)` (depth ~4093) summed N times |
+| `sieve`      | Sieve of Eratosthenes — a mutable bool array (native) vs a `Table` (Brood has no mutable array) |
+| `persistent-map` | read-modify-write churn over a 50k-key space — deep CHAMP (Brood/Clojure/Elixir) vs mutable hash |
+| `nbody`      | floating-point physics sim (5-body, N steps) — energy is **bit-identical** across all seven |
+| `json`       | JSON encode+parse round-trip — pure-Brood `std/json` vs native parsers |
+| `regex`      | regex full-match counting — pure-Brood `std/regex` vs native engines |
+| `base64`     | base64 encode+decode — pure-Brood `std/encoding` vs native codecs |
 | `spawn`      | lightweight concurrent units + result collection |
 | `pfib`       | parallel CPU — 100 `fib(31)`s computed at once across cores |
 | `http`       | concurrent I/O — N in-flight HTTP GETs to a local server |
+| `pingpong`   | message round-trip **latency** — two units bounce a token N times |
+| `ring`       | N-process **ring** — a token travels N×5000 hops around the ring |
 
 `spawn`, `pfib`, and `http` are each implemented in all seven languages, using that
 language's idiomatic concurrency. For `spawn` (lightweight units): green
@@ -95,9 +108,14 @@ CPU-bound `pfib`: green processes (Brood/Elixir), `worker_threads` (Node),
 `Parallel.For` (.NET), a forked process pool (Python/Ruby), `pmap` across cores
 (Clojure). For the I/O-bound `http`: green processes (Brood/Elixir), an async
 client (Node/.NET), a thread pool / thread-per-request (Python/Ruby), `future`s +
-`java.net.http` (Clojure). Green processes / actors are a first-class Brood & BEAM feature, so
-`spawn` is where that model is exercised head-to-head against threads and event
-loops — the comparison is deliberate, not like-for-like machinery.
+`java.net.http` (Clojure). The two message-passing rows, `pingpong` and `ring`, follow the same
+idiomatic-per-language rule — Brood/Elixir isolated processes + `send`/`receive`, Ruby/Python/Clojure
+real threads + blocking queues, Node cooperative `async` (`ring`) / `worker_threads` (`pingpong`),
+.NET channels — and isolate **message-passing latency**, the axis `spawn`/`pfib`/`http` don't. Green
+processes / actors are a first-class Brood & BEAM feature, so these rows exercise that model
+head-to-head against threads and event loops — the comparison is deliberate, not like-for-like
+machinery. (This is where the BEAM's tuned mailbox shows: Elixir leads `pingpong`/`ring` clearly,
+and it is the widest new gap for Brood — see FRONTIER.md.)
 
 ## What's measured
 

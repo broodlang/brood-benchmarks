@@ -1,0 +1,19 @@
+;; Two processes bounce a token N round trips — isolates message round-trip
+;; latency (the axis spawn/pfib/http don't). Checksum = N (constructed).
+(def n (let (e (getenv "BENCH_N")) (if e (string->number e) 100000)))
+(def me (self))
+
+(defn responder ()
+  (receive
+    ([:ping from] (do (send from :pong) (responder)))
+    ([:stop] nil)))
+
+(def pong (spawn (responder)))
+
+(defn ping (k)
+  (if (>= k n) k
+    (do (send pong [:ping me]) (receive (:pong (ping (+ k 1)))))))
+
+(def done (ping 0))
+(send pong [:stop])
+(println done)

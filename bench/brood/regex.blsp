@@ -1,0 +1,17 @@
+;; Generate N decimal strings (LCG); append "x" to the even ones to break a full
+;; match; count how many fully match [0-9]+. Uses [0123456789] (explicit set, no
+;; ranges) so Brood's pure-Brood regex and the native engines agree exactly.
+;; Checksum = count of full matches. Brood re-parses the pattern each call (its
+;; matches? API), so this row is pure-Brood regex vs native engines.
+(require 'regex)
+(def n (let (e (getenv "BENCH_N")) (if e (string->number e) 20000)))
+
+(defn go (i x acc)
+  (if (>= i n) acc
+    (let (x2 (bit-and (+ (* x 1103515245) 12345) 2147483647)
+          s0 (str x2)
+          s  (if (= (rem x2 2) 0) (str s0 "x") s0)
+          hit (if (regex/matches? "[0123456789]+" s) 1 0))
+      (go (+ i 1) x2 (+ acc hit)))))
+
+(println (go 0 123456789 0))

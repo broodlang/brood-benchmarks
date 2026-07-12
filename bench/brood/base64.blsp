@@ -1,0 +1,20 @@
+;; Generate N bytes (LCG mod 256), base64-encode then decode. Checksum =
+;; (sum of encoded char codes + sum of decoded bytes) mod 2^31 — exercises and
+;; verifies both directions. Brood's base64 is pure-Brood (std/encoding) vs the
+;; native codecs elsewhere.
+(require 'encoding)
+(def n (let (e (getenv "BENCH_N")) (if e (string->number e) 50000)))
+
+(defn gen (i x acc)
+  (if (>= i n) acc
+    (let (x2 (bit-and (+ (* x 1103515245) 12345) 2147483647))
+      (gen (+ i 1) x2 (cons (rem x2 256) acc)))))
+
+(def bs (reverse (gen 0 123456789 (list))))
+(def enc (encoding/base64-encode-bytes bs))
+;; enc-sum computed before any bytes-valued def (works around a VM miscompile
+;; where a preceding bytes `def` corrupts a later reduce over (string->list …)),
+;; and the decode is inlined into dec-sum.
+(def enc-sum (reduce (fn (a c) (rem (+ a (char->int c)) 2147483647)) 0 (string->list enc)))
+(def dec-sum (reduce (fn (a b) (rem (+ a b) 2147483647)) 0 (encoding/base64-decode-bytes enc)))
+(println (rem (+ enc-sum dec-sum) 2147483647))

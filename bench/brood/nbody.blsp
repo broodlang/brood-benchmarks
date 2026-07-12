@@ -1,0 +1,85 @@
+;; N-body sim; canonical formulation shared by all 7 langs (see node/nbody.js).
+;; Immutable/functional: bodies = a list of 5 vectors [x y z vx vy vz m], sun at
+;; index 0. Each step rebuilds the bodies. Checksum = floor(energy*1e9 + 0.5).
+(def n (let (e (getenv "BENCH_N")) (if e (string->number e) 50000)))
+(def dt 0.01)
+(def pi 3.141592653589793)
+(def sm (* 4.0 pi pi))
+(def dpy 365.24)
+
+(def init (list
+  [0.0 0.0 0.0 0.0 0.0 0.0 sm]
+  [4.84143144246472090e+00 -1.16032004402742839e+00 -1.03622044471123109e-01
+   (* 1.66007664274403694e-03 dpy) (* 7.69901118419740425e-03 dpy) (* -6.90460016972063023e-05 dpy)
+   (* 9.54791938424326609e-04 sm)]
+  [8.34336671824457987e+00 4.12479856412430479e+00 -4.03523417114321381e-01
+   (* -2.76742510726862411e-03 dpy) (* 4.99852801234917238e-03 dpy) (* 2.30417297573763929e-05 dpy)
+   (* 2.85885980666130812e-04 sm)]
+  [1.28943695621391310e+01 -1.51111514016986312e+01 -2.23307578892655734e-01
+   (* 2.96460137564761618e-03 dpy) (* 2.37847173959480950e-03 dpy) (* -2.96589568540237556e-05 dpy)
+   (* 4.36624404335156298e-05 sm)]
+  [1.53796971148509165e+01 -2.59193146099879641e+01 1.79258772950371181e-01
+   (* 2.68067772490389322e-03 dpy) (* 1.62824170038242295e-03 dpy) (* -9.51592254519715870e-05 dpy)
+   (* 5.15138902046611451e-05 sm)]))
+
+(defn f (b i k) (nth (nth b i) k))
+
+;; momentum sum over bodies 0..4 (ascending)
+(defn momentum (b i px py pz)
+  (if (>= i 5) [px py pz]
+    (let (m (f b i 6))
+      (momentum b (+ i 1) (+ px (* (f b i 3) m)) (+ py (* (f b i 4) m)) (+ pz (* (f b i 5) m))))))
+
+(defn offset (b)
+  (let ([px py pz] (momentum b 0 0.0 0.0 0.0)
+        sun (nth b 0)
+        sun2 [(nth sun 0) (nth sun 1) (nth sun 2) (/ (- px) sm) (/ (- py) sm) (/ (- pz) sm) (nth sun 6)])
+    (cons sun2 (rest b))))
+
+;; new velocity for body i, summing over j (ascending, j != i) from current positions
+(defn newvel (b i j vx vy vz)
+  (cond
+    (>= j 5) [vx vy vz]
+    (= j i)  (newvel b i (+ j 1) vx vy vz)
+    :else
+    (let (dx (- (f b i 0) (f b j 0))
+          dy (- (f b i 1) (f b j 1))
+          dz (- (f b i 2) (f b j 2))
+          dsq (+ (* dx dx) (* dy dy) (* dz dz))
+          dist (sqrt dsq)
+          mag (/ dt (* dsq dist))
+          mj (f b j 6))
+      (newvel b i (+ j 1) (- vx (* dx mj mag)) (- vy (* dy mj mag)) (- vz (* dz mj mag))))))
+
+;; new velocity from OLD positions, then position from new velocity (one body)
+(defn advance-body (b i)
+  (let (bi (nth b i)
+        [nvx nvy nvz] (newvel b i 0 (nth bi 3) (nth bi 4) (nth bi 5)))
+    [(+ (nth bi 0) (* dt nvx)) (+ (nth bi 1) (* dt nvy)) (+ (nth bi 2) (* dt nvz))
+     nvx nvy nvz (nth bi 6)]))
+
+(defn advance (b)
+  (list (advance-body b 0) (advance-body b 1) (advance-body b 2)
+        (advance-body b 3) (advance-body b 4)))
+
+(defn run (k b) (if (>= k n) b (run (+ k 1) (advance b))))
+
+(defn kinetic (b i acc)
+  (if (>= i 5) acc
+    (let (vx (f b i 3) vy (f b i 4) vz (f b i 5))
+      (kinetic b (+ i 1) (+ acc (* 0.5 (f b i 6) (+ (* vx vx) (* vy vy) (* vz vz))))))))
+
+(defn potential (b i j acc)
+  (cond
+    (>= i 5) acc
+    (> j 4)  (potential b (+ i 1) (+ i 2) acc)
+    :else
+    (let (dx (- (f b i 0) (f b j 0))
+          dy (- (f b i 1) (f b j 1))
+          dz (- (f b i 2) (f b j 2))
+          dist (sqrt (+ (* dx dx) (* dy dy) (* dz dz))))
+      (potential b i (+ j 1) (- acc (/ (* (f b i 6) (f b j 6)) dist))))))
+
+(def final (run 0 (offset init)))
+(def e (potential final 0 1 (kinetic final 0 0.0)))
+(println (floor (+ (* e 1e9) 0.5)))

@@ -24,9 +24,18 @@ switch (name)
     case "errors":     Bench.Errors.Run(N(200000)); break;
     case "errors-deep": Bench.ErrorsDeep.Run(N(50000)); break;
     case "pipeline":   Bench.Pipeline.Run(N(100000)); break;
+    case "ackermann":  Bench.Ackermann.Run(N(6)); break;
+    case "sieve":      Bench.Sieve.Run(N(1000000)); break;
+    case "persistent-map": Bench.PersistentMap.Run(N(300000)); break;
+    case "nbody":      Bench.Nbody.Run(N(50000)); break;
+    case "json":       Bench.Json.Run(N(2000)); break;
+    case "regex":      Bench.RegexBench.Run(N(20000)); break;
+    case "base64":     Bench.Base64.Run(N(50000)); break;
     case "pfib":       Bench.Pfib.Run(N(31)); break;
     case "spawn":      await Bench.Spawn.Run(N(10000)); break;
     case "http":       await Bench.Http.Run(N(500)); break;
+    case "pingpong":   await Bench.Pingpong.Run(N(100000)); break;
+    case "ring":       await Bench.Ring.Run(N(200)); break;
     default:
         Console.Error.WriteLine($"unknown benchmark: {name}");
         Environment.Exit(1);
