@@ -90,7 +90,10 @@ LANGS = {
     "brood":  {"dir": "brood",  "ext": "blsp", "cmd": lambda p: ["brood", p], "env": {"BROOD_VM": "1"}},
     "clojure": {"dir": "clojure", "ext": "clj", "cmd": clojure_cmd},
     "elixir": {"dir": "elixir", "ext": "ex",   "cmd": elixir_cmd},
-    "python": {"dir": "python", "ext": "py",   "cmd": lambda p: ["python3", p]},
+    # -P isolates sys.path from the script's own dir, so bench files named after a
+    # stdlib module (json.py, base64.py) don't shadow the stdlib for *sibling*
+    # scripts (e.g. spawn.py's `import asyncio` transitively importing base64).
+    "python": {"dir": "python", "ext": "py",   "cmd": lambda p: ["python3", "-P", p]},
     "node":   {"dir": "node",   "ext": "js",   "cmd": lambda p: ["node", p]},
     "ruby":   {"dir": "ruby",   "ext": "rb",   "cmd": lambda p: ["ruby", p]},
     "dotnet": {"dir": "dotnet", "ext": "cs",   "cmd": lambda p: [str(DOTNET_APP), Path(p).stem]},
@@ -213,15 +216,24 @@ BENCHES = [
     ("errors",     200000,   "all", "error handling — raise + recover a value N times"),
     ("errors-deep", 50000,   "all", "error propagation — throw 50 frames deep, catch at top"),
     ("pipeline",   100000,   "all", "filter/map/reduce pipeline over a range"),
+    ("ackermann",  6,        "all", "deep double-recursion (Ackermann ack(3,9))"),
+    ("sieve",      1000000,  "all", "Sieve of Eratosthenes (mutable array vs Table)"),
+    ("persistent-map", 300000, "all", "read-modify-write churn on a map (deep CHAMP)"),
+    ("nbody",      50000,    "all", "floating-point physics sim (N-body)"),
+    ("json",       2000,     "all", "JSON encode+parse round-trip (pure-Brood vs native)"),
+    ("regex",      20000,    "all", "regex full-match count (pure-Brood vs native)"),
+    ("base64",     50000,    "all", "base64 encode+decode (pure-Brood vs native)"),
     ("spawn",      10000,    "all", "lightweight concurrent units + result collection"),
     ("pfib",       31,       "all", "parallel fib — 100 computed at once across cores"),
     ("http",       500,      "all", "concurrent HTTP — N in-flight GETs to a local server"),
+    ("pingpong",   100000,   "all", "message round-trip latency — two units bounce a token N times"),
+    ("ring",       200,      "all", "N-process ring — token travels N*5000 hops"),
 ]
 
 # The concurrency benchmarks bounce 15–45% run-to-run with scheduler / CPU
 # contention. Since we report the best (least-noisy) run, taking more samples
 # tightens the floor — so these run more times than the steady compute benches.
-NOISY = {"spawn", "pfib", "http"}
+NOISY = {"spawn", "pfib", "http", "pingpong", "ring"}
 NOISY_RUNS = 7
 
 QUICK = {  # smaller sizes for a fast smoke run

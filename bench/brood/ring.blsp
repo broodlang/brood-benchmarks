@@ -1,0 +1,28 @@
+;; A ring of N processes; a token travels around, +1 per hop, for LAPS laps
+;; (N*LAPS hops total). Stresses message throughput across many live processes.
+;; Checksum = N*LAPS (constructed). Tagged :next setup relies on selective receive.
+(def n (let (e (getenv "BENCH_N")) (if e (string->number e) 200)))
+(def laps 5000)
+(def total (* n laps))
+(def me (self))
+
+(defn node-loop (nxt)
+  (receive (v
+    (if (>= v total)
+      (send me [:done v])
+      (do (send nxt (+ v 1)) (node-loop nxt))))))
+
+(defn node ()
+  (receive ([:next nxt] (node-loop nxt))))
+
+(defn spawn-list (k acc) (if (= k 0) acc (spawn-list (- k 1) (cons (spawn (node)) acc))))
+(def pids (spawn-list n (list)))
+
+(defn wire (ps head)
+  (if (empty? (rest ps))
+    (send (first ps) [:next head])
+    (do (send (first ps) [:next (first (rest ps))]) (wire (rest ps) head))))
+(wire pids (first pids))
+
+(send (first pids) 0)
+(println (receive ([:done v] v)))

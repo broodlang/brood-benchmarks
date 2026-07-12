@@ -81,6 +81,39 @@ fastest there (its 50k-throw compute falls below its own boot noise). It's an ax
   OS-process ceiling (Brood green 3.93× vs 4.20× for independent OS processes on this 12-core box —
   it even beats Elixir's 3.30×), so the residual is just `fib`'s single-thread gap (now ~1.5×).
 
+## Wider-range findings (2026-07-12)
+
+Nine benchmarks widened coverage past the numeric/allocation core; they surfaced several concrete
+targets, ranked here by value. None are in the positioning-chart aggregate (that stays the original
+core-compute rows) — they are reported on their own precisely because they are library/representation
+gaps, not core VM speed.
+
+1. **Message-passing latency — `pingpong` is ~14× behind the BEAM (highest-value new target).**
+   Brood does a send+receive round-trip in ~6.6 µs (663 ms / 100 k) vs Elixir's ~0.47 µs (47 ms);
+   `ring` echoes it (Brood 2.2 s vs Elixir 262 ms). This is Brood's *home turf* — Erlang-style
+   isolated processes — and it is nowhere near BEAM parity on raw mailbox latency. Suspects: the
+   `receive` selective-scan cost, mailbox locking, and scheduler wake-up/hand-off latency on a
+   two-process ping-pong. Brood already beats the real-thread languages (Python/Ruby/Clojure, 3.6–4.9 s
+   on `ring`), so the gap is specifically vs a tuned actor scheduler. This is the most important
+   lever the wider range exposed.
+2. **`std/json` is super-linear and `std/encoding` (base64) blows RSS — pure-Brood library bugs.**
+   `json` encode+parse is ~O(n²) (2 000 recs → 2.5 s, 5 000 → 12.7 s); `base64` peaks at **1.3 GB
+   RSS** at 50 k bytes. These are Brood-source fixes (quadratic string building in the encoders; an
+   intermediate-list blow-up in base64), not VM work — the cheapest wins on the board, and exactly
+   the kind of gap dogfooding is meant to catch. `regex` is merely linear-but-interpreted (pure-Brood
+   backtracking that re-parses the pattern each `matches?`), a smaller structural cost.
+3. **Immutable numeric loops — `nbody` ~850×.** Rebuilding immutable body vectors every step
+   dominates; there is no lever here without either escape analysis that stack-allocates/reuses the
+   per-step vectors or a native float-array primitive (philosophically fraught — see the mutable-data
+   invariant). Likely stays a known immutable-cost data point rather than a target.
+4. **Non-tail deep recursion — `ackermann` ~16×.** Brood's `ack(3,9)` (depth ~4093, non-tail double
+   recursion) runs 4.1 s, near Python — the JIT covers `fib`'s non-tail *single* recursion but not
+   this `cond` + double-recursion shape, so it interprets. Extending the non-tail-recursion JIT
+   coverage is the lever; distinct from `fib`, which already tiers.
+5. **`sieve` ~316× and `persistent-map` ~30×** — the expected cost of the immutable model: a `Table`
+   (ETS) standing in for a mutable bool array, and CHAMP path-copy under read-modify-write. Known
+   costs, not bugs; a bitset primitive would help `sieve` but adds a builtin.
+
 ## Candidate levers (rough priority)
 
 1. ~~**Float lowering** (`mandelbrot`)~~ — **closed / dead end.** `esc`'s floats are already

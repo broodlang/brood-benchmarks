@@ -1,0 +1,14 @@
+;; Ackermann ack(3,9) summed N times. Deep double-recursion (depth ~4093) —
+;; stresses non-tail call overhead + stack far past fib's shallow tree.
+;; Checksum = N * ack(3,9) = N * 4093.
+(def n (let (e (getenv "BENCH_N")) (if e (string->number e) 6)))
+
+(defn ack (m k)
+  (cond
+    (= m 0) (+ k 1)
+    (= k 0) (ack (- m 1) 1)
+    :else   (ack (- m 1) (ack m (- k 1)))))
+
+(defn run (i acc) (if (>= i n) acc (run (+ i 1) (+ acc (ack 3 9)))))
+
+(println (run 0 0))
