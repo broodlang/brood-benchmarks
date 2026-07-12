@@ -88,14 +88,17 @@ targets, ranked here by value. None are in the positioning-chart aggregate (that
 core-compute rows) — they are reported on their own precisely because they are library/representation
 gaps, not core VM speed.
 
-1. **Message-passing latency — `pingpong` is ~14× behind the BEAM (highest-value new target).**
-   Brood does a send+receive round-trip in ~6.6 µs (663 ms / 100 k) vs Elixir's ~0.47 µs (47 ms);
-   `ring` echoes it (Brood 2.2 s vs Elixir 262 ms). This is Brood's *home turf* — Erlang-style
-   isolated processes — and it is nowhere near BEAM parity on raw mailbox latency. Suspects: the
-   `receive` selective-scan cost, mailbox locking, and scheduler wake-up/hand-off latency on a
-   two-process ping-pong. Brood already beats the real-thread languages (Python/Ruby/Clojure, 3.6–4.9 s
-   on `ring`), so the gap is specifically vs a tuned actor scheduler. This is the most important
-   lever the wider range exposed.
+1. **~~Message-passing latency — `pingpong` ~14× behind the BEAM~~ — LARGELY CLOSED (brood, 2026-07-12).**
+   Was ~6.6 µs/round-trip (~13× Elixir); now **~3.3 µs (306 ms / 100 k), 3/7 across langs** (ring 4/7) —
+   off last place, ahead of Ruby/Node/Python/Clojure. Two fixes: (a) **wake-syscall elision** —
+   `enqueue` fired an unconditional `futex_wake` even handing a process to the *current* worker
+   (the direct-handoff case); skipping it dropped green↔green ping-pong from ~4.4 futex/round-trip to
+   ~0 (202k → ~400 over 100k). (b) **ADR-135: the top-level program now runs as one green process**
+   instead of a privileged root thread that blocked on its mailbox condvar and crossed the main↔worker
+   boundary via futex *per message*. Both together: pingpong 6.5 → 3.3 µs/RT, futex 416k → 370; ring
+   ~2.1 s. Residual ~6.6× vs BEAM is intrinsic to Brood's design (immutable per-message allocation,
+   heap-captured migratable continuations, per-process heap-isolated message copies) — not traded away.
+   Follow-on: `nest run FILE` now routes through the same program-process path (`%run-program-file`).
 2. **~~`std/json` super-linear + `std/encoding` (base64) blows RSS~~ — FIXED (brood `a1d3fd2`, 2026-07-12).**
    Both traced to one root cause: **`string->list` was O(n²)** — it built each char with
    `(substring s i (inc i))`, and `substring` walks to char boundary `i` every call, so the
