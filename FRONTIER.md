@@ -96,12 +96,16 @@ gaps, not core VM speed.
    two-process ping-pong. Brood already beats the real-thread languages (Python/Ruby/Clojure, 3.6–4.9 s
    on `ring`), so the gap is specifically vs a tuned actor scheduler. This is the most important
    lever the wider range exposed.
-2. **`std/json` is super-linear and `std/encoding` (base64) blows RSS — pure-Brood library bugs.**
-   `json` encode+parse is ~O(n²) (2 000 recs → 2.5 s, 5 000 → 12.7 s); `base64` peaks at **1.3 GB
-   RSS** at 50 k bytes. These are Brood-source fixes (quadratic string building in the encoders; an
-   intermediate-list blow-up in base64), not VM work — the cheapest wins on the board, and exactly
-   the kind of gap dogfooding is meant to catch. `regex` is merely linear-but-interpreted (pure-Brood
-   backtracking that re-parses the pattern each `matches?`), a smaller structural cost.
+2. **~~`std/json` super-linear + `std/encoding` (base64) blows RSS~~ — FIXED (brood `a1d3fd2`, 2026-07-12).**
+   Both traced to one root cause: **`string->list` was O(n²)** — it built each char with
+   `(substring s i (inc i))`, and `substring` walks to char boundary `i` every call, so the
+   `(into [] (string->list s))` code-point vector the parsers index was O(n²) *to construct*. Reimplemented
+   over the native `string-split` (one O(n) `chars()` pass): `json` went super-linear → linear (2 000 recs
+   **2.5 s → 0.9 s**) and `base64` dropped **1.5 s / 1.3 GB RSS → 134 ms / 105 MB** (overtaking Clojure,
+   7/7 → 6/7). A companion `seq` fix realises a `bytes` value to a list once (`bytes->list`), killing an
+   O(n²) `(reduce … bytes)`; the same char-scan / `(str acc …)` anti-patterns were then swept out of
+   `std/csv` / `std/url` / `std/net`. `regex` remains linear-but-interpreted (pure-Brood backtracking that
+   re-parses the pattern each `matches?`) — the next-cheapest structural cost on this axis.
 3. **Immutable numeric loops — `nbody` ~850×.** Rebuilding immutable body vectors every step
    dominates; there is no lever here without either escape analysis that stack-allocates/reuses the
    per-step vectors or a native float-array primitive (philosophically fraught — see the mutable-data

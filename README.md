@@ -37,7 +37,7 @@ claim to lead the field.
 - **Beats the interpreters and the JVM Lisp on this suite** — faster than Ruby, Python, and Clojure
   on most single-shot compute (Clojure's HotSpot JIT can't warm up in one short run — see the
   caveat below).
-- **3rd of seven on raw number-crunching** — overall single-threaded compute is roughly **3.1× slower
+- **3rd of seven on raw number-crunching** — overall single-threaded compute is roughly **3.8× slower
   than the fastest** (.NET), behind only .NET and Node, just ahead of Elixir on the geomean metric.
   (This aggregate is the original core-compute rows only — it excludes the concurrency rows *and* the
   new wider-range rows, which are library/representation-bound outliers reported on their own.)

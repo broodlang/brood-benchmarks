@@ -21,34 +21,34 @@ Lower is better. **Bold** = Brood. "Rank" is Brood's place by compute among the 
 
 | benchmark | Brood | Clojure | Elixir | Python | Node | Ruby | .NET | Brood rank |
 |---|---|---|---|---|---|---|---|---|
-| `fib` | **51ms** | 210ms | 81ms | 762ms | 77ms | 638ms | 45ms | 2/7 |
-| `loop` | **36ms** | 154ms | 57ms | 2.4s | 32ms | 600ms | 26ms | 3/7 |
-| `reduce` | **13ms** | 199ms | 28ms | 107ms | 220ms | 226ms | 12ms | 2/7 |
-| `primes` | **39ms** | 173ms | 15ms | 123ms | 10ms | 119ms | 8ms | 4/7 |
-| `collatz` | **79ms** | 444ms | 109ms | 2.5s | 190ms | 857ms | 47ms | 2/7 |
-| `mandelbrot` | **216ms** | 173ms | 267ms | 1.4s | 22ms | 419ms | 19ms | 4/7 |
-| `matmul` | **128ms** | 213ms | 54ms | 461ms | 17ms | 296ms | 4ms | 4/7 |
-| `strings` | **10ms** | 182ms | 119ms | 43ms | 66ms | 85ms | 31ms | **1/7** |
-| `wordcount` | **113ms** | 297ms | 163ms | 177ms | 32ms | 74ms | 37ms | 4/7 |
-| `bintree` | **94ms** | 188ms | 13ms | 100ms | 22ms | 98ms | 13ms | 4/7 |
-| `sort` | **158ms** | 302ms | 111ms | 200ms | 105ms | 73ms | 64ms | 5/7 |
-| `nqueens` | **82ms** | 273ms | 5ms | 56ms | 8ms | 143ms | 20ms | 5/7 |
-| `errors` | **40ms** | 1.2s | 18ms | 52ms | 602ms | 111ms | 293ms | 2/7 |
-| `errors-deep` | **54ms** | 1.5s | 6ms | 232ms | 222ms | 116ms | 731ms | 2/7 |
-| `pipeline` | **32ms** | 164ms | 15ms | 5ms | 9ms | 10ms | 9ms | 6/7 |
-| `ackermann` | **4.1s** | 601ms | 285ms | 4.2s | 407ms | 2.0s | 245ms | 6/7 |
-| `sieve` | **1.3s** | 170ms | 59ms | 120ms | 7ms | 102ms | 4ms | 7/7 |
-| `persistent-map` | **672ms** | 338ms | 129ms | 101ms | 26ms | 43ms | 22ms | 7/7 |
-| `nbody` | **7.2s** | 200ms | 143ms | 762ms | 16ms | 302ms | 8ms | 7/7 |
-| `json` | **2.5s** | 425ms | 7ms | 9ms | 2ms | 5ms | 43ms | 7/7 |
-| `regex` | **2.6s** | 142ms | 12ms | 14ms | 4ms | 7ms | 13ms | 7/7 |
-| `base64` | **1.5s** | 200ms | 4ms | 13ms | 6ms | 8ms | 4ms | 7/7 |
-| `spawn` | **51ms** | 218ms | 17ms | 558ms | 53ms | 1.7s | 19ms | 3/7 |
-| `pfib` | **174ms** | 435ms | 332ms | 2.5s | 311ms | 2.0s | 120ms | 2/7 |
-| `http` | **162ms** | 865ms | 612ms | 176ms | 120ms | 217ms | 155ms | 3/7 |
-| `pingpong` | **663ms** | 648ms | 47ms | 841ms | 677ms | 618ms | 172ms | 5/7 |
-| `ring` | **2.2s** | 4.6s | 262ms | 4.9s | 118ms | 3.6s | 885ms | 4/7 |
-| `startup` (wall) | **33ms** | 342ms | 190ms | 10ms | 18ms | 40ms | 22ms | 4/7 |
+| `fib` | **65ms** | 252ms | 90ms | 784ms | 82ms | 692ms | 42ms | 2/7 |
+| `loop` | **37ms** | 171ms | 63ms | 2.5s | 32ms | 567ms | 11ms | 3/7 |
+| `reduce` | **14ms** | 384ms | 67ms | 129ms | 253ms | 255ms | 10ms | 2/7 |
+| `primes` | **43ms** | 150ms | 27ms | 126ms | 8ms | 138ms | 6ms | 4/7 |
+| `collatz` | **83ms** | 492ms | 119ms | 2.7s | 190ms | 879ms | 43ms | 2/7 |
+| `mandelbrot` | **235ms** | 168ms | 271ms | 1.4s | 21ms | 446ms | 16ms | 4/7 |
+| `matmul` | **135ms** | 465ms | 71ms | 457ms | 17ms | 327ms | 1ms | 4/7 |
+| `strings` | **12ms** | 188ms | 116ms | 42ms | 71ms | 96ms | 31ms | **1/7** |
+| `wordcount` | **182ms** | 290ms | 181ms | 182ms | 32ms | 79ms | 36ms | 6/7 |
+| `bintree` | **94ms** | 156ms | 16ms | 99ms | 22ms | 104ms | 12ms | 4/7 |
+| `sort` | **150ms** | 236ms | 123ms | 185ms | 106ms | 71ms | 69ms | 5/7 |
+| `nqueens` | **80ms** | 187ms | 10ms | 55ms | 8ms | 123ms | 17ms | 5/7 |
+| `errors` | **38ms** | 1.1s | 24ms | 48ms | 589ms | 111ms | 295ms | 2/7 |
+| `errors-deep` | **56ms** | 1.5s | 10ms | 239ms | 225ms | 117ms | 710ms | 2/7 |
+| `pipeline` | **31ms** | 117ms | 18ms | 4ms | 14ms | 19ms | 5ms | 6/7 |
+| `ackermann` | **4.0s** | 671ms | 354ms | 4.1s | 410ms | 1.8s | 270ms | 6/7 |
+| `sieve` | **1.3s** | 208ms | 63ms | 122ms | 6ms | 87ms | 0ms | 7/7 |
+| `persistent-map` | **659ms** | 283ms | 126ms | 85ms | 23ms | 40ms | 19ms | 7/7 |
+| `nbody` | **7.4s** | 177ms | 153ms | 782ms | 16ms | 315ms | 5ms | 7/7 |
+| `json` | **896ms** | 556ms | 12ms | 7ms | 2ms | 4ms | 43ms | 7/7 |
+| `regex` | **2.4s** | 140ms | 14ms | 14ms | 4ms | 9ms | 9ms | 7/7 |
+| `base64` | **134ms** | 144ms | 12ms | 14ms | 5ms | 7ms | 1ms | 6/7 |
+| `spawn` | **61ms** | 186ms | 24ms | 572ms | 57ms | 1.7s | 14ms | 4/7 |
+| `pfib` | **184ms** | 430ms | 352ms | 2.9s | 343ms | 2.2s | 122ms | 2/7 |
+| `http` | **171ms** | 886ms | 623ms | 176ms | 126ms | 222ms | 150ms | 3/7 |
+| `pingpong` | **659ms** | 635ms | 62ms | 851ms | 676ms | 625ms | 187ms | 5/7 |
+| `ring` | **2.3s** | 4.6s | 275ms | 4.9s | 119ms | 3.7s | 919ms | 4/7 |
+| `startup` (wall) | **33ms** | 377ms | 185ms | 11ms | 18ms | 40ms | 26ms | 4/7 |
 
 The first 15 rows and `spawn`/`pfib`/`http` are the original core suite; `ackermann`…`base64`
 and `pingpong`/`ring` are the **2026-07-12 wider-range additions** (see "The wider range" below).
@@ -102,11 +102,18 @@ They exist to *surface gaps*, and they do:
   processes) and it is far from BEAM parity. (Node "wins" `ring` at 118 ms, but its concurrency is
   cooperative single-thread, not isolated processes — a different model; see the fairness note.)
 - **Pure-Brood stdlib vs native codecs (`json`, `regex`, `base64`).** These run Brood's *in-language*
-  `std/json` / `std/regex` / `std/encoding` against native C/JVM codecs — so Brood is **400–1400×
-  slower and last**, by design (the "write the language in the language" ethos surfacing where the
-  library is slow, not the VM). Two also expose real `std/` performance bugs: `json` is **super-linear**
-  (2 000 records → 2.5 s but 5 000 → 12.7 s, ~O(n²)) and `base64` **blows peak RSS to 1.3 GB** at
-  50 000 bytes — concrete fixes waiting in the encoders, beyond mere interpreter overhead.
+  `std/json` / `std/regex` / `std/encoding` against native C/JVM codecs, so Brood is still hundreds of ×
+  slower on the text rows — by design (the "write the language in the language" ethos surfacing where the
+  library is slow, not the VM). But the two real `std/` bugs the first run exposed are now **fixed** (brood
+  `a1d3fd2`), and both traced to a single root cause: **`string->list` was O(n²)**. It built each char with
+  `(substring s i (inc i))`, and `substring` walks to char boundary `i` on every call — so the
+  `(into [] (string->list s))` code-point vector the parsers index was O(n²) *to construct*, silently
+  defeating the char-indexing rewrites. Reimplemented over the native `string-split` (one O(n) `chars()`
+  pass), `json` went **super-linear → linear** (2 000 records **2.5 s → 0.9 s**; 5 000 no longer 12.7 s)
+  and `base64` dropped from **1.5 s / 1.3 GB peak RSS to 134 ms / 105 MB** — enough to overtake Clojure
+  (**7/7 → 6/7**). A companion `seq` fix (realise a `bytes` value to a list once, via `bytes->list`) removed
+  an O(n²) `(reduce … bytes)` in the same path. The same anti-patterns were then swept out of
+  `std/csv` / `std/url` / `std/net` (see the Brood repo devlog, 2026-07-12).
 - **Immutable float sim (`nbody`).** ~450–850× the native cost (7.2 s vs .NET 8 ms): the price of
   rebuilding immutable body vectors every step in a tight numeric loop, with no mutable arrays.
 - **Mutable-array algorithm (`sieve`).** Brood has no mutable array, so the sieve marks composites in
@@ -135,9 +142,10 @@ compare *how you would actually write concurrent message passing in each*, not i
 ## How to read it
 
 - **Aggregate single-threaded compute** (the positioning chart's x-axis — Σ wall−startup over the
-  core-compute rows, normalised to the fastest total): .NET 1.0× · Node 2.6× · **Brood 3.1×** ·
-  Elixir 3.3× · Clojure 8.2× · Ruby 11.3× · Python 26.7×. Brood is **3rd of seven** — behind only .NET
-  and Node, now just ahead of Elixir on this geomean-of-ratios metric. **The aggregate is the original
+  core-compute rows, normalised to the fastest total): .NET 1.0× · Node 3.0× · **Brood 3.8×** ·
+  Elixir 4.2× · Clojure 10.7× · Ruby 13.3× · Python 31.3×. Brood is **3rd of seven** — behind only .NET
+  and Node, still ahead of Elixir on this geomean-of-ratios metric (the whole field drifts run-to-run;
+  the ordering is what holds). **The aggregate is the original
   core-compute rows only** — it deliberately excludes `spawn`/`pfib`/`http`/`pingpong`/`ring`, the
   error rows, *and* the 2026-07-12 additions (`ackermann`/`sieve`/`persistent-map`/`nbody`/`json`/
   `regex`/`base64`). Folding the new rows in would swamp the figure with outliers that reflect
