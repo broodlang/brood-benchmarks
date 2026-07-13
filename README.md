@@ -27,7 +27,9 @@ claim to lead the field.
   fastest-starting of the seven (Python and Ruby are lighter on memory; Elixir takes ~6× and
   Clojure's JVM ~11× longer to start).
 - **Wins the string and `reduce` workloads outright** — fastest of seven at `strings` and `reduce`;
-  **2nd at `fib`, `pfib`, `errors`**; 3rd at `collatz`, `spawn`, `http`, and `pingpong`.
+  **2nd at `fib`, `pfib`, `errors`**; 3rd at `collatz`, `ackermann`, `spawn`, `http`, and `pingpong`
+  (`ackermann` was dead last at 4.1 s until the JIT's register recursion learned tail self-calls —
+  now 0.36 s, 3rd; see BENCHMARKS.md / FRONTIER.md).
 - **Leads Elixir on the original core suite, trails it on the new axes** — Brood beats its closest peer
   (an immutable-functional language on the BEAM) on essentially all of the original 18 rows, compute
   and concurrency alike. But the 2026-07-12 wider-range additions invert that: **Elixir wins every new

@@ -21,34 +21,34 @@ Lower is better. **Bold** = Brood. "Rank" is Brood's place by compute among the 
 
 | benchmark | Brood | Clojure | Elixir | Python | Node | Ruby | .NET | Brood rank |
 |---|---|---|---|---|---|---|---|---|
-| `fib` | **55ms** | 205ms | 69ms | 809ms | 74ms | 598ms | 45ms | 2/7 |
-| `loop` | **305ms** | 154ms | 50ms | 2.4s | 30ms | 607ms | 14ms | 5/7 |
-| `reduce` | **4ms** | 182ms | 32ms | 105ms | 237ms | 223ms | 12ms | 1/7 |
-| `primes` | **53ms** | 149ms | 14ms | 122ms | 10ms | 124ms | 8ms | 4/7 |
-| `collatz` | **169ms** | 418ms | 103ms | 2.7s | 178ms | 881ms | 46ms | 3/7 |
-| `mandelbrot` | **262ms** | 162ms | 255ms | 1.4s | 20ms | 413ms | 18ms | 5/7 |
-| `matmul` | **139ms** | 196ms | 56ms | 443ms | 16ms | 279ms | 4ms | 4/7 |
-| `strings` | **13ms** | 166ms | 112ms | 43ms | 64ms | 81ms | 31ms | **1/7** |
-| `wordcount` | **120ms** | 269ms | 159ms | 174ms | 30ms | 67ms | 36ms | 4/7 |
-| `bintree` | **91ms** | 171ms | 7ms | 95ms | 19ms | 97ms | 14ms | 4/7 |
-| `sort` | **218ms** | 256ms | 108ms | 186ms | 107ms | 70ms | 63ms | 6/7 |
-| `nqueens` | **133ms** | 212ms | 8ms | 54ms | 7ms | 122ms | 19ms | 6/7 |
-| `errors` | **40ms** | 1.1s | 19ms | 48ms | 584ms | 106ms | 282ms | 2/7 |
-| `errors-deep` | **244ms** | 1.3s | 4ms | 234ms | 213ms | 109ms | 706ms | 5/7 |
-| `pipeline` | **38ms** | 136ms | 7ms | 4ms | 7ms | 7ms | 8ms | 6/7 |
-| `ackermann` | **4.0s** | 537ms | 275ms | 3.9s | 392ms | 1.7s | 243ms | 7/7 |
-| `sieve` | **1.0s** | 139ms | 52ms | 118ms | 6ms | 85ms | 2ms | 7/7 |
-| `persistent-map` | **606ms** | 296ms | 116ms | 85ms | 23ms | 38ms | 22ms | 7/7 |
-| `nbody` | **5.9s** | 176ms | 141ms | 729ms | 13ms | 289ms | 6ms | 7/7 |
-| `json` | **354ms** | 400ms | 4ms | 8ms | 1ms | 4ms | 42ms | 6/7 |
-| `regex` | **946ms** | 136ms | 13ms | 13ms | 3ms | 6ms | 12ms | 7/7 |
-| `base64` | **132ms** | 160ms | 8ms | 14ms | 5ms | 7ms | 4ms | 6/7 |
-| `spawn` | **51ms** | 186ms | 20ms | 552ms | 52ms | 1.6s | 18ms | 3/7 |
-| `pfib` | **185ms** | 380ms | 291ms | 2.5s | 295ms | 1.9s | 113ms | 2/7 |
-| `http` | **159ms** | 802ms | 566ms | 174ms | 127ms | 209ms | 142ms | 3/7 |
-| `pingpong` | **258ms** | 597ms | 46ms | 820ms | 640ms | 592ms | 166ms | 3/7 |
-| `ring` | **1.4s** | 4.4s | 256ms | 4.7s | 114ms | 3.5s | 887ms | 4/7 |
-| `startup` (wall) | **32ms** | 337ms | 185ms | 10ms | 18ms | 40ms | 22ms | 4/7 |
+| `fib` | **53ms** | 198ms | 76ms | 753ms | 77ms | 597ms | 44ms | 2/7 |
+| `loop` | **304ms** | 157ms | 62ms | 2.5s | 30ms | 590ms | 11ms | 5/7 |
+| `reduce` | **4ms** | 172ms | 35ms | 106ms | 226ms | 226ms | 10ms | **1/7** |
+| `primes` | **49ms** | 143ms | 19ms | 122ms | 9ms | 115ms | 7ms | 4/7 |
+| `collatz` | **160ms** | 418ms | 99ms | 2.4s | 172ms | 873ms | 46ms | 3/7 |
+| `mandelbrot` | **263ms** | 166ms | 247ms | 1.3s | 20ms | 419ms | 18ms | 5/7 |
+| `matmul` | **139ms** | 200ms | 58ms | 467ms | 16ms | 278ms | 4ms | 4/7 |
+| `strings` | **12ms** | 154ms | 114ms | 43ms | 65ms | 82ms | 30ms | **1/7** |
+| `wordcount` | **120ms** | 269ms | 164ms | 175ms | 30ms | 70ms | 37ms | 4/7 |
+| `bintree` | **91ms** | 169ms | 10ms | 95ms | 21ms | 96ms | 13ms | 4/7 |
+| `sort` | **217ms** | 248ms | 108ms | 179ms | 104ms | 71ms | 64ms | 6/7 |
+| `nqueens` | **134ms** | 249ms | 8ms | 53ms | 7ms | 121ms | 18ms | 6/7 |
+| `errors` | **39ms** | 1.1s | 15ms | 48ms | 612ms | 109ms | 283ms | 2/7 |
+| `errors-deep` | **247ms** | 1.3s | 4ms | 232ms | 207ms | 114ms | 705ms | 5/7 |
+| `pipeline` | **36ms** | 131ms | 6ms | 4ms | 9ms | 8ms | 6ms | 6/7 |
+| `ackermann` | **328ms** | 533ms | 278ms | 3.8s | 392ms | 1.6s | 242ms | 3/7 |
+| `sieve` | **1.0s** | 138ms | 52ms | 117ms | 6ms | 85ms | 2ms | 7/7 |
+| `persistent-map` | **612ms** | 285ms | 118ms | 78ms | 23ms | 39ms | 21ms | 7/7 |
+| `nbody` | **5.9s** | 179ms | 150ms | 729ms | 14ms | 289ms | 6ms | 7/7 |
+| `json` | **361ms** | 390ms | 9ms | 9ms | 2ms | 4ms | 41ms | 6/7 |
+| `regex` | **981ms** | 122ms | 16ms | 13ms | 4ms | 7ms | 10ms | 7/7 |
+| `base64` | **133ms** | 155ms | 7ms | 13ms | 6ms | 8ms | 3ms | 6/7 |
+| `spawn` | **48ms** | 178ms | 18ms | 549ms | 52ms | 1.6s | 17ms | 3/7 |
+| `pfib` | **187ms** | 373ms | 302ms | 2.5s | 295ms | 1.9s | 111ms | 2/7 |
+| `http` | **152ms** | 773ms | 551ms | 173ms | 117ms | 205ms | 145ms | 3/7 |
+| `pingpong` | **258ms** | 596ms | 51ms | 817ms | 641ms | 603ms | 162ms | 3/7 |
+| `ring` | **1.5s** | 4.5s | 263ms | 4.7s | 112ms | 3.5s | 880ms | 4/7 |
+| `startup` (wall) | **33ms** | 341ms | 183ms | 10ms | 18ms | 39ms | 23ms | 4/7 |
 
 The first 15 rows and `spawn`/`pfib`/`http` are the original core suite; `ackermann`…`base64`
 and `pingpong`/`ring` are the **2026-07-12 wider-range additions** (see "The wider range" below).
@@ -125,8 +125,15 @@ They exist to *surface gaps*, and they do:
   rebuilding immutable body vectors every step in a tight numeric loop, with no mutable arrays.
 - **Mutable-array algorithm (`sieve`).** Brood has no mutable array, so the sieve marks composites in
   a `Table` (its ETS) — 316× the native bool-array cost.
-- **Deep recursion (`ackermann`).** Brood's non-tail double-recursion (depth ~4093) runs 4.1 s — near
-  Python, ~16× the .NET/Elixir/Node pack — a call-overhead signal distinct from `fib`'s shallow tree.
+- **Deep recursion (`ackermann`) — was 4.1 s (7/7), now 328 ms (3/7) (brood `f90910c`, 2026-07-13).**
+  The first run put Ackermann last, near Python at ~16× the pack — but profiling showed it was already
+  JIT'd, just on the *boxed* path, not the unboxed-i64 register worker that carries `fib`. The worker's
+  subset only recognized a *non-tail* self-call (`fib`'s argument-position recursion); Ackermann recurses
+  in **tail** position (a distinct IR node) and so fell through, and a stale native-recursion depth cap
+  (1400, sized for the since-removed coroutine stacks) was below its ~4093 depth anyway. Teaching the i64
+  subset about tail self-calls + raising the cap to the real 16 MiB stack took it **4.02 → 0.36 s (~11×),
+  now 3rd** — past Node/Clojure/Ruby/Python, behind only .NET and Elixir. Any mixed tail+non-tail int
+  recursion now rides registers. See `FRONTIER.md` finding 4.
 - **Persistent-map churn (`persistent-map`).** Deep CHAMP path-copy: Brood 672 ms / Clojure 338 ms,
   ~30× a native mutable hash — the expected cost of a persistent trie under read-modify-write.
 
