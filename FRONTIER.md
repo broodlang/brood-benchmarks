@@ -99,6 +99,15 @@ gaps, not core VM speed.
    ~2.1 s. Residual ~6.6× vs BEAM is intrinsic to Brood's design (immutable per-message allocation,
    heap-captured migratable continuations, per-process heap-isolated message copies) — not traded away.
    Follow-on: `nest run FILE` now routes through the same program-process path (`%run-program-file`).
+   **Follow-on 2 — shared closure arms (brood `d5d670c`, 2026-07-13): ring 2.07 → 1.46 s (~30 %),
+   pingpong 341 → 289 ms.** Profiling put ~13 % of `ring` in per-`receive` matcher-closure churn (the
+   `receive` macro expands to `((%receive (fn (msg) …) …))`, so every message builds a fresh closure,
+   and each build deep-copied the arm `Vec` out of the template cache). `Closure.arms` is now
+   `Arc<[ClosureArm]>`, so building from the cache is a refcount bump — killing both the copy and the
+   alloc/GC traffic it fed. Sound under the moving GC because a *shared* arms comes only from the
+   RUNTIME-keyed template cache (holds only RUNTIME handles a minor collection never relocates), so the
+   minor-flush path skips it via `Arc::get_mut`; only the rare def-churn compaction uses `make_mut`.
+   Rankings hold (pingpong 3/7, ring 4/7), but ring's gap to 3rd (.NET) narrowed 2.5× → 1.6×.
 2. **~~`std/json` super-linear + `std/encoding` (base64) blows RSS~~ — FIXED (brood `a1d3fd2`, 2026-07-12).**
    Both traced to one root cause: **`string->list` was O(n²)** — it built each char with
    `(substring s i (inc i))`, and `substring` walks to char boundary `i` every call, so the

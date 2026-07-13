@@ -26,19 +26,20 @@ claim to lead the field.
 - **Light and quick to start** — ~26 MB of memory and ~31 ms to boot: among the lightest and
   fastest-starting of the seven (Python and Ruby are lighter on memory; Elixir takes ~6× and
   Clojure's JVM ~11× longer to start).
-- **Wins the string workload outright** — fastest of seven at `strings`; **2nd at `fib`, `reduce`,
-  `pfib`**, `collatz`, `errors`, and `errors-deep`; 3rd at `loop`, `spawn`, `http`.
+- **Wins the string and `reduce` workloads outright** — fastest of seven at `strings` and `reduce`;
+  **2nd at `fib`, `pfib`, `errors`**; 3rd at `collatz`, `spawn`, `http`, and `pingpong`.
 - **Leads Elixir on the original core suite, trails it on the new axes** — Brood beats its closest peer
   (an immutable-functional language on the BEAM) on essentially all of the original 18 rows, compute
   and concurrency alike. But the 2026-07-12 wider-range additions invert that: **Elixir wins every new
-  row** — decisively on message-passing latency (`pingpong` 47 ms vs Brood 663 ms, ~14×; `ring` too),
+  row** — on message-passing latency (`pingpong` 46 ms vs Brood 258 ms, ~5.6×; `ring` too, ~5.5×),
+  though two rounds of Brood latency work have closed those from ~14×/~8× (see FRONTIER.md finding 1),
   and on the pure-Brood text/immutable rows where it uses native codecs and mutable arrays. Those are
   the gaps the wider range was built to surface (see below and FRONTIER.md).
 - **Beats the interpreters and the JVM Lisp on this suite** — faster than Ruby, Python, and Clojure
   on most single-shot compute (Clojure's HotSpot JIT can't warm up in one short run — see the
   caveat below).
-- **3rd of seven on raw number-crunching** — overall single-threaded compute is roughly **3.8× slower
-  than the fastest** (.NET), behind only .NET and Node, just ahead of Elixir on the geomean metric.
+- **4th of seven on raw number-crunching** — overall single-threaded compute is roughly **4.9× slower
+  than the fastest** (.NET), behind .NET, Node, and Elixir on the summed-compute metric.
   (This aggregate is the original core-compute rows only — it excludes the concurrency rows *and* the
   new wider-range rows, which are library/representation-bound outliers reported on their own.)
   A **`matmul` regression** (94 → 204 ms) — RUNTIME-handle
