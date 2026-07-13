@@ -122,10 +122,19 @@ gaps, not core VM speed.
    dominates; there is no lever here without either escape analysis that stack-allocates/reuses the
    per-step vectors or a native float-array primitive (philosophically fraught — see the mutable-data
    invariant). Likely stays a known immutable-cost data point rather than a target.
-4. **Non-tail deep recursion — `ackermann` ~16×.** Brood's `ack(3,9)` (depth ~4093, non-tail double
-   recursion) runs 4.1 s, near Python — the JIT covers `fib`'s non-tail *single* recursion but not
-   this `cond` + double-recursion shape, so it interprets. Extending the non-tail-recursion JIT
-   coverage is the lever; distinct from `fib`, which already tiers.
+4. **~~Non-tail deep recursion — `ackermann` ~16×~~ — FIXED (brood `f90910c`, 2026-07-13): 4.02 → 0.36 s,
+   7/7 → 3/7.** The lever wasn't "double-recursion" — profiling showed `ack` was *already* JIT'd, on the
+   **boxed** path, not the unboxed-i64 register worker that carries `fib`. Two real blockers: (1) the i64
+   worker's subset checker + lowering only recognized a **non-tail** self-call (`Node::Call`, `fib`'s
+   argument-position recursion); `ack`'s recursion is in **tail** position (`Node::SelfCall`), which the
+   subset never matched, so it fell through. (2) The worker's native-recursion depth cap was a **stale
+   1400** — sized for the removed (ADR-100) coroutine stacks — below `ack`'s ~4093 depth, so it
+   depth-bailed to boxed regardless. Fix: teach the subset about tail self-calls (recurse into a
+   `SelfCall`'s args to find the genuinely-recursive nested `Call`, but keep pure-tail loops on their
+   faster self-tail-loop path) + raise the cap to 32768 (stack-safe on the real 16 MiB worker stack).
+   Now **3rd**, past Node/Clojure/Ruby/Python. Broad: any mixed tail+non-tail int recursion rides
+   registers. The full suite (777 + 4-engine differential fuzzer) stays green; a runaway still raises a
+   clean error (depth-bail → boxed drain), not a SIGSEGV.
 5. **`sieve` ~316× and `persistent-map` ~30×** — the expected cost of the immutable model: a `Table`
    (ETS) standing in for a mutable bool array, and CHAMP path-copy under read-modify-write. Known
    costs, not bugs; a bitset primitive would help `sieve` but adds a builtin.
