@@ -42,9 +42,10 @@ claim to lead the field.
 - **Beats the interpreters and the JVM Lisp on this suite** — faster than Ruby, Python, and Clojure
   on most single-shot compute (Clojure's HotSpot JIT can't warm up in one short run — see the
   caveat below).
-- **4th of seven on raw number-crunching** — overall single-threaded compute is roughly **4.4× slower
-  than the fastest** (.NET), behind .NET, Node, and Elixir on the summed-compute metric — at the
-  **lowest memory of the compiled-class runtimes** (~20 MB typical peak after the dense-Table work).
+- **4th of seven on raw number-crunching** — overall single-threaded compute is roughly **3.8× slower
+  than the fastest** (.NET), behind .NET, Node, and Elixir (3.4×) on the summed-compute metric — at
+  the **lowest memory of the compiled-class runtimes** (~20 MB typical peak after the dense-Table
+  work; the aggregate wobbles ±0.3 run-to-run with the other languages' own variance).
   (This aggregate is the original core-compute rows only — it excludes the concurrency rows *and* the
   new wider-range rows, which are library/representation-bound outliers reported on their own.)
   A **`matmul` regression** (94 → 204 ms) — RUNTIME-handle
@@ -70,7 +71,10 @@ claim to lead the field.
   on integer code points; the encoder emits a fragment list). **`regex`** 981 → **558 ms** (lazy
   DFA — catastrophic patterns are linear — plus Erlang-style `re:compile` precomputation and a JIT
   that no longer deopts on keyword `=`), the one row still 7/7 against native C engines: the
-  residual is per-call machinery, the current frontier (FRONTIER.md).
+  residual is per-call machinery, the current frontier (FRONTIER.md). A same-day follow-up round
+  added BEAM-style reduction batching on JIT loop back-edges (`collatz` −35%), an inline non-exact
+  int `/` (`mandelbrot` 252 → ~200 ms), `sqrt` as a single `fsqrt` instruction, and cached-pointer
+  reads for spilled vectors (`nbody` → **446 ms**).
 
 Brood is built for long-running apps — editors, web servers — and trades some memory for speed.
 **A caveat on Clojure:** it runs on the JVM, which cold-starts (~0.35 s here) on every one of these
