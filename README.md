@@ -68,10 +68,15 @@ claim to lead the field.
   1.0 s → **0.13 s, 6/7** (dense int-key `Table` storage + `table-*` ops as JIT-lowered prims —
   also RSS 417 → 60 MB). **`persistent-map`** 612 → **~106 ms, 5/7** (the fused `map-int-add`
   idiom, as `wordcount` already used). **`json`** 361 → **269 ms** (the pure-Brood parser now runs
-  on integer code points; the encoder emits a fragment list). **`regex`** 981 → **558 ms** (lazy
-  DFA — catastrophic patterns are linear — plus Erlang-style `re:compile` precomputation and a JIT
-  that no longer deopts on keyword `=`), the one row still 7/7 against native C engines: the
-  residual is per-call machinery, the current frontier (FRONTIER.md). A same-day follow-up round
+  on integer code points; the encoder emits a fragment list). **`regex`** 981 → 558 →
+  **301 ms wall, RSS 182 → 65 MB** (lazy DFA — catastrophic patterns are linear — plus
+  Erlang-style `re:compile` precomputation, a JIT that no longer deopts on keyword `=`, and
+  finally deleting a dead `(:use editor/buffer)` in the regex module that was loading an
+  862-line module at startup for nothing — regex compute 547 → **270 ms, −50 %**). Still the
+  one row at 7/7 **by compute**: clojure's regex *wall* is 477 ms but its compute is only
+  144 ms (its JVM boot is subtracted), and brood's real matcher/compile work (270 ms) is still
+  slower — the gap closed 3.8× → 1.9×. Dethroning it needs faster matching, not startup wins
+  (FRONTIER.md). A same-day follow-up round
   added BEAM-style reduction batching on JIT loop back-edges (`collatz` −35%), an inline non-exact
   int `/` (`mandelbrot` 252 → ~200 ms), `sqrt` as a single `fsqrt` instruction, and cached-pointer
   reads for spilled vectors (`nbody` → **446 ms**).
