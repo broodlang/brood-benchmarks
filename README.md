@@ -62,14 +62,15 @@ claim to lead the field.
   reused. Fixed (brood `7f8770f`) with **free-variable analysis** + a **constant-closure cache** — the
   thunk is now promoted once and reused. `spawn` is behind only Node (72 ms) and .NET (40 ms).
 - **The dead-last sweep (2026-07-14/15)** — the 2026-07-13 report had Brood last-of-seven on four
-  rows; two remain, neither by the old margins. **`nbody`** 5.9 s → **0.72 s** (vector bodies +
-  float-JIT deopt fixes; now a photo-finish with Python — 1.00× apart, the rank flips run to run).
-  **`sieve`** 1.0 s → **0.12 s, 6/7** (dense int-key `Table` storage + `table-*` ops as JIT-lowered
-  prims — also RSS 417 → 60 MB). **`persistent-map`** 612 → **106 ms, 5/7** (the fused `map-int-add`
-  idiom, as `wordcount` already used). **`regex`** 981 → **549 ms** (the pure-Brood engine now
-  compiles patterns to a lazy DFA — catastrophic patterns are linear — plus Erlang-style
-  `re:compile` precomputation and a JIT that no longer deopts on keyword `=`), still 7/7 against
-  native C engines: the residual is per-call machinery, the current frontier (FRONTIER.md).
+  rows; **one remains**. **`nbody`** 5.9 s → **0.50 s, 6/7** (vector bodies + float-JIT deopt fixes,
+  then `sqrt` inlining as a single `fsqrt` instruction — decisively past Python). **`sieve`**
+  1.0 s → **0.13 s, 6/7** (dense int-key `Table` storage + `table-*` ops as JIT-lowered prims —
+  also RSS 417 → 60 MB). **`persistent-map`** 612 → **~106 ms, 5/7** (the fused `map-int-add`
+  idiom, as `wordcount` already used). **`json`** 361 → **269 ms** (the pure-Brood parser now runs
+  on integer code points; the encoder emits a fragment list). **`regex`** 981 → **558 ms** (lazy
+  DFA — catastrophic patterns are linear — plus Erlang-style `re:compile` precomputation and a JIT
+  that no longer deopts on keyword `=`), the one row still 7/7 against native C engines: the
+  residual is per-call machinery, the current frontier (FRONTIER.md).
 
 Brood is built for long-running apps — editors, web servers — and trades some memory for speed.
 **A caveat on Clojure:** it runs on the JVM, which cold-starts (~0.35 s here) on every one of these
