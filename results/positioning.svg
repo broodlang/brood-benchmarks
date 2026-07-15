@@ -32,8 +32,8 @@
 <text x="677.8" y="393.6" text-anchor="end" font-size="13" font-weight="600" fill="#2980b9">Python <tspan font-weight="400" fill="#777">(29× · 10MB)</tspan></text>
 <circle cx="520.6" cy="359.3" r="7" fill="#d35400" fill-opacity="0.85" stroke="#fff" stroke-width="1.5"/>
 <text x="531.6" y="363.3" text-anchor="start" font-size="13" font-weight="600" fill="#d35400">Ruby <tspan font-weight="400" fill="#777">(12× · 19MB)</tspan></text>
-<circle cx="315.6" cy="357.0" r="7" fill="#c0392b" fill-opacity="0.85" stroke="#fff" stroke-width="1.5"/>
-<text x="326.6" y="361.0" text-anchor="start" font-size="13" font-weight="600" fill="#c0392b">Brood <tspan font-weight="400" fill="#777">(4× · 20MB)</tspan></text>
+<circle cx="317.0" cy="356.6" r="7" fill="#c0392b" fill-opacity="0.85" stroke="#fff" stroke-width="1.5"/>
+<text x="328.0" y="360.6" text-anchor="start" font-size="13" font-weight="600" fill="#c0392b">Brood <tspan font-weight="400" fill="#777">(4× · 20MB)</tspan></text>
 <circle cx="70.0" cy="338.3" r="7" fill="#16a085" fill-opacity="0.85" stroke="#fff" stroke-width="1.5"/>
 <text x="81.0" y="342.3" text-anchor="start" font-size="13" font-weight="600" fill="#16a085">.NET <tspan font-weight="400" fill="#777">(1× · 26MB)</tspan></text>
 <circle cx="247.9" cy="284.6" r="7" fill="#27ae60" fill-opacity="0.85" stroke="#fff" stroke-width="1.5"/>
