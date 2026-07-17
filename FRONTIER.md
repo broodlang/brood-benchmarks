@@ -26,50 +26,42 @@ Workers in `spawn`/`pfib` share one compiled copy of the native code instead of 
 Still interpreted (or only partly JIT'd) — the weak rows; ratios are Brood's compute vs the fastest
 language on that row. Several old headline gaps have closed or inverted:
 
-- **`matmul` (~7× — .NET is ~26 ms) — regressed 94 → 204 ms, now mostly fixed at ~165 ms.** The inner
-  loop is native, and the residual has always been the one read LICM can't hoist (the per-`k` row) plus
-  the boxed 24-byte `Value` vs a register `long`. The doubling to 204 ms was root-caused (bisect →
-  ADR-091): its `def`'d matrices live in the shared RUNTIME region, and multigen made every RUNTIME-handle
-  deref pay an `ArcSwap::load` (~13.6 % of runtime, ~16 M reads). Fixed by a per-process generation-pin
-  cache (brood `c3b55dd`) that clones a cached `Arc` gated on a version counter instead of loading the
-  ArcSwap per deref. The remaining gap vs 94 ms is the per-deref `Arc` clone (kept for robust pinning)
-  plus the LICM/boxing residual above.
-- **`bintree` (~9.6× — Elixir's BEAM is unusually fast here at ~10 ms)** — **closed 6th → 4th
-  (98 ms → 90 ms)** by inline small-vector
-  storage (2026-07-01): a small vector's elements live **inline in its slab slot** (not a separately
-  `malloc`'d `Vec`), so a 2-element node allocates as a bump-push (like a `cons`), and the JIT inlines
-  the `(nth node 0/1)` reads. Brood now beats Python (94 ms) and Ruby (97 ms); Elixir (~10 ms) and
-  .NET (~16 ms) stay ahead. Remaining headroom is the non-tail-call safepoints in `check`/`make` that
-  block the in-arm alloc inline.
-- **`nqueens` (~11×)** — backtracking recursion; the `reduce`-over-`range` per node and the
+- **`matmul` (135 ms; the ~27× ratio is inflated by .NET's ~5 ms denominator)** — the inner loop is
+  native; the residual is the one read LICM can't hoist (the per-`k` row) plus the boxed 24-byte
+  `Value` vs a register `long`. A past 94 → 204 ms regression (multigen making every RUNTIME-handle
+  deref pay an `ArcSwap::load`, ~13.6 % of runtime) was fixed by a per-process generation-pin cache
+  (brood `c3b55dd`); the residual vs 94 ms is the per-deref `Arc` clone kept for robust pinning.
+- **`bintree` (115 ms, 6th — Elixir's BEAM is unusually fast here at ~14 ms)** — inline small-vector
+  storage (2026-07-01) had closed it to 90 ms / 4th (a 2-element node allocates as a bump-push and
+  the JIT inlines the `(nth node 0/1)` reads), but the 2026-07-17 run drifted back to 115 ms, behind
+  Python (105 ms) and Ruby (94 ms) again — **unexplained; the current watch-item.** Remaining known
+  headroom is the non-tail-call safepoints in `check`/`make` that block the in-arm alloc inline.
+- **`nqueens` (80 ms, ~13×)** — backtracking recursion; the `reduce`-over-`range` per node and the
   non-tail `solve`/`safe?` recursion dominate (pair `first`/`rest` in `safe?` already inline). Node
-  (~8 ms) and Elixir (~20 ms) lead.
-- **`mandelbrot` (~10×)** — `esc` *is* JIT'd **and** its `f64` loop params are already
-  register-carried (native `fadd`/`fmul`, block-param phis; verified via CLIF), yet 217 ms
-  vs .NET's 21 ms. The residual is the boxed 24-byte `Value` tagging *in the arithmetic
-  itself* (tag-check + box/unbox around each op) plus per-iteration loop overhead — **not**
-  the frame stores: eliding the back-edge slot stores was prototyped and gave ~0 (they're
-  absorbed by the CPU store buffer). See the Brood repo devlog (2026-07-01, "store-elision").
-  `mandelbrot` is near the current JIT floor.
-- **`pipeline` (~8×)** — lazy-seq and filter/map/reduce composition the JIT doesn't cover;
+  (~6 ms) and Elixir (~10 ms) lead.
+- **`mandelbrot` (174 ms, ~10×)** — `esc` *is* JIT'd **and** its `f64` loop params are already
+  register-carried (native `fadd`/`fmul`, block-param phis; verified via CLIF), yet ~10× .NET's
+  18 ms. The residual is the boxed 24-byte `Value` tagging *in the arithmetic itself* (tag-check +
+  box/unbox around each op) plus per-iteration loop overhead — **not** the frame stores: eliding the
+  back-edge slot stores was prototyped and gave ~0 (absorbed by the CPU store buffer; Brood repo
+  devlog 2026-07-01). Near the current JIT floor.
+- **`pipeline` (30 ms, ~7×)** — lazy-seq and filter/map/reduce composition the JIT doesn't cover;
   allocation churn dominates.
-- **`wordcount` (~3.7×)** — **closed from ~13× in an earlier run** by the LINMAP compile-time
-  pass (2026-06-28): self-tail-recursive integer-count accumulators are detected and rewritten to
-  use a mutable Table internally (`map-int-add → table-incr`), avoiding the CHAMP path-copy on
-  every step. Brood (114 ms) now beats Elixir (150 ms) and Python (175 ms) here; Node and .NET stay
-  ahead with mutable hash maps (~32–38 ms).
-- **`sort` (~2.4×)** — the numeric `(sort nums)` already uses the native `%sort-asc`, so the
-  benchmark's cost is **building** the input list, which was GC-bound: the collector re-copied the
-  growing all-live accumulator. Cut 173→156 ms (2026-07-01) by scaling the nursery threshold with
-  *total* live (young+old, not young-only — a tenuring build left young ≈ 0 and collapsed it to the
-  floor) and making majors on an all-live old gen rarer. General to any large list/sequence build.
-- **`primes` (~4.5×), `loop` (~2.9×)** — Brood's closest compute gaps; mostly raw dispatch overhead.
+- **`wordcount` (35 ms, 1.1× of Node — 2nd)** — **closed from ~13×** by the LINMAP compile-time pass
+  (2026-06-28: self-tail-recursive integer-count accumulators rewritten to a mutable Table
+  internally, `map-int-add → table-incr`), then the dense-Table + call-path round. Effectively
+  competitive with the mutable-hash languages now.
+- **`sort` (205 ms, ~3.3×)** — the numeric `(sort nums)` already uses the native `%sort-asc`, so the
+  cost is **building** the input list, which was GC-bound; the nursery threshold now scales with
+  *total* live (2026-07-01), general to any large list build. Ruby (70 ms) and .NET (63 ms) lead.
+- **`primes` (45 ms, ~5×), `loop` (38 ms, ~3.6×)** — mostly raw dispatch overhead; `loop` closed
+  304 → 38 ms in the 2026-07-16 match-lowering + call-gate round.
 
 `errors-deep` is a reminder that a compute-loop-only view misleads: .NET tops the arithmetic rows
-yet is *worst* at deep error recovery (stack-trace capture per throw, ~710 ms). Elixir (OTP 28) is
-fastest there (its 50k-throw compute falls below its own boot noise). It's an axis where Brood is already 2nd.
+yet is *worst* at deep error recovery (stack-trace capture per throw, ~675 ms); Clojure is heavier
+still (~1.3 s). Elixir (OTP 28) is fastest (~6 ms). Brood is 2nd at 39 ms.
 
-- **`pfib` (~1.5× — 2nd, beating Elixir)** — three wins landed 2026-07-02 (Brood repo devlog). First
+- **`pfib` (213 ms, ~1.9× — 2nd, beating Elixir)** — three wins landed 2026-07-02 (Brood repo devlog). First
   the N was bumped 28 → 31 so the row exercises parallel-native *scaling* not task startup/teardown.
   Then two JIT fixes: (1) the two-stage-tiering inlined-upgrade swap used the **shared** global epoch,
   invalidating every peer green process's arm → a cross-process re-tier cascade onto the slow
@@ -77,7 +69,7 @@ fastest there (its 50k-throw compute falls below its own boot noise). It's an ax
   native was compiled **per-process**; it's now **shared across processes** (one compile serves every
   worker, like the BEAM). Finally the **unboxed-`i64` calling convention** (see `fib` above) removed
   the recursive-call boxing: `pfib` went **847 → 168 ms**, from 5th to **2nd (1.5× off .NET)**, ahead
-  of Elixir (297 ms) and Node (301 ms). Parallel scaling itself is already ~93% of the machine's
+  of Elixir (286 ms) and Node (299 ms). Parallel scaling itself is already ~93% of the machine's
   OS-process ceiling (Brood green 3.93× vs 4.20× for independent OS processes on this 12-core box —
   it even beats Elixir's 3.30×), so the residual is just `fib`'s single-thread gap (now ~1.5×).
 
@@ -89,14 +81,14 @@ core-compute rows) — they are reported on their own precisely because they are
 gaps, not core VM speed.
 
 1. **~~Message-passing latency — `pingpong` ~14× behind the BEAM~~ — LARGELY CLOSED (brood, 2026-07-12).**
-   Was ~6.6 µs/round-trip (~13× Elixir); now **~3.3 µs (306 ms / 100 k), 3/7 across langs** (ring 4/7) —
+   Was ~6.6 µs/round-trip (~13× Elixir); now **~2.6 µs (263 ms / 100 k), 3/7 across langs** (ring 4/7) —
    off last place, ahead of Ruby/Node/Python/Clojure. Two fixes: (a) **wake-syscall elision** —
    `enqueue` fired an unconditional `futex_wake` even handing a process to the *current* worker
    (the direct-handoff case); skipping it dropped green↔green ping-pong from ~4.4 futex/round-trip to
    ~0 (202k → ~400 over 100k). (b) **ADR-135: the top-level program now runs as one green process**
    instead of a privileged root thread that blocked on its mailbox condvar and crossed the main↔worker
    boundary via futex *per message*. Both together: pingpong 6.5 → 3.3 µs/RT, futex 416k → 370; ring
-   ~2.1 s. Residual ~6.6× vs BEAM is intrinsic to Brood's design (immutable per-message allocation,
+   ~2.1 s. Residual ~5.3× vs BEAM is intrinsic to Brood's design (immutable per-message allocation,
    heap-captured migratable continuations, per-process heap-isolated message copies) — not traded away.
    Follow-on: `nest run FILE` now routes through the same program-process path (`%run-program-file`).
    **Follow-on 2 — shared closure arms (brood `d5d670c`, 2026-07-13): ring 2.07 → 1.46 s (~30 %),
@@ -107,7 +99,8 @@ gaps, not core VM speed.
    alloc/GC traffic it fed. Sound under the moving GC because a *shared* arms comes only from the
    RUNTIME-keyed template cache (holds only RUNTIME handles a minor collection never relocates), so the
    minor-flush path skips it via `Arc::get_mut`; only the rare def-churn compaction uses `make_mut`.
-   Rankings hold (pingpong 3/7, ring 4/7), but ring's gap to 3rd (.NET) narrowed 2.5× → 1.6×.
+   Rankings hold (pingpong 3/7, ring 4/7); on the 2026-07-17 run pingpong sits at 263 ms and ring at
+   1.4 s, with ring's gap to 3rd (.NET, 885 ms) at ~1.6×.
 2. **~~`std/json` super-linear + `std/encoding` (base64) blows RSS~~ — FIXED (brood `a1d3fd2`, 2026-07-12).**
    Both traced to one root cause: **`string->list` was O(n²)** — it built each char with
    `(substring s i (inc i))`, and `substring` walks to char boundary `i` every call, so the
@@ -118,10 +111,12 @@ gaps, not core VM speed.
    O(n²) `(reduce … bytes)`; the same char-scan / `(str acc …)` anti-patterns were then swept out of
    `std/csv` / `std/url` / `std/net`. `regex` remains linear-but-interpreted (pure-Brood backtracking that
    re-parses the pattern each `matches?`) — the next-cheapest structural cost on this axis.
-3. **Immutable numeric loops — `nbody` ~850×.** Rebuilding immutable body vectors every step
-   dominates; there is no lever here without either escape analysis that stack-allocates/reuses the
-   per-step vectors or a native float-array primitive (philosophically fraught — see the mutable-data
-   invariant). Likely stays a known immutable-cost data point rather than a target.
+3. **Immutable numeric loops — `nbody`, was ~850×, now 66× (317 ms).** Vector work + float-JIT fixes
+   (inline `fsqrt`, deopt repair, cached-pointer reads for spilled vectors) took it 5.9 s → 317 ms.
+   Rebuilding immutable body vectors every step still dominates the residual; closing further needs
+   escape analysis that stack-allocates/reuses the per-step vectors or a native float-array
+   primitive (philosophically fraught — see the mutable-data invariant). The remaining gap is a
+   known immutable-cost data point more than a target.
 4. **~~Non-tail deep recursion — `ackermann` ~16×~~ — FIXED (brood `f90910c`, 2026-07-13): 4.02 → 0.36 s,
    7/7 → 3/7.** The lever wasn't "double-recursion" — profiling showed `ack` was *already* JIT'd, on the
    **boxed** path, not the unboxed-i64 register worker that carries `fib`. Two real blockers: (1) the i64
@@ -135,9 +130,11 @@ gaps, not core VM speed.
    Now **3rd**, past Node/Clojure/Ruby/Python. Broad: any mixed tail+non-tail int recursion rides
    registers. The full suite (777 + 4-engine differential fuzzer) stays green; a runaway still raises a
    clean error (depth-bail → boxed drain), not a SIGSEGV.
-5. **`sieve` ~316× and `persistent-map` ~30×** — the expected cost of the immutable model: a `Table`
-   (ETS) standing in for a mutable bool array, and CHAMP path-copy under read-modify-write. Known
-   costs, not bugs; a bitset primitive would help `sieve` but adds a builtin.
+5. **~~`sieve` ~316× and `persistent-map` ~30×~~ — LARGELY CLOSED (2026-07-16 dense-Table round).**
+   The lock-free dense int-key `Table` + JIT-lowered `table-*` ops (with table-base hoisting) took
+   `sieve` to **33 ms (~20× .NET, 3rd — ahead of Elixir)** and, with the fused `map-int-add` idiom,
+   `persistent-map` to **75 ms (~3.6×, 4th)**. What's left is the expected floor of a Table standing
+   in for a mutable bool array and CHAMP path-copy under read-modify-write.
 
 ## Candidate levers (rough priority)
 
@@ -150,7 +147,7 @@ gaps, not core VM speed.
    storage + read (2026-07-01, which closed `bintree`) is the proven template; extending it to
    variable-index reads and to in-arm alloc (blocked today by non-tail-call safepoints) is the
    remaining win toward Elixir. `nqueens` also wants the `reduce`-over-`range` per node cheaper.
-3. **`matmul`** (~19× ratio, but .NET is only 5 ms so it's noise-sensitive; 94 ms absolute is not
+3. **`matmul`** (~27× ratio, but .NET is only ~5 ms so it's noise-sensitive; 135 ms absolute is not
    a priority) — the ratio is inflated by .NET's tiny denominator more than by any Brood weakness.
 4. **True call inlining / bounded unroll** — removes calls rather than cheapening them; the remaining
    `fib`-class lever (~5.7×) after the in-IR fast-link. (Note: a measured attempt to push the
