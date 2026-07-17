@@ -42,10 +42,12 @@ claim to lead the field.
 - **Beats the interpreters and the JVM Lisp on this suite** — faster than Ruby, Python, and Clojure
   on most single-shot compute (Clojure's HotSpot JIT can't warm up in one short run — see the
   caveat below).
-- **4th of seven on raw number-crunching** — overall single-threaded compute is roughly **3.8× slower
-  than the fastest** (.NET), behind .NET, Node, and Elixir (3.4×) on the summed-compute metric — at
-  the **lowest memory of the compiled-class runtimes** (~20 MB typical peak after the dense-Table
-  work; the aggregate wobbles ±0.3 run-to-run with the other languages' own variance).
+- **3rd of seven on raw number-crunching** — overall single-threaded compute is roughly **3.1× slower
+  than the fastest** (.NET), behind only .NET and Node and now ahead of Elixir (3.7×) on the
+  summed-compute metric (the 2026-07-17 rerun after the match-lowering + dense-Table + call-gate
+  round; loop 250→38 ms and sieve 124→34 ms were the big movers) — at
+  the **lowest memory of the compiled-class runtimes** (~25 MB typical peak;
+  the aggregate wobbles ±0.3 run-to-run with the other languages' own variance).
   (This aggregate is the original core-compute rows only — it excludes the concurrency rows *and* the
   new wider-range rows, which are library/representation-bound outliers reported on their own.)
   A **`matmul` regression** (94 → 204 ms) — RUNTIME-handle
@@ -234,8 +236,8 @@ peak RSS, checksum), and `positioning.svg` (the compute-vs-memory map).
 Numbers in the docs were measured on `whklat`: a 12-core x86-64 Linux 7.0.0
 machine · Brood 0.1.0 (bytecode VM + tier-1 JIT) · Clojure 1.12.5 / OpenJDK 25.0.3
 (HotSpot) · Elixir 1.21.0-dev / OTP 28 (BeamAsm JIT) · Python 3.14.4 · Node 22.21.0
-(V8) · Ruby 3.3.8 · .NET 10.0.109 (RyuJIT). 2026-07-11 (Brood re-run after the
-closure-template cache; scheduler direct-handoff). Best of 3 runs
+(V8) · Ruby 3.3.8 · .NET 10.0.110 (RyuJIT). 2026-07-17 (Brood re-run after the
+match-lowering + lock-free dense-Table + call-gate round). Best of 3 runs
 each; the concurrency benchmarks (`spawn`/`pfib`/`http`) take
 the best of 7. **Elixir and .NET are precompiled once (`elixirc`/`dotnet build`) and
 run from their compiled artifact — not from source per run — so per-run compilation
