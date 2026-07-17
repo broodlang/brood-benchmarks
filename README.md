@@ -21,67 +21,35 @@ claim to lead the field.
 
 ![Where the languages land — compute speed (startup excluded) vs memory](results/positioning.svg)
 
-**Where Brood stands:**
+**Where Brood stands** (2026-07-17 run):
 
-- **Light and quick to start** — ~26 MB of memory and ~31 ms to boot: among the lightest and
-  fastest-starting of the seven (Python and Ruby are lighter on memory; Elixir takes ~6× and
-  Clojure's JVM ~11× longer to start).
-- **Wins the string and `reduce` workloads outright** — fastest of seven at `strings` and `reduce`;
-  **2nd at `fib`, `pfib`, `errors`, and `errors-deep`**; 3rd at `wordcount`, `collatz`, `ackermann`,
-  `spawn`, `http`, and `pingpong` (`ackermann` was dead last at 4.1 s until the JIT's register
-  recursion learned tail self-calls — now 0.34 s, 3rd; `errors-deep` jumped 5th → 2nd when the same
-  worker learned `throw`; `wordcount` reached 1.7× of the field's fastest on the dense-Table +
-  call-path work; see BENCHMARKS.md / FRONTIER.md).
-- **Leads Elixir on the original core suite, trails it on the new axes** — Brood beats its closest peer
-  (an immutable-functional language on the BEAM) on essentially all of the original 18 rows, compute
-  and concurrency alike. But the 2026-07-12 wider-range additions invert that: **Elixir wins every new
-  row** — on message-passing latency (`pingpong` 46 ms vs Brood 258 ms, ~5.6×; `ring` too, ~5.5×),
-  though two rounds of Brood latency work have closed those from ~14×/~8× (see FRONTIER.md finding 1),
-  and on the pure-Brood text/immutable rows where it uses native codecs and mutable arrays. Those are
-  the gaps the wider range was built to surface (see below and FRONTIER.md).
-- **Beats the interpreters and the JVM Lisp on this suite** — faster than Ruby, Python, and Clojure
-  on most single-shot compute (Clojure's HotSpot JIT can't warm up in one short run — see the
-  caveat below).
-- **3rd of seven on raw number-crunching** — overall single-threaded compute is roughly **3.1× slower
-  than the fastest** (.NET), behind only .NET and Node and now ahead of Elixir (3.7×) on the
-  summed-compute metric (the 2026-07-17 rerun after the match-lowering + dense-Table + call-gate
-  round; loop 250→38 ms and sieve 124→34 ms were the big movers) — at
-  the **lowest memory of the compiled-class runtimes** (~25 MB typical peak;
-  the aggregate wobbles ±0.3 run-to-run with the other languages' own variance).
-  (This aggregate is the original core-compute rows only — it excludes the concurrency rows *and* the
-  new wider-range rows, which are library/representation-bound outliers reported on their own.)
-  A **`matmul` regression** (94 → 204 ms) — RUNTIME-handle
-  reads paying an `ArcSwap::load` per deref after the multigen collector landed — was **mostly fixed**
-  (brood `c3b55dd`, back to ~165 ms via a per-process generation-pin cache). Earlier work had closed
-  several gaps — an **unboxed-`i64` JIT calling convention** for int-only recursion (`fib`, `pfib`),
-  inline small-vector storage (`bintree`), an adaptive GC policy (`sort`), and the LINMAP optimisation
-  (`wordcount`). The remaining gaps are largest on array math (`matmul`, `mandelbrot` — the boxed
-  24-byte value in array elements) and lazy-seq work (`pipeline`).
-- **`spawn` closed 6/7 → 3/7** — 45 s → **96 ms**, now ahead of Elixir (206 ms). Making the 2-generation
-  RUNTIME collector unconditional had regressed it to a ~300× catastrophe; after several GC/scheduler
-  fixes cut it to 774 ms, the real cause was found in the **compiler**: `(spawn (worker))`'s thunk
-  `(fn () (worker))` was rebuilt and re-`promote`d into the RUNTIME region every call (10 k garbage
-  closures), because captures snapshotted the whole enclosing scope and capture-free closures weren't
-  reused. Fixed (brood `7f8770f`) with **free-variable analysis** + a **constant-closure cache** — the
-  thunk is now promoted once and reused. `spawn` is behind only Node (72 ms) and .NET (40 ms).
-- **The dead-last sweep (2026-07-14/15)** — the 2026-07-13 report had Brood last-of-seven on four
-  rows; **one remains**. **`nbody`** 5.9 s → **0.50 s, 6/7** (vector bodies + float-JIT deopt fixes,
-  then `sqrt` inlining as a single `fsqrt` instruction — decisively past Python). **`sieve`**
-  1.0 s → **0.13 s, 6/7** (dense int-key `Table` storage + `table-*` ops as JIT-lowered prims —
-  also RSS 417 → 60 MB). **`persistent-map`** 612 → **~106 ms, 5/7** (the fused `map-int-add`
-  idiom, as `wordcount` already used). **`json`** 361 → **269 ms** (the pure-Brood parser now runs
-  on integer code points; the encoder emits a fragment list). **`regex`** 981 → 558 →
-  **301 ms wall, RSS 182 → 65 MB** (lazy DFA — catastrophic patterns are linear — plus
-  Erlang-style `re:compile` precomputation, a JIT that no longer deopts on keyword `=`, and
-  finally deleting a dead `(:use editor/buffer)` in the regex module that was loading an
-  862-line module at startup for nothing — regex compute 547 → **270 ms, −50 %**). Still the
-  one row at 7/7 **by compute**: clojure's regex *wall* is 477 ms but its compute is only
-  144 ms (its JVM boot is subtracted), and brood's real matcher/compile work (270 ms) is still
-  slower — the gap closed 3.8× → 1.9×. Dethroning it needs faster matching, not startup wins
-  (FRONTIER.md). A same-day follow-up round
-  added BEAM-style reduction batching on JIT loop back-edges (`collatz` −35%), an inline non-exact
-  int `/` (`mandelbrot` 252 → ~200 ms), `sqrt` as a single `fsqrt` instruction, and cached-pointer
-  reads for spilled vectors (`nbody` → **446 ms**).
+- **Light and quick to start** — ~26 MB of memory and ~35 ms to boot: among the lightest and
+  fastest-starting of the seven (Python and Ruby are lighter on memory; Elixir takes ~5× and
+  Clojure's JVM ~10× longer to start).
+- **3rd of seven on raw compute** — aggregate single-threaded compute is **3.1× the fastest**
+  (.NET), behind only .NET and Node and ahead of Elixir (3.7×) — at the **lowest memory of the
+  compiled-class runtimes** (~26 MB base). The aggregate is the original core-compute rows only;
+  the concurrency and wider-range rows are reported on their own (they'd swamp the figure with
+  library/representation outliers). It wobbles ±0.3 run-to-run with the field's own variance.
+- **Wins `strings` and `reduce` outright**; 2nd at `fib`, `collatz`, `wordcount`, `errors`,
+  `errors-deep`, and `pfib`; 3rd at `loop`, `sieve`, `ackermann`, `http`, and `pingpong`. Several of
+  those were dead last within the month — `ackermann` 4.1 s → 0.34 s (the JIT's register recursion
+  learned tail self-calls), `sieve` 1.0 s → 33 ms (dense int-key Table + JIT-lowered `table-*` ops),
+  `loop` 304 → 38 ms (match lowering + call-gate work) — see BENCHMARKS.md / FRONTIER.md.
+- **Leads Elixir on the original core suite; the new axes are now split** — Brood beats its closest
+  peer (an immutable-functional language on the BEAM) on essentially all of the original 18 rows,
+  and has taken two of the nine 2026-07-12 wider-range rows too (`sieve`, `persistent-map`). Elixir
+  still clearly leads **message-passing latency** (`pingpong` 50 vs 263 ms, `ring` ~5.3× — closed
+  from ~14× by three rounds of latency work, FRONTIER.md finding 1), plus `ackermann`, `nbody`, and
+  the text rows where it uses native codecs.
+- **Beats the interpreters and the JVM Lisp** — faster than Ruby, Python, and Clojure on most
+  single-shot compute (Clojure's HotSpot can't warm up in one short run — see the caveat below).
+- **The weak rows are library/representation costs, not VM speed** — `regex` (7/7) and `base64`
+  run pure-Brood `std/` code against native codecs by design; `nbody` (66× .NET) is the price of
+  immutable body vectors in a float sim; `pipeline` is lazy-seq churn the JIT doesn't cover. The
+  worst one-time regressions are fixed and documented: `spawn`'s 45 s thunk-churn catastrophe
+  (free-variable analysis + a constant-closure cache), `matmul`'s ArcSwap-per-deref multigen
+  regression (a generation-pin cache). Details in BENCHMARKS.md.
 
 Brood is built for long-running apps — editors, web servers — and trades some memory for speed.
 **A caveat on Clojure:** it runs on the JVM, which cold-starts (~0.35 s here) on every one of these
