@@ -1,8 +1,10 @@
 ;; Generate N decimal strings (LCG); append "x" to the even ones to break a full
 ;; match; count how many fully match [0-9]+. Uses [0123456789] (explicit set, no
 ;; ranges) so Brood's pure-Brood regex and the native engines agree exactly.
-;; Checksum = count of full matches. Brood re-parses the pattern each call (its
-;; matches? API), so this row is pure-Brood regex vs native engines.
+;; Checksum = count of full matches. std/regex compiles the pattern to a lazy-DFA
+;; NFA once and memoises it (Erlang re:compile-style), so this row measures the
+;; pure-Brood MATCHER — per-call codepoint-vector build + the DFA loop — against
+;; native engines.
 (require 'regex)
 (def n (let (e (getenv "BENCH_N")) (if e (string->number e) 20000)))
 
