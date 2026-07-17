@@ -12,9 +12,7 @@
 
 (def bs (reverse (gen 0 123456789 (list))))
 (def enc (encoding/base64-encode-bytes bs))
-;; enc-sum computed before any bytes-valued def (works around a VM miscompile
-;; where a preceding bytes `def` corrupts a later reduce over (string->list …)),
-;; and the decode is inlined into dec-sum.
-(def enc-sum (reduce (fn (a c) (rem (+ a (char->int c)) 2147483647)) 0 (string->list enc)))
-(def dec-sum (reduce (fn (a b) (rem (+ a b) 2147483647)) 0 (encoding/base64-decode-bytes enc)))
+(def dec (encoding/base64-decode-bytes enc))
+(def enc-sum (reduce (fn (a c) (rem (+ a c) 2147483647)) 0 (string->codepoints enc)))
+(def dec-sum (reduce (fn (a b) (rem (+ a b) 2147483647)) 0 dec))
 (println (rem (+ enc-sum dec-sum) 2147483647))
