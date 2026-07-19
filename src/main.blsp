@@ -1,8 +1,8 @@
 (defmodule main
-  "The benchmark project's entry-point module — wired up as
-the `nest run` entry by default (module `main`, fn `main`)."
-  (:use hello))
+  "Placeholder entry point: this repo is driven by `python3 bench/harness.py`,
+not `nest run` — the module exists only so the nest project (and its `nest mcp`
+server, see .mcp.json) loads. The benchmark programs live under bench/brood/.")
 
 (defn main ()
-  "Entry point: print the project's greeting."
-  (println (greeting)))
+  "Point the caller at the real entry point."
+  (println "run: python3 bench/harness.py  (see README.md)"))
