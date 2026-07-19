@@ -21,49 +21,38 @@ claim to lead the field.
 
 ![Where the languages land — compute speed (startup excluded) vs memory](results/positioning.svg)
 
-**Where Brood stands** (2026-07-17 run):
+**Where Brood stands** (2026-07-19 run):
 
-- **Light and quick to start** — ~26 MB of memory and ~37 ms to boot: among the lightest and
+- **Light and quick to start** — ~26 MB of memory and ~36 ms to boot: among the lightest and
   fastest-starting of the seven (Python and Ruby are lighter on memory; Elixir takes ~5× and
   Clojure's JVM ~10× longer to start).
-- **3rd of seven on raw compute** — aggregate single-threaded compute is **under 3× the fastest**
-  (.NET) for the first time (2.95×), behind only .NET and Node and ahead of Elixir (3.4×) — at the
-  **lowest memory of the compiled-class runtimes** (~26 MB base). The aggregate is the original
-  core-compute rows only; the concurrency and wider-range rows are reported on their own (they'd
-  swamp the figure with library/representation outliers). It wobbles ±0.3 run-to-run with the
-  field's own variance.
-- **No row is last-of-seven** — a first. `regex`, the final holdout, went 279 → **78 ms** (past
-  Clojure) via a new `string->codepoints` primitive, a compile-cache split, and a JIT deopt-storm
-  fix; `base64` (98 ms) and `json` (144 ms) rode the same work to 6/7.
-- **Wins `strings` and `reduce` outright**; 2nd at `fib`, `collatz`, `wordcount`, `errors`,
-  `errors-deep`, `pfib`, and `http`; 3rd at `loop`, `sieve`, `ackermann`, `spawn`, and `pingpong`.
-  Several of those were dead last within the month — `ackermann` 4.1 s → 0.34 s, `sieve`
-  1.0 s → 34 ms, `loop` 304 → 36 ms — see BENCHMARKS.md / FRONTIER.md.
-- **Leads Elixir on the original core suite; the new axes are now split** — Brood beats its closest
-  peer (an immutable-functional language on the BEAM) on essentially all of the original 18 rows,
-  and has taken two of the nine 2026-07-12 wider-range rows too (`sieve`, `persistent-map`). Elixir
-  still clearly leads **message-passing latency** (`pingpong` 50 vs 257 ms, `ring` ~5.2× — closed
-  from ~14× by three rounds of latency work, FRONTIER.md finding 1), plus `ackermann`, `nbody`, and
-  the text rows where it uses native codecs.
+- **3rd of seven on raw compute** — aggregate single-threaded compute is **~3× the fastest**
+  (.NET), behind only .NET and Node (2.6×) and ahead of Elixir (3.5×) — at the **lowest memory of
+  the compiled-class runtimes** (~26 MB base). The aggregate is the original core-compute rows
+  only (concurrency and wider-range rows are reported separately) and wobbles ±0.3 run-to-run.
+- **No row is last-of-seven** — first reached 2026-07-17 after `regex` (the final holdout) went
+  279 → 80 ms past Clojure, and it holds.
+- **Wins `strings` and `reduce` outright**; 2nd at `fib`, `collatz`, `wordcount`, `errors-deep`,
+  and `pfib`; 3rd at `loop`, `mandelbrot`, `errors`, `ackermann`, `sieve`, `http`, and `pingpong`.
+  Several were dead last within the month — `ackermann` 4.1 s → 0.34 s, `sieve` 1.0 s → 36 ms,
+  `loop` 304 → 41 ms — see BENCHMARKS.md / FRONTIER.md.
+- **Leads Elixir on the original core suite** (essentially all 18 rows) plus `sieve` and
+  `persistent-map` from the wider-range set. Elixir still clearly leads **message-passing
+  latency** (`pingpong` 52 vs 241 ms, `ring` ~5.4× — closed from ~14× by three rounds of latency
+  work, FRONTIER.md finding 1), plus `ackermann`, `nbody`, and the text rows where it uses native
+  codecs.
 - **Beats the interpreters and the JVM Lisp** — faster than Ruby, Python, and Clojure on most
-  single-shot compute (Clojure's HotSpot can't warm up in one short run — see the caveat below).
+  single-shot compute (see the Clojure caveat below).
 - **The remaining 6/7 rows are library/representation costs, not VM speed** — the text rows run
-  pure-Brood `std/` codecs against native ones by design; `nbody` (~57× .NET) is the price of
-  immutable body vectors in a float sim; `pipeline` is lazy-seq churn the JIT doesn't cover;
-  `bintree` is the one open watch-item. The worst one-time regressions are fixed and documented:
-  `spawn`'s 45 s thunk-churn catastrophe, the `matmul` ArcSwap multigen regression, and this week's
-  spawn compile-flood. Details in BENCHMARKS.md.
+  pure-Brood `std/` codecs against native ones by design; `nbody` is the price of immutable body
+  vectors in a float sim; `pipeline` is lazy-seq churn the JIT doesn't cover; `bintree` is the one
+  open watch-item. Details in BENCHMARKS.md.
 
-Brood is built for long-running apps — editors, web servers — and trades some memory for speed.
-**A caveat on Clojure:** it runs on the JVM, which cold-starts (~0.35 s here) on every one of these
-single-shot runs, and HotSpot never fully JIT-compiles the hot loops in that short a window — a
-long-running Clojure service would be far faster than these numbers. (Earlier runs also pinned each
-compute benchmark to a single core, which roughly *doubled* Clojure's time by starving its background
-JIT/GC threads; the harness now pins compute work to 4 cores, so these are the JVM's fair single-shot
-numbers.) Brood (and the others) likewise run from source per run; only Elixir and .NET are
-precompiled. The full per-benchmark numbers are in
-[results/report.md](results/report.md) and [BENCHMARKS.md](BENCHMARKS.md); the chart above plots
-compute speed against memory.
+**A caveat on Clojure:** the JVM cold-starts (~0.35 s) on every one of these single-shot runs, and
+HotSpot never fully JIT-compiles the hot loops in that short a window — a long-running Clojure
+service would be far faster than these numbers. Brood, Python, Node, Ruby, and Clojure run from
+source per run; only Elixir and .NET are precompiled (so per-run compilation never leaks into
+their compute measurement).
 
 ## The benchmarks (28)
 
@@ -98,80 +87,49 @@ compute speed against memory.
 | `pingpong`   | message round-trip **latency** — two units bounce a token N times |
 | `ring`       | N-process **ring** — a token travels N×5000 hops around the ring |
 
-`spawn`, `pfib`, and `http` are each implemented in all seven languages, using that
-language's idiomatic concurrency. For `spawn` (lightweight units): green
-processes + messaging for Brood/Elixir; asyncio coroutines (Python), Promises
-(Node), OS threads (Ruby), thread-pool tasks (.NET), `future`s (Clojure). For the
-CPU-bound `pfib`: green processes (Brood/Elixir), `worker_threads` (Node),
-`Parallel.For` (.NET), a forked process pool (Python/Ruby), `pmap` across cores
-(Clojure). For the I/O-bound `http`: green processes (Brood/Elixir), an async
-client (Node/.NET), a thread pool / thread-per-request (Python/Ruby), `future`s +
-`java.net.http` (Clojure). The two message-passing rows, `pingpong` and `ring`, follow the same
-idiomatic-per-language rule — Brood/Elixir isolated processes + `send`/`receive`, Ruby/Python/Clojure
-real threads + blocking queues, Node cooperative `async` (`ring`) / `worker_threads` (`pingpong`),
-.NET channels — and isolate **message-passing latency**, the axis `spawn`/`pfib`/`http` don't. Green
-processes / actors are a first-class Brood & BEAM feature, so these rows exercise that model
-head-to-head against threads and event loops — the comparison is deliberate, not like-for-like
-machinery. (This is where the BEAM's tuned mailbox shows: Elixir leads `pingpong`/`ring` clearly,
-and it is the widest new gap for Brood — see FRONTIER.md.)
+The five concurrency rows (`spawn`, `pfib`, `http`, `pingpong`, `ring`) each use
+that language's **idiomatic** concurrency, not identical machinery: green
+processes + messages for Brood/Elixir; async/Promises, `worker_threads`, or an
+async HTTP client for Node; asyncio, forked pools, or thread pools for
+Python/Ruby; `future`s/`pmap` for Clojure; tasks, `Parallel.For`, and channels
+for .NET. `pingpong`/`ring` isolate **message-passing latency** — the axis the
+other three don't — and pit the actor model head-to-head against threads and
+event loops; the comparison is deliberate. (This is where the BEAM's tuned
+mailbox shows: Elixir leads both, Brood's widest remaining gap — FRONTIER.md.)
 
 ## What's measured
 
-For every (benchmark × language) pair the harness records:
-
-- **Wall time** — total process time, *including* interpreter/VM startup. Best
-  of N runs (least-noisy). Measured with `time.perf_counter()` around the child.
-- **Peak RSS** — maximum resident memory, from `/usr/bin/time -v`.
-- **Checksum** — each program prints one integer. The harness asserts all seven
-  languages produce the **same** checksum, so we know they did equivalent work:
-  a mismatch flags the offending row in the report and fails the run (non-zero
-  exit), rather than silently publishing incomparable timings.
-- **`compute`** (in `results/report.md`) — wall − that language's own `startup`,
-  so a slow-booting runtime's real compute speed is visible (e.g. the BEAM, whose
-  warm compute beats Ruby/Python even though its boot buries it in the wall time).
-
-Because wall time includes startup, the dedicated `startup` benchmark (a bare
-"print 0") isolates the fixed cost; compute time for the others is roughly
-`wall − startup`.
+For every (benchmark × language) pair the harness records **wall time** (total
+process time including startup, best of N runs), **peak RSS**
+(`/usr/bin/time -v`), and a **checksum** — each program prints one integer, and
+the harness fails the run if the seven languages disagree, so the work is
+provably equivalent. Rankings use **compute** = wall − that language's own
+`startup`-row time (a bare "print 0"), so a slow-booting runtime's real speed
+is visible — e.g. the BEAM's warm compute beats Ruby/Python even though its
+boot buries it in wall time.
 
 ## Fairness notes
 
 - **Same algorithm, same inputs, same output.** Where data is generated
   (`sort`, `wordcount`) every language runs the *identical* LCG
-  (`x = (x*1103515245 + 12345) & 0x7fffffff`, seed `123456789`), so all seven
-  sort/tally the same stream. Checksums confirm it.
-  - In **Node** that multiply exceeds the `2^53` safe-integer range, so the LCG
-    uses `BigInt` to stay bit-identical to the others. (Python and Ruby have
-    arbitrary-precision integers natively; **.NET** uses `long` — the product
-    fits in 64 bits — so neither needs special handling.)
+  (`x = (x*1103515245 + 12345) & 0x7fffffff`, seed `123456789`) — Node uses
+  `BigInt` for it to stay bit-identical past `2^53`. Float rows (`mandelbrot`,
+  `nbody`) rely on IEEE-754 `f64` behaving identically everywhere. The
+  checksum gate confirms all of it.
 - **Idiomatic, not adversarial.** Each version is written the way you'd
   naturally write it in that language: tail recursion + immutable maps in
   Brood/Elixir, `for` loops + mutable dicts/hashes in Python/Node/Ruby/.NET.
-  That's the point — we're comparing the languages as used, not forcing one style.
-  - One consequence worth naming: in `primes` Python/Ruby/Node/.NET/Elixir hoist the
-    trial-division bound out of the inner loop with an integer/float `sqrt`
-    (`isqrt` / `Integer.sqrt` / `Math.sqrt`), while Brood AND Clojure test `(* d d) > m`
-    every step — a mixed int/float comparison coerces, so a multiply is the
-    cheaper Brood idiom. Same primes, same checksum, but Brood does marginally
-    *more* work per inner step; the asymmetry, if anything, counts against Brood.
-- Float results (`mandelbrot`) rely on IEEE-754 `f64` behaving identically
-  across all seven runtimes — confirmed by matching checksums.
-- Workload sizes are picked so even the *fastest* runtime (.NET / Node) spends
-  at least ~100 ms of **compute** — below that, `wall − startup` is dominated by
-  startup-measurement noise and the ratios are meaningless — while the *slowest*
-  (the Brood VM) still finishes in a couple of seconds. That spread (a couple of
-  seconds vs ~100 ms) is the result, not a problem.
-  - The baked-in sizes also keep every checksum within exact-integer range. A
-    few implementations are only bit-exact *at these sizes*: Node's `collatz`
-    halves with float `/2` and its accumulators are `f64` (exact below `2^53`),
-    and the LCG / `reduce` / `loop` sums assume the documented N. Pushing
-    `BENCH_N` far above the defaults could carry a value past `2^53` (Node) or
-    overflow a `.NET` `int`, silently diverging a checksum — scale N with that
-    in mind (the checksum gate above will catch it if it happens).
+  Where idioms differ (e.g. `primes`' trial-division bound: most languages
+  hoist a `sqrt`, Brood/Clojure test `(* d d) > m` each step) the asymmetry,
+  if anything, counts against Brood.
+- **Workload sizes** are picked so even the fastest runtime spends ≥ ~100 ms of
+  compute (below that, `wall − startup` is startup-noise) while the slowest
+  still finishes in seconds. The baked-in sizes also keep every checksum in
+  exact-integer range; scaling `BENCH_N` far past the defaults can push Node
+  past `2^53` or overflow a .NET `int` — the checksum gate will catch it.
 - The `http` benchmark hits a small local server the harness starts on a free
-  loopback port (a fixed 20 ms sleep per request, so it measures I/O-concurrency,
-  not the network); the harness verifies the server is its own — a GET returning
-  `200`/`ok` — before running, then tears it down afterwards.
+  loopback port (fixed 20 ms sleep per request, so it measures I/O-concurrency,
+  not the network), verifies it's its own, and tears it down afterwards.
 
 ## Running it
 
@@ -186,8 +144,8 @@ python3 bench/chart.py                         # regenerate results/positioning.
 
 The source programs live under [`bench/`](bench/), seven per benchmark, named
 identically except the extension
-(`fib.blsp` / `fib.exs` / `fib.py` / `fib.js` / `fib.rb` / `fib.cs`) so the
-implementations diff side by side. **.NET** needs compilation, so the harness
+(`fib.blsp` / `fib.clj` / `fib.ex` / `fib.py` / `fib.js` / `fib.rb` / `fib.cs`)
+so the implementations diff side by side. **.NET** needs compilation, so the harness
 builds `bench/dotnet/` once (`dotnet build -c Release`) and runs each benchmark as
 a native binary — the fair analog of running the others via their runtime.
 Workload sizes are read from `BENCH_N` (the harness sets it); each program has a
@@ -207,22 +165,14 @@ peak RSS, checksum), and `positioning.svg` (the compute-vs-memory map).
 Numbers in the docs were measured on `whklat`: a 12-core x86-64 Linux 7.0.0
 machine · Brood 0.1.0 (bytecode VM + tier-1 JIT) · Clojure 1.12.5 / OpenJDK 25.0.3
 (HotSpot) · Elixir 1.21.0-dev / OTP 28 (BeamAsm JIT) · Python 3.14.4 · Node 22.21.0
-(V8) · Ruby 3.3.8 · .NET 10.0.110 (RyuJIT). 2026-07-17 (Brood re-run after the
-string->codepoints + regex/spawn-flood round). Best of 3 runs
-each; the concurrency benchmarks (`spawn`/`pfib`/`http`) take
-the best of 7. **Elixir and .NET are precompiled once (`elixirc`/`dotnet build`) and
-run from their compiled artifact — not from source per run — so per-run compilation
-never leaks into the compute measurement. Brood, Python, Node, Ruby, and Clojure run
-their source directly, as is their normal mode — note this means the JVM cold-starts
-every run, so HotSpot under-JITs Clojure's short single-shot compute (it would be
-faster warmed; a known caveat for JVM languages in a single-shot suite).**
-Each run is CPU-pinned with `taskset` (compute benchmarks to 4 dedicated cores, the
-concurrency ones to all 12) with a 0.25 s settle between runs, so a prior run's
-teardown doesn't contend with the next measurement. The compute *workload* is
-single-threaded; pinning it to 4 cores rather than 1 keeps it isolated from system
-noise without serialising a runtime's own background JIT/GC threads onto the work
-core — a single-core pin otherwise penalised the JVM ~2× while leaving the genuinely
-single-threaded runtimes unchanged.
+(V8) · Ruby 3.3.8 · .NET 10.0.110 (RyuJIT). 2026-07-19. Best of 3 runs
+each; the concurrency benchmarks (`spawn`/`pfib`/`http`/`pingpong`/`ring`) take
+the best of 7. Each run is CPU-pinned with `taskset` (compute benchmarks to 4 dedicated
+cores, the concurrency ones to all 12) with a 0.25 s settle between runs. The compute
+workload is single-threaded; the 4-core pin isolates it from system noise **without**
+serialising a runtime's background JIT/GC threads onto the work core — a single-core
+pin penalised the JVM ~2×. Precompilation and the Clojure cold-start caveat are
+covered above.
 
 ## License
 
