@@ -21,24 +21,25 @@ claim to lead the field.
 
 ![Where the languages land — compute speed (startup excluded) vs memory](results/positioning.svg)
 
-**Where Brood stands** (2026-07-19 run):
+**Where Brood stands** (2026-07-24 run):
 
-- **Light and quick to start** — ~26 MB of memory and ~36 ms to boot: among the lightest and
-  fastest-starting of the seven (Python and Ruby are lighter on memory; Elixir takes ~5× and
-  Clojure's JVM ~10× longer to start).
+- **Light and quick to start** — ~28 MB of memory and ~10 ms to boot: the **fastest-starting of the
+  seven** (edging Python; Elixir takes ~19× and Clojure's JVM ~35× longer) and among the lightest.
+  That ~10 ms is the warm steady state — the ADR-138 boot cache is build-id-keyed, so the first run
+  of a freshly-built binary is ~40 ms while it populates, then every run after is ~10 ms.
 - **3rd of seven on raw compute** — aggregate single-threaded compute is **~3× the fastest**
-  (.NET), behind only .NET and Node (2.6×) and ahead of Elixir (3.5×) — at the **lowest memory of
-  the compiled-class runtimes** (~26 MB base). The aggregate is the original core-compute rows
+  (.NET), behind only .NET and Node (2.7×) and ahead of Elixir (3.5×) — at the **lowest memory of
+  the compiled-class runtimes** (~28 MB base). The aggregate is the original core-compute rows
   only (concurrency and wider-range rows are reported separately) and wobbles ±0.3 run-to-run.
 - **No row is last-of-seven** — first reached 2026-07-17 after `regex` (the final holdout) went
   279 → 80 ms past Clojure, and it holds.
-- **Wins `strings` and `reduce` outright**; 2nd at `fib`, `collatz`, `wordcount`, `errors-deep`,
-  and `pfib`; 3rd at `loop`, `mandelbrot`, `errors`, `ackermann`, `sieve`, `http`, and `pingpong`.
-  Several were dead last within the month — `ackermann` 4.1 s → 0.34 s, `sieve` 1.0 s → 36 ms,
-  `loop` 304 → 41 ms — see BENCHMARKS.md / FRONTIER.md.
+- **Wins `startup`, `strings`, and `reduce` outright**; 2nd at `fib`, `collatz`, `wordcount`,
+  `errors`, `errors-deep`, and `pfib`; 3rd at `loop`, `ackermann`, `sieve`, `spawn`, `http`, and
+  `pingpong`. Several were dead last within the month — `ackermann` 4.1 s → 0.34 s, `sieve`
+  1.0 s → 35 ms, `loop` 304 → 38 ms — see BENCHMARKS.md / FRONTIER.md.
 - **Leads Elixir on the original core suite** (essentially all 18 rows) plus `sieve` and
   `persistent-map` from the wider-range set. Elixir still clearly leads **message-passing
-  latency** (`pingpong` 52 vs 241 ms, `ring` ~5.4× — closed from ~14× by three rounds of latency
+  latency** (`pingpong` 53 vs 247 ms, `ring` ~5.4× — closed from ~14× by three rounds of latency
   work, FRONTIER.md finding 1), plus `ackermann`, `nbody`, and the text rows where it uses native
   codecs.
 - **Beats the interpreters and the JVM Lisp** — faster than Ruby, Python, and Clojure on most
@@ -165,7 +166,7 @@ peak RSS, checksum), and `positioning.svg` (the compute-vs-memory map).
 Numbers in the docs were measured on `whklat`: a 12-core x86-64 Linux 7.0.0
 machine · Brood 0.1.0 (bytecode VM + tier-1 JIT) · Clojure 1.12.5 / OpenJDK 25.0.3
 (HotSpot) · Elixir 1.21.0-dev / OTP 28 (BeamAsm JIT) · Python 3.14.4 · Node 22.21.0
-(V8) · Ruby 3.3.8 · .NET 10.0.110 (RyuJIT). 2026-07-19. Best of 3 runs
+(V8) · Ruby 3.3.8 · .NET 10.0.110 (RyuJIT). 2026-07-24. Best of 3 runs
 each; the concurrency benchmarks (`spawn`/`pfib`/`http`/`pingpong`/`ring`) take
 the best of 7. Each run is CPU-pinned with `taskset` (compute benchmarks to 4 dedicated
 cores, the concurrency ones to all 12) with a 0.25 s settle between runs. The compute
