@@ -20,6 +20,11 @@ python3 bench/chart.py                # regenerate results/positioning.svg from 
   (never `-p brood` — it doesn't relink the binary; see the brood CLAUDE.md).
 - A full run takes tens of minutes and is timing-sensitive: **don't run builds
   or other heavy work concurrently.**
+- The harness does one discarded warmup run per language before measuring. Don't
+  remove it: wall is a best-of but RSS a worst-of, so without it Brood's
+  build-id-keyed boot cache populates during run 1 after every rebuild and that
+  cold boot (~28.5 MB vs ~19 MB warm) is published as the base-memory figure.
+  `--no-warmup` reproduces the old behaviour; the report header records which.
 - The run fails (non-zero) on any cross-language checksum mismatch — that means
   an implementation diverged, not a flaky run.
 
