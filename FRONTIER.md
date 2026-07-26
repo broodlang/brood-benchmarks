@@ -51,14 +51,11 @@ language on that row:
   hard (loop was 304 ms before the 2026-07-16 match-lowering + call-gate round).
 
 **Memory is not a frontier row.** Base RSS is **19 MB** — 2nd-lightest of the seven, level with
-Ruby, and the lightest of the compiled-class runtimes. The ~28 MB carried in the docs until
-2026-07-26 was the *pre-ADR-138* source boot — accurate before the boot cache existed, and still
-what a cache miss costs. ADR-138 halved it on 2026-07-19, but the harness took the min wall and the
-max RSS across runs, so the post-rebuild populate kept landing in the memory column alone and the
-win stayed invisible for a week. Fixed with a discarded warmup run. Worth remembering as a
-methodology lesson: an asymmetric best-of/worst-of aggregation will quietly publish a runtime's
-worst case on one axis and its best on another, and it hides improvements as readily as it
-manufactures regressions.
+Ruby, and the lightest of the compiled-class runtimes. (The ~28 MB carried until 2026-07-26 was the
+pre-boot-cache source boot: the harness took min wall but max RSS across runs, so the post-rebuild
+cache populate kept landing in the memory column alone. Fixed with a warmup run. Methodology lesson
+worth keeping — an asymmetric best-of/worst-of aggregation hides improvements as readily as it
+manufactures regressions.)
 
 Closed rows worth remembering when reading ratios: `wordcount` (~13× → 1.1×, LINMAP + dense-Table),
 `errors`/`errors-deep` (2nd–3rd — .NET is *worst* at deep error recovery at ~670 ms, a reminder
@@ -70,33 +67,19 @@ ceiling, ahead of Elixir).
 Ranked by what's left, not by history — the war-story details live in the Brood repo devlog:
 
 1. **Message-passing latency (`pingpong` 189 ms, `ring` 703 ms — Elixir leads ~2.7–3.8×).** Still
-   the widest honest gap, but the smallest it has been. Closed from ~14× by three earlier rounds
-   (wake-syscall elision on direct handoff; ADR-135, the top-level program is a green process, so
-   no root-thread futex per message; and shared closure arms as `Arc<[ClosureArm]>`), then by
-   **ADR-155 on 2026-07-26: `ring` 1.4 s → ~700 ms (−48%), `pingpong` 247 → ~185 ms (−21%)**, which
-   took `ring` past .NET into 3rd.
+   the widest honest gap, but the smallest it has been — closed from ~14× by four rounds, most
+   recently ADR-155 (emit `receive` clause bodies at the call site instead of wrapping each in a
+   thunk, which also made the matcher arm JIT-lowerable): `ring` −48%, `pingpong` −21%.
 
-   That round is worth reading for how it was found. Isolating a *self*-send + `receive` — same
-   mailbox, same copies, zero cross-process handoff — priced a receive at **820 ns** against
-   310 ns for the `send`, and matched `pingpong`'s per-receive cost almost exactly. So the
-   remaining gap was never scheduling; the earlier rounds had already flattened that. It was the
-   `receive` macro wrapping every clause body in a `(fn () body…)` thunk: ~235 ns per message to
-   build and call (vs ~50 ns for a small-vector protocol), and — because `Inst::MakeClosure` is
-   outside the JIT subset — it made the *whole matcher arm* unlowerable, so the hot message path
-   ran with no native code at all (`BROOD_NO_JIT=1` changed the number by zero). The fix has
-   `%receive` only *select* a clause and emits the bodies at the call site, where they compile
-   into the owning function.
-
-   What is left is the per-candidate `vm_apply` in the scan (`BROOD_NO_HOF=1` is 197 → 509 ms, so
-   that protocol still does real work) over an irreducible floor of per-message immutable copies
-   and heap-captured migratable continuations, which is design and is not traded away. Brood beats
-   every thread/queue language soundly; Node's `ring` "win" is cooperative single-thread async.
+   What is left is the per-candidate `vm_apply` in the mailbox scan (`BROOD_NO_HOF=1` is
+   197 → 509 ms, so that protocol still does real work) over an irreducible floor of per-message
+   immutable copies and heap-captured migratable continuations — design, not traded away. Brood
+   beats every thread/queue language soundly; Node's `ring` "win" is cooperative single-thread
+   async.
 2. **Text codecs (`json` 139 ms, `regex` 84 ms, `base64` 102 ms — all 6/7, ahead of Clojure).**
-   Pure-Brood `std/` libraries vs native codecs, by design. The axis surfaced two real `std/` bugs
-   (an O(n²) `string->list`; a base64 RSS blow-up), both fixed; then the regex lazy-DFA,
-   precompiled patterns, `string->codepoints`, and a compile-cache split + deopt-storm fix took
-   all three off last place. The residual ~10–40× is honest interpreted-library cost; next
-   structural lever would be a bytes/codepoint fast path shared by all three.
+   Pure-Brood `std/` libraries vs native codecs, by design. The residual ~10–40× is honest
+   interpreted-library cost; next structural lever would be a bytes/codepoint fast path shared by
+   all three.
 3. **`sieve` 35 ms (3rd) and `persistent-map` 61 ms (4th)** — largely closed by the lock-free
    dense int-key `Table` + JIT-lowered `table-*` ops (+ the fused `map-int-add` idiom). What's
    left is the expected floor of a Table standing in for a mutable bool array, and CHAMP
