@@ -1,9 +1,12 @@
 (def n (let (e (getenv "BENCH_N")) (if e (string->number e) 200)))
 (def depth 12)
 
+;; `check-node` where the other six say `check`: `check` is Brood's advisory
+;; type-check builtin, and ADR-166 reserves every name that ships in the binary.
 (defn make (d) (if (= d 0) nil [(make (- d 1)) (make (- d 1))]))
-(defn check (node) (if (nil? node) 1 (+ 1 (check (nth node 0)) (check (nth node 1)))))
+(defn check-node (node)
+  (if (nil? node) 1 (+ 1 (check-node (nth node 0)) (check-node (nth node 1)))))
 
-(defn run (i acc) (if (>= i n) acc (run (+ i 1) (+ acc (check (make depth))))))
+(defn run (i acc) (if (>= i n) acc (run (+ i 1) (+ acc (check-node (make depth))))))
 
 (println (run 0 0))
