@@ -30,7 +30,7 @@ don't excuse the number.
 | `strings` <sup>a</sup> | **12ms** | 159ms | 114ms | 43ms | 64ms | 83ms | 31ms | **1/7** |
 | `wordcount` <sup>d</sup> | **35ms** | 271ms | 160ms | 176ms | 30ms | 70ms | 36ms | 2/7 |
 | `bintree` | **105ms** | 170ms | 9ms | 97ms | 21ms | 95ms | 14ms | 6/7 |
-| `sort` | **208ms** | 245ms | 107ms | 177ms | 102ms | 70ms | 64ms | 6/7 |
+| `sort` <sup>r</sup> | **188ms** | 245ms | 107ms | 177ms | 102ms | 70ms | 64ms | 6/7 |
 | `nqueens` | **81ms** | 274ms | 8ms | 53ms | 7ms | 118ms | 19ms | 5/7 |
 | `errors` | **47ms** | 1.1s | 16ms | 50ms | 557ms | 110ms | 292ms | 2/7 |
 | `errors-deep` | **44ms** | 1.3s | 7ms | 231ms | 205ms | 115ms | 688ms | 2/7 |
@@ -74,6 +74,11 @@ the others mutate one buffer in place.
 slow there, so the fast runtimes finish in single-digit ms and the ordering *among them* is
 meaningless. Read Brood's absolute number, not the ratio.
 
+**<sup>r</sup> Brood's cell re-measured after the run.** brood `1749307` unboxed the all-`Int` sort
+path (208 → 188 ms, `--only sort,startup` on the same machine). Only Brood's figure was replaced;
+the other six columns stay as the full run recorded them rather than mixing two runs into one row.
+The rank is unchanged and the aggregate below accounts for it.
+
 **<sup>i</sup> Idiomatic concurrency, not identical machinery.** Each language uses its own
 primitive — green processes for Brood/Elixir, Promises/`worker_threads` for Node, asyncio or
 thread pools for Python/Ruby, `future`/`pmap` for Clojure, tasks and channels for .NET. So these
@@ -109,7 +114,7 @@ measured by accident. See [`FRONTIER.md`](FRONTIER.md).)
 ## How to read it
 
 - **Aggregate single-threaded compute** (the positioning chart's x-axis — Σ wall−startup over the
-  original core-compute rows, normalised to the fastest): .NET 1.0× · Node 2.6× · **Brood 3.1×** ·
+  original core-compute rows, normalised to the fastest): .NET 1.0× · Node 2.6× · **Brood 3.0×** ·
   Elixir 3.3× · Clojure 7.8× · Ruby 11.6× · Python 27.5×. Brood is **3rd of seven** — behind only
   .NET and Node, ahead of Elixir, at ~3× the fastest (it wobbles ±0.3 run-to-run; the ordering is
   what holds). The aggregate deliberately excludes the concurrency, error, and wider-range rows —

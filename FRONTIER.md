@@ -43,8 +43,15 @@ language on that row:
 - **`pipeline` (32 ms, ~8×)** — lazy-seq / transducer composition the JIT doesn't cover;
   allocation churn dominates. The known blocker: `eduction`'s step closures capture, and the
   fast-link bails on captures.
-- **`sort` (208 ms, ~3.3×)** — `(sort nums)` is already native `%sort-asc`; the cost is *building*
-  the input list. It is also the suite's heaviest row for memory (174 MB, 7/7) for the same reason.
+- **`sort` (188 ms, ~2.9×)** — `(sort nums)` is native `%sort-asc`, and **the sorting is no longer
+  the expensive part of it.** Phase-isolated at 375k ints (best-of-11, same binary): building the
+  input list ~99 ms, the `sort` call ~79 ms, the checksum walk ~14 ms. Of that sort call, comparison
+  is now a few ms — brood `1749307` unboxes the all-`Int` case to a raw `Vec<i64>` (106 → 79 ms,
+  −25%), so what remains is `seq_items` walking the cons spine in and `heap.list` allocating a fresh
+  375k-cell list out. That is allocation, the same frontier as `bintree`/`nbody`, and it is also why
+  this row is the suite's heaviest for memory (174 MB, 7/7). Do not re-optimise the comparator.
+  (Earlier editions of this file said the cost was "building the input list"; that was measured
+  wrong — the sort call was the larger half.)
 - **`matmul` (130 ms; the ~33× ratio is inflated by .NET's 4 ms denominator)** — the inner loop is
   native; the residual is the one read LICM can't hoist plus boxed `Value` array storage.
 - **`primes` (43 ms, ~5×), `loop` (37 ms, ~3×)** — raw dispatch overhead; both already closed
