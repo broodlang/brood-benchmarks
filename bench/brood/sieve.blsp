@@ -2,17 +2,19 @@
 ;; the composite marks live in a Table (the sanctioned mutable escape hatch) —
 ;; this row measures Table write/read throughput vs native bool arrays.
 ;; Checksum = count of primes <= N.
+;; `composite` where the other six say `comp`: `comp` is function composition in
+;; Brood's prelude, and ADR-166 reserves every name that ships in the binary.
 (def n (let (e (getenv "BENCH_N")) (if e (string->number e) 1000000)))
-(def comp (table))
+(def composite (table))
 
-(defn mark (p j) (if (> j n) nil (do (table-put comp j true) (mark p (+ j p)))))
+(defn mark (p j) (if (> j n) nil (do (table-put composite j true) (mark p (+ j p)))))
 
 (defn sieve (p)
   (if (> (* p p) n) nil
-    (do (if (table-has? comp p) nil (mark p (* p p))) (sieve (+ p 1)))))
+    (do (if (table-has? composite p) nil (mark p (* p p))) (sieve (+ p 1)))))
 
 (defn count-primes (k acc)
-  (if (> k n) acc (count-primes (+ k 1) (if (table-has? comp k) acc (+ acc 1)))))
+  (if (> k n) acc (count-primes (+ k 1) (if (table-has? composite k) acc (+ acc 1)))))
 
 (sieve 2)
 (println (count-primes 2 0))
