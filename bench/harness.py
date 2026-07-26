@@ -277,6 +277,30 @@ def run_once(cmd, n, timeout, extra_env=None, pin=None, settle=0.0):
     return (True, wall_ms, rss, ANSI_RE.sub("", p.stdout).strip())
 
 
+def warmup(langs, timeout):
+    """One discarded `startup` run per language, before anything is measured.
+
+    Takes once-per-binary cold-start costs out of the measured runs. It matters
+    most for Brood: its expanded-prelude boot cache (ADR-138) is keyed on the
+    binary's own mtime, so the first run after a rebuild *populates* the cache —
+    a ~50 ms / ~29 MB boot against ~12 ms / ~19 MB warm. Because `bench_lang`
+    takes the MIN wall but the MAX RSS across runs, that populate run landed in
+    the reported memory column and only there: every `make install` + benchmark
+    overstated Brood's base RSS by ~50 % while the time column showed the warm
+    figure (measured 2026-07-26 — the `startup` row read 31.7 MB against 18.9 MB
+    for `reduce`, which boots the same runtime and then does strictly more work).
+    Every language gets the same discarded run, so the treatment stays uniform.
+    """
+    print("## warmup — one discarded run per language (populates cold caches)")
+    for lang in langs:
+        spec = LANGS[lang]
+        path = ROOT / spec["dir"] / f"startup.{spec['ext']}"
+        if not path.exists():
+            continue
+        run_once(spec["cmd"](str(path)), 0, timeout, spec.get("env"))
+        print(f"  {lang:8} warmed")
+
+
 def bench_lang(lang, name, n, runs, timeout, pin=None, settle=0.0):
     spec = LANGS[lang]
     path = str(ROOT / spec["dir"] / f"{name}.{spec['ext']}")
@@ -351,6 +375,9 @@ def main():
     ap.add_argument("--startup-runs", type=int, default=None,
                     help="override --runs for the startup benchmark only (default: same as --runs)")
     ap.add_argument("--timeout", type=int, default=300, help="per-run timeout (s)")
+    ap.add_argument("--no-warmup", dest="warmup", action="store_false", default=True,
+                    help="skip the discarded per-language warmup run (see warmup(): it keeps a "
+                         "cold boot-cache populate out of the reported peak RSS)")
     ap.add_argument("--only", default="", help="comma list of benchmark names")
     ap.add_argument("--langs", default="brood,clojure,elixir,python,node,ruby,dotnet")
     ap.add_argument("--quick", action="store_true")
@@ -441,6 +468,9 @@ def main():
         print(f"isolation: taskset pin (compute→cores {compute_cores}, concurrency→{all_cores}), "
               f"{args.settle}s settle before each run")
 
+    if args.warmup:
+        warmup(langs, args.timeout)
+
     startup_runs = args.startup_runs if args.startup_runs is not None else args.runs
     results = {}
     mismatched = []
@@ -488,6 +518,8 @@ def main():
     meta["isolation"] = (
         f"taskset pin (compute→cores {compute_cores}, concurrency→{all_cores}); {args.settle}s settle"
         if isolate else "none (unpinned, back-to-back)")
+    meta["warmup"] = ("one discarded startup run per language" if args.warmup
+                      else "none (cold caches land in the measured runs)")
     out_dir = Path(args.out) if args.out else RESULTS
     out_dir.mkdir(parents=True, exist_ok=True)
     suffix = f".{args.label}" if args.label else ""
@@ -540,6 +572,8 @@ def build_report(results, args, meta=None):
         L.append(f"> **Runtimes:** {vers}.")
         if meta.get("isolation"):
             L.append(f"> **Isolation:** {meta['isolation']}.")
+        if meta.get("warmup"):
+            L.append(f"> **Warmup:** {meta['warmup']}.")
         L.append("")
     mode = "quick" if args.quick else "full"
     startup_runs = getattr(args, "startup_runs", None) or args.runs
