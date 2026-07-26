@@ -23,34 +23,24 @@ claim to lead the field.
 
 **Where Brood stands** (2026-07-26 run):
 
-- **Light and quick to start** — **19 MB of memory and ~12 ms to boot**: **2nd of seven on both**,
-  behind only Python on each (10 ms / 9.7 MB) and level with Ruby on memory. Elixir takes ~15× and
-  Clojure's JVM ~28× longer to boot. Both figures are the warm steady state — the ADR-138 boot cache is
-  build-id-keyed, so the first run of a freshly-built binary costs ~50 ms and ~28.5 MB while it
-  populates, then every run after is ~12 ms and ~19 MB. (Docs before 2026-07-26 quoted ~28 MB —
-  the pre-cache source boot, which the old harness kept measuring by accident. See BENCHMARKS.md.)
+- **Light and quick to start** — **19 MB and ~12 ms**, 2nd of seven on both, behind only Python
+  (9.7 MB / 10 ms) and level with Ruby on memory. Elixir boots ~15× and Clojure's JVM ~28× slower.
 - **3rd of seven on raw compute** — aggregate single-threaded compute is **~3× the fastest**
-  (.NET), behind only .NET and Node (2.6×) and ahead of Elixir (3.3×) — at the **lowest memory of
-  the compiled-class runtimes** (19 MB base). The aggregate is the original core-compute rows
-  only (concurrency and wider-range rows are reported separately) and wobbles ±0.3 run-to-run.
-- **No row is last-of-seven** — first reached 2026-07-17 after `regex` (the final holdout) went
-  279 → 80 ms past Clojure, and it holds.
-- **Wins `strings` and `reduce` outright**; 2nd at `startup`, `fib`, `collatz`, `wordcount`,
-  `errors`, `errors-deep`, and `pfib`; 3rd at `loop`, `ackermann`, `sieve`, `spawn`, `http`,
-  `pingpong`, and `ring`. Several were dead last within the month — `ackermann` 4.1 s → 0.34 s,
-  `sieve` 1.0 s → 35 ms, `loop` 304 → 37 ms — see BENCHMARKS.md / FRONTIER.md.
-- **Leads Elixir on the original core suite** (essentially all 18 rows) plus `sieve` and
-  `persistent-map` from the wider-range set. Elixir still clearly leads **message-passing
-  latency** (`pingpong` 50 vs 189 ms, `ring` ~2.7× — closed from ~14× by three rounds of latency
-  work plus the 2026-07-26 inline-receive change, which took `ring` 1.4 s → ~700 ms and moved it
-  past .NET into 3rd; FRONTIER.md finding 1), plus `ackermann`, `nbody`, and the text rows where
-  it uses native codecs.
+  (.NET), behind only .NET and Node (2.6×) and ahead of Elixir (3.3×), at the **lowest memory of
+  the compiled-class runtimes**. The aggregate covers the core-compute rows only and wobbles ±0.3
+  run-to-run.
+- **No row is last-of-seven.** Wins `strings` and `reduce` outright; 2nd at `startup`, `fib`,
+  `collatz`, `wordcount`, `errors`, `errors-deep`, `pfib`; 3rd at `loop`, `ackermann`, `sieve`,
+  `spawn`, `http`, `pingpong`, `ring`.
+- **Leads Elixir** — its closest peer — on essentially all of the core suite, plus `sieve` and
+  `persistent-map`. Elixir still leads **message-passing latency** (`pingpong` 50 vs 189 ms, `ring`
+  ~2.7×), `ackermann`, `nbody`, and the text rows where it uses native codecs.
 - **Beats the interpreters and the JVM Lisp** — faster than Ruby, Python, and Clojure on most
   single-shot compute (see the Clojure caveat below).
 - **The remaining 6/7 rows are library/representation costs, not VM speed** — the text rows run
   pure-Brood `std/` codecs against native ones by design; `nbody` is the price of immutable body
   vectors in a float sim; `pipeline` is lazy-seq churn the JIT doesn't cover; `bintree` is the one
-  open watch-item. Details in BENCHMARKS.md.
+  open watch-item. Details in [BENCHMARKS.md](BENCHMARKS.md).
 
 **A caveat on Clojure:** the JVM cold-starts (~0.35 s) on every one of these single-shot runs, and
 HotSpot never fully JIT-compiles the hot loops in that short a window — a long-running Clojure
@@ -112,13 +102,10 @@ provably equivalent. Rankings use **compute** = wall − that language's own
 is visible — e.g. the BEAM's warm compute beats Ruby/Python even though its
 boot buries it in wall time.
 
-Because wall is a **best**-of and RSS a **worst**-of, a one-time cold-cache cost
-would otherwise show up in the memory column alone. So every language gets one
-**discarded warmup run** before anything is measured (`--no-warmup` opts out; the
-report header records which). This matters for exactly one runtime today —
-Brood's build-id-keyed boot cache populates on the first run after a rebuild —
-but it is applied uniformly rather than special-cased, and is a no-op for the
-other six.
+Wall is a best-of but RSS a worst-of, so a one-time cold-cache cost would land in
+the memory column alone. Every language therefore gets one **discarded warmup
+run** before anything is measured — applied uniformly, not special-cased
+(`--no-warmup` opts out; the report header records which).
 
 ## Fairness notes
 

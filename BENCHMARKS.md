@@ -47,85 +47,25 @@ Lower is better. **Bold** = Brood. "Rank" is Brood's place by compute among the 
 | `ring` | **703ms** | 4.4s | 256ms | 4.6s | 113ms | 3.5s | 774ms | 3/7 |
 | `startup` (wall) | **12ms** | 332ms | 181ms | 10ms | 18ms | 39ms | 22ms | 2/7 |
 
-The first 15 rows and `spawn`/`pfib`/`http` are the original core suite; `ackermann`…`base64` and
-`pingpong`/`ring` are the 2026-07-12 wider-range additions (below). **No row is last-of-seven** —
-first reached 2026-07-17, and it holds. Run-to-run the field drifts ±10%; every compute row here is
-within noise of the earlier 2026-07-26 run, so the ranks are unchanged. What moved in this run is
-the *memory* column, and it moved because the measurement was wrong before:
+The first 15 rows and `spawn`/`pfib`/`http` are the original core suite; the rest widen coverage
+past the numeric/allocation core (recursion depth, mutable-array algorithms, immutable-structure
+churn, float physics, text/parsing, message latency). **No row is last-of-seven.** Run-to-run the
+field drifts ±10%, so read the ordering rather than the digits.
 
-- **Base RSS reads 19.2 MB, not the ~28 MB carried since May** — a harness fix, not a runtime
-  change, and the correction is a week overdue. The ~28 MB figure was honest when written: before
-  the expanded-prelude boot cache (ADR-138, 2026-07-19) *every* boot expanded the prelude from
-  source, which costs ~50 ms and ~28.5 MB — still exactly what a cache miss costs today. ADR-138
-  made the warm boot ~12 ms and ~19 MB, but the harness took the **min** wall and the **max** RSS
-  across its runs, and the cache is keyed on the binary's own mtime, so the first run after every
-  rebuild populates it. That one cold run landed in the reported memory column and nowhere else:
-  the time column showed the win, the memory column kept publishing the pre-ADR-138 number. The
-  giveaway was internal — `startup` read 31.7 MB in the pre-fix run against 18.9 MB for `reduce`,
-  which boots the same runtime and then does strictly more work. The harness now takes one
-  discarded warmup run per language (uniformly — a no-op for the six runtimes with no such cache)
-  and records it in the report header.
-- **The genuine memory signal underneath is a small increase**: warm base RSS went ~16.5 → ~19 MB
-  as the prelude grew with protocols, grapheme indexing and transducers (ADR-156/158–163; the
-  expanded-prelude cache file 112 KB → 116 KB). Modest and explained — it was simply invisible
-  under a measurement error several times its size.
-- **`ring` 703 ms / `pingpong` 189 ms hold** the gains from the previous run's ADR-155
-  inline-receive change (`ring` 1.4 s → ~700 ms, past .NET into 3/7). Elixir still leads both.
+Two notes on reading the rows:
 
-History worth knowing (full stories in [`FRONTIER.md`](FRONTIER.md) and the Brood repo devlog):
+- **Text rows are Brood's absolute cost, not a fast-lang ranking.** `json`/`regex`/`base64` run
+  pure-Brood `std/` codecs against native C/JVM ones, by design — the benchmark surfaces where the
+  *library* is slow, not the VM. Their sizes are small precisely because Brood is slow there, so
+  the native runtimes finish at the noise floor and their relative order is meaningless.
+- **Concurrency rows use each language's idiomatic primitive** (processes vs threads+queues vs
+  async vs channels — see the README), so `pingpong`/`ring` compare *how you'd actually write
+  message passing in each*, not identical machinery.
 
-- **The July arc**: two 2026-07-16/17 perf rounds (match-lowering, lock-free dense-Table +
-  JIT-lowered `table-*` ops, `string->codepoints`, regex cache-split + deopt-storm fix, spawn
-  compile-flood dedupe) took every then-last-place row off the bottom — `loop` 304 → 38 ms,
-  `sieve` 1.0 s → 35 ms, `persistent-map` 612 → 61 ms, `regex` 279 → 84 ms, `ackermann`
-  4.1 s → 0.34 s (a 2026-07-13 JIT fix).
-- **One-time regressions, fixed and documented**: `spawn` was once a 45 s catastrophe (per-call
-  thunk re-promotion; fixed by capture analysis + a constant-closure cache), and `matmul` paid
-  94 → 204 ms for a multigen `ArcSwap` deref (fixed by a per-process generation-pin cache; now
-  134 ms).
-- **Brood vs Elixir** — Brood leads its closest peer (immutable-functional on the BEAM) on
-  essentially all of the original 18 rows plus `sieve` and `persistent-map`. Elixir clearly leads
-  the latency rows (`pingpong` 50 vs 189 ms, `ring` 256 vs 703 ms — now ~2.7–3.8×, down from
-  ~4.7–5.4× via ADR-155), `ackermann`,
-  `nbody`, and the text rows where it uses native codecs.
-
-## The wider range (2026-07-12 additions)
-
-Nine benchmarks widen coverage past the numeric/allocation core: recursion depth, mutable-array
-algorithms, immutable-structure churn, float physics, text/parsing, and message-passing latency.
-They were added to surface gaps, and they did; most have since narrowed:
-
-- **Message latency (`pingpong`, `ring`)** — the axis the other concurrency rows don't isolate, and
-  the widest honest gap left: **Elixir's BEAM leads** (~3.8× on `pingpong`, ~2.7× on `ring`).
-  Three rounds of latency work (root-as-green-process ADR-135, wake-syscall elision, shared closure
-  arms) closed it from the original ~14×, and ADR-155's inline `receive` bodies took it the rest of
-  the way; the residual is intrinsic to Brood's per-message immutable copies and migratable
-  continuations (FRONTIER.md finding 1). Brood beats the thread/queue languages soundly
-  (Ruby/Python/Clojure run 3.5–4.6 s on `ring`). Node's 113 ms `ring` "win" is cooperative
-  single-thread async, not isolated processes.
-- **Pure-Brood stdlib vs native codecs (`json`, `regex`, `base64`)** — Brood's *in-language*
-  `std/` codecs against native C/JVM ones, by design ("write the language in the language" —
-  the benchmark surfaces where the *library* is slow, not the VM). Two real `std/` bugs surfaced
-  and were fixed (an O(n²) `string->list`; a 1.3 GB base64 RSS blow-up), then the regex lazy-DFA +
-  `string->codepoints` rounds took all three past Clojure — none is last. The residual vs native
-  (~10–40×) is honest interpreted-library cost.
-- **`sieve`** — Brood has no mutable array, so it marks composites in a `Table` (its ETS). Was
-  316× the native bool-array cost; the dense int-key Table + JIT-lowered `table-*` ops cut it to
-  35 ms — 3rd, ahead of Elixir.
-- **`persistent-map`** — read-modify-write churn, deep CHAMP path-copy: 612 → 61 ms via the fused
-  `map-int-add` idiom and the dense-Table round; now ~3× the mutable-hash languages.
-- **`ackermann`** — deep non-tail double recursion. Was dead last at 4.1 s: the JIT's unboxed-i64
-  worker didn't recognise tail self-calls and a stale depth cap bailed it to the boxed path;
-  teaching it both took `ack` to 342 ms, 3rd.
-- **`nbody`** — float physics over immutable body vectors, rebuilt every step. 5.9 s → ~311 ms via
-  vector + float-JIT work; still ~13–50× the native runtimes — the clearest remaining cost of
-  having no mutable arrays.
-
-**Read the text rows as Brood's absolute cost, not a fast-lang ranking** — their sizes are small
-precisely because Brood is slow there, so the native runtimes finish at the noise floor and their
-relative order is meaningless. **Concurrency fairness**: each language uses its idiomatic
-primitive (processes vs threads+queues vs async vs channels — see the README), so `pingpong`/`ring`
-compare *how you'd actually write message passing in each*, not identical machinery.
+**Brood vs Elixir** — its closest peer, immutable-functional on the BEAM. Brood leads essentially
+all of the original 18 rows plus `sieve` and `persistent-map`. Elixir leads the latency rows
+(`pingpong` 50 vs 189 ms, `ring` 256 vs 703 ms — ~2.7–3.8×), `ackermann`, `nbody`, and the text
+rows where it uses native codecs.
 
 ## Memory (peak RSS) and startup
 
@@ -134,14 +74,14 @@ compare *how you'd actually write message passing in each*, not identical machin
   (70.0 MB) and Clojure (102.5 MB). That is **the lightest of the compiled-class runtimes**. Brood
   stays light across the suite — 3rd on most compute rows, and *1st of seven* on `strings` — with
   the allocation-heavy rows (`sort` 174 MB, `base64` 99 MB, `ring` 95 MB) the exceptions.
-  This figure supersedes the ~28 MB carried since May, which was the pre-cache source boot the old
-  harness kept measuring by accident (see the note under the compute table).
-- **Startup**: Brood ~12 ms warm — 2nd, ~2 ms behind Python (10 ms), consistently across runs;
-  ahead of Node (18 ms), .NET (22 ms), Ruby (39 ms), Elixir
-  (181 ms), Clojure (332 ms). Both this and the RSS figure are the **warm steady state**: the
-  ADR-138 expanded-prelude boot cache is keyed by build-id, so the *first* run of a freshly-built
-  binary costs ~50 ms and ~28.5 MB while it populates the cache, and every run after is ~12 ms and
-  ~19 MB. The harness's warmup run is what keeps that populate out of both columns.
+- **Startup**: Brood ~12 ms — 2nd, ~2 ms behind Python (10 ms); ahead of Node (18 ms), .NET
+  (22 ms), Ruby (39 ms), Elixir (181 ms), Clojure (332 ms).
+
+Both are the **warm steady state**. Brood's expanded-prelude boot cache is keyed by build-id, so
+the first run of a freshly-built binary costs ~50 ms and ~28.5 MB while it populates, and every run
+after is ~12 ms and ~19 MB; the harness's warmup run keeps that populate out of both columns.
+(Figures published before 2026-07-26 quoted ~28 MB — the cold boot, which the old aggregation
+measured by accident. See [`FRONTIER.md`](FRONTIER.md).)
 
 ## How to read it
 
@@ -154,14 +94,13 @@ compare *how you'd actually write message passing in each*, not identical machin
   library/representation outliers rather than core language speed.
 - **Clojure runs cold** each single-shot run — HotSpot never fully JITs the hot loops in that
   window; see the README caveat.
-- **Strongest rows**: 1st at `strings` and `reduce`; 2nd at `startup` (2 ms behind Python), `fib`,
-  `collatz`, `wordcount`, `errors`, `errors-deep`, and `pfib`; 3rd at `loop`, `ackermann`, `sieve`,
-  `spawn`, `http`, `pingpong`, and now `ring`.
-- **Weakest rows — none last**: the 6/7 rows split into the by-design text costs
-  (`json`/`regex`/`base64` — pure-Brood codecs vs native, all ahead of Clojure) and the
-  representation costs: `pipeline` (lazy-seq churn the JIT doesn't cover), `sort` (the cost is
-  *building* the input list), `nbody` (immutable float sim), and `bintree` (the one open
-  watch-item — ~100 ms, behind Python/Ruby on some runs).
+- **Strongest rows**: 1st at `strings` and `reduce`; 2nd at `startup`, `fib`, `collatz`,
+  `wordcount`, `errors`, `errors-deep`, `pfib`; 3rd at `loop`, `ackermann`, `sieve`, `spawn`,
+  `http`, `pingpong`, `ring`.
+- **Weakest rows — none last**: the 6/7 rows are the by-design text costs
+  (`json`/`regex`/`base64`) and representation costs — `pipeline` (lazy-seq churn the JIT doesn't
+  cover), `sort` (the cost is *building* the input list), `nbody` (immutable float sim), and
+  `bintree` (the one open watch-item).
 
 The per-language source for every benchmark lives under [`bench/`](bench/), seven files per
 benchmark named identically except the extension, so the implementations diff side by side. Run
