@@ -120,11 +120,19 @@ Ranked by what's left, not by history — the war-story details live in the Broo
 
 ## Candidate levers (rough priority)
 
-0. **Hoist `stamp_stack_limit` out of `jit_run_fast_link`** — the cheapest known win on the board,
-   because it is recovering a cost we just measured (~30% of `fib`/`pfib`) rather than finding a
-   new one. Stamp at the outermost native entry and at green-process (re)scheduling, not per fast
-   link. Must keep the KI-14 guarantee intact: `tests/jit_deep_recursion_test.blsp` aborts the
-   process if the guard regresses, so it is a self-checking change.
+0. ~~**Hoist `stamp_stack_limit` out of `jit_run_fast_link`**~~ — **DONE 2026-07-27, and the
+   diagnosis in this entry was wrong.** The KI-14 cost is recovered (`fib` 88 → 74 ms, `pfib`
+   252 → 202 ms, parity with a guard-deleted build), but not by the hoist: `fib` tiers to the
+   **i64 register worker**, recurses natively and never takes a fast link, so hoisting the stamp
+   measured *exactly zero* on it. The cost was the per-frame **prologue** guard — specifically
+   that the byte check ran alongside the old `I64_DEPTH_LIMIT` frame-count cap, so every level of
+   a ~30 M-call recursion paid two compares instead of one. Deleting the count cap (a frame count
+   is only ever right for one frame size — which is what KI-14 was) recovered all of it; the
+   `0`-limit case it had covered moved to a once-per-outermost-activation check in the i64
+   wrapper. The hoist shipped anyway on its own number: ~5% on `bintree` (130 → 124 ms), the
+   fast-link-heavy row, and flat everywhere else. Guard intact —
+   `tests/jit_deep_recursion_test.blsp` passes at unchanged wall time. (brood `e87cfc1`; full
+   attribution table in that repo's `docs/devlog.md`.)
 1. **Heap-walking / allocation-heavy code** (`nqueens`, `pipeline`) — the structure-walkers still
    don't tier and some heap reads go through per-op FFI callbacks. The inline small-vector
    storage + read template is proven; extending it to variable-index reads and in-arm alloc
