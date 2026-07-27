@@ -31,19 +31,25 @@ code, checks it in every lowered arm's prologue (three instructions), and — be
 `jit_dispatch_call`'s headroom probe **unconditional** instead of skipping it below depth 64.
 Measured cost, three-binary A/B (`26939e2` / `f11f4cb` / `1a3fc1c`, best-of-7, same build flags):
 `fib` wall 70 → 86 ms, `pfib` 183 → 239 ms — ~+30% of compute on the two call-bound rows, and
-nothing after `f11f4cb` moves them further. Correctness worth paying for; the *price* is not
-obviously irreducible:
+nothing after `f11f4cb` moves them further.
 
-- The prologue check is 3 instructions against a preloaded absolute address — cheap by
-  construction, and it is the part that cannot be dropped.
-- The suspicious half is `stamp_stack_limit`, which calls `stacker::remaining_stack()` on **every**
-  `jit_run_fast_link` — and the fast link is the ~26 ns Brood→Brood path `fib` lives on. The limit
-  is an absolute address valid for the whole thread stack, so re-deriving it per link is redundant:
-  stamping only at the *outermost* native entry (`jit_native_depth == 0`, plus wherever a green
-  process is (re)scheduled onto a worker, since stack bases differ) should keep the guard sound
-  while taking the probe off the hot path. Unmeasured — the obvious next experiment.
-- The unconditional probe in `jit_dispatch_call` is the other candidate; that one is on the slow
-  call path, which the commit notes already does far more work than a thread-local read.
+**Recovered the same day (brood `e87cfc1`; `fib` 88 → 74 ms wall, `pfib` 252 → 202, parity with a
+guard-deleted build).** Both of the candidates first suspected here were wrong, and measuring beat
+reasoning at every step:
+
+- The prologue check was assumed to be "3 instructions, cheap by construction, the part that cannot
+  be dropped". It was in fact where the entire cost lived — but not because any one instruction is
+  expensive. The byte check ran *alongside* the old `I64_DEPTH_LIMIT` frame-count cap, `bor`-ing
+  two results, so every level of a 30 M-call recursion paid two compares. Deleting the count cap —
+  which the byte check subsumes, and which the KI-14 crash had itself proved wrong — recovered all
+  of it. Dropping a redundant `limit != 0` test (the compare is unsigned; no address is below zero)
+  was worth 5 ms more.
+- `stamp_stack_limit`'s per-fast-link `stacker::remaining_stack()` probe, named here as the
+  suspicious half, measured **exactly zero** on `fib`: `fib` tiers to the i64 register worker, which
+  recurses natively and never takes a fast link. The hoist shipped anyway on a different row's
+  number — ~5% on `bintree` (130 → 124 ms), which *is* fast-link-bound.
+- The unconditional probe in `jit_dispatch_call` remains unmeasured. It is on the slow call path,
+  so it is probably nothing — but that was said about the prologue too.
 
 Still interpreted (or only partly JIT'd) — the weak rows; ratios are Brood's compute vs the fastest
 language on that row:
