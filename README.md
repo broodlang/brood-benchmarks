@@ -21,20 +21,24 @@ claim to lead the field.
 
 ![Where the languages land — compute speed (startup excluded) vs memory](results/positioning.svg)
 
-**Where Brood stands** (2026-07-26 run):
+**Where Brood stands** (2026-07-27 run):
 
-- **Light and quick to start** — **19 MB and ~12 ms**, 2nd of seven on both, behind only Python
-  (9.7 MB / 10 ms) and level with Ruby on memory. Elixir boots ~15× and Clojure's JVM ~28× slower.
+- **Light and quick to start** — **20 MB and ~12 ms**: 2nd of seven on startup (behind Python's
+  10 ms) and 3rd on memory (behind Python 9.6 MB and Ruby 19.2 MB). Elixir boots ~15× and
+  Clojure's JVM ~28× slower.
 - **3rd of seven on raw compute** — aggregate single-threaded compute is **~3× the fastest**
-  (.NET), behind only .NET and Node (2.6×) and ahead of Elixir (3.3×), at the **lowest memory of
+  (.NET), behind only .NET and Node (2.7×) and ahead of Elixir (3.6×), at the **lowest memory of
   the compiled-class runtimes**. The aggregate covers the core-compute rows only and wobbles ±0.3
   run-to-run.
+- **One row moved on purpose:** `fib` 57 → 75 ms (and `pfib` 165 → 218 ms, the same cost ×100),
+  the price of a fix that turned a JIT deep-recursion *process abort* into a catchable error.
+  Bisected to a single commit; both ranks held. Details in [BENCHMARKS.md](BENCHMARKS.md).
 - **No row is last-of-seven.** Wins `strings` and `reduce` outright; 2nd at `startup`, `fib`,
   `collatz`, `wordcount`, `errors`, `errors-deep`, `pfib`; 3rd at `loop`, `ackermann`, `sieve`,
   `spawn`, `http`, `pingpong`, `ring`.
 - **Leads Elixir** — its closest peer — on essentially all of the core suite, plus `sieve` and
-  `persistent-map`. Elixir still leads **message-passing latency** (`pingpong` 50 vs 189 ms, `ring`
-  ~2.7×), `ackermann`, `nbody`, and the text rows where it uses native codecs.
+  `persistent-map`. Elixir still leads **message-passing latency** (`pingpong` 54 vs 188 ms, `ring`
+  ~2.8×), `ackermann`, `nbody`, and the text rows where it uses native codecs.
 - **Beats the interpreters and the JVM Lisp** — faster than Ruby, Python, and Clojure on most
   single-shot compute (see the Clojure caveat below).
 - **The remaining 6/7 rows are library/representation costs, not VM speed** — the text rows run
@@ -164,7 +168,7 @@ peak RSS, checksum), and `positioning.svg` (the compute-vs-memory map).
 Numbers in the docs were measured on `whklat`: a 12-core x86-64 Linux 7.0.0
 machine · Brood 0.1.0 (bytecode VM + tier-1 JIT) · Clojure 1.12.5 / OpenJDK 25.0.3
 (HotSpot) · Elixir 1.21.0-dev / OTP 28 (BeamAsm JIT) · Python 3.14.4 · Node 22.21.0
-(V8) · Ruby 3.3.8 · .NET 10.0.110 (RyuJIT). 2026-07-26. Best of 3 runs
+(V8) · Ruby 3.3.8 · .NET 10.0.110 (RyuJIT). 2026-07-27. Best of 3 runs
 each, after one discarded warmup run per language; the concurrency benchmarks
 (`spawn`/`pfib`/`http`/`pingpong`/`ring`) take
 the best of 7. Each run is CPU-pinned with `taskset` (compute benchmarks to 4 dedicated
