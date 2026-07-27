@@ -23,22 +23,23 @@ claim to lead the field.
 
 **Where Brood stands** (2026-07-27 run):
 
-- **Light and quick to start** — **20 MB and ~12 ms**: 2nd of seven on startup (behind Python's
-  10 ms) and 3rd on memory (behind Python 9.6 MB and Ruby 19.2 MB). Elixir boots ~15× and
-  Clojure's JVM ~28× slower.
+- **Light and quick to start** — **20 MB and ~13 ms**: 2nd of seven on startup (behind Python's
+  10 ms) and 3rd on memory (behind Python 9.7 MB and Ruby 19.2 MB). Elixir boots ~14× and
+  Clojure's JVM ~27× slower.
 - **3rd of seven on raw compute** — aggregate single-threaded compute is **~3× the fastest**
-  (.NET), behind only .NET and Node (2.7×) and ahead of Elixir (3.6×), at the **lowest memory of
+  (.NET), behind only .NET and Node (2.7×) and ahead of Elixir (3.4×), at the **lowest memory of
   the compiled-class runtimes**. The aggregate covers the core-compute rows only and wobbles ±0.3
   run-to-run.
-- **One row moved on purpose:** `fib` 57 → 75 ms (and `pfib` 165 → 218 ms, the same cost ×100),
-  the price of a fix that turned a JIT deep-recursion *process abort* into a catchable error.
-  Bisected to a single commit; both ranks held. Details in [BENCHMARKS.md](BENCHMARKS.md).
+- **The one deliberate regression is paid back:** `fib` 75 → 59 ms and `pfib` 218 → 172 ms,
+  restoring what a JIT deep-recursion crash fix had cost this morning — without giving the fix up.
+  The guard now runs one per-level check instead of two. Details in [BENCHMARKS.md](BENCHMARKS.md).
 - **No row is last-of-seven.** Wins `strings` and `reduce` outright; 2nd at `startup`, `fib`,
   `collatz`, `wordcount`, `errors`, `errors-deep`, `pfib`; 3rd at `loop`, `ackermann`, `sieve`,
-  `spawn`, `http`, `pingpong`, `ring`.
+  `spawn`, `http`, `pingpong`. (`ring` reads 4th this run — 730 ms to .NET's 727 ms is a tie whose
+  tiebreak flipped, not a change in standing.)
 - **Leads Elixir** — its closest peer — on essentially all of the core suite, plus `sieve` and
-  `persistent-map`. Elixir still leads **message-passing latency** (`pingpong` 54 vs 188 ms, `ring`
-  ~2.8×), `ackermann`, `nbody`, and the text rows where it uses native codecs.
+  `persistent-map`. Elixir still leads **message-passing latency** (`pingpong` 56 vs 197 ms, `ring`
+  ~2.9×), `ackermann`, `nbody`, and the text rows where it uses native codecs.
 - **Beats the interpreters and the JVM Lisp** — faster than Ruby, Python, and Clojure on most
   single-shot compute (see the Clojure caveat below).
 - **The remaining 6/7 rows are library/representation costs, not VM speed** — the text rows run
