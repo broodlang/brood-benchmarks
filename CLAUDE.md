@@ -7,23 +7,31 @@ harness. See [README.md](README.md) for the full methodology.
 ## Running
 
 ```sh
-python3 bench/harness.py --startup-runs 9   # THE PUBLISH RUN → results/results.json + report.md
-python3 bench/harness.py              # same, but startup best-of-3 — see the warning below
+python3 bench/harness.py              # full suite → results/results.json + report.md
+python3 bench/test_guard.py           # regression test for the corruption guard (instant)
 python3 bench/harness.py --quick      # smaller sizes, smoke test
 python3 bench/harness.py --only fib   # subset (comma-separated)
 python3 bench/harness.py --langs brood,node
 python3 bench/chart.py                # regenerate results/positioning.svg from results.json
 ```
 
-- **Always publish with `--startup-runs 9`.** The `startup` figure is subtracted from
-  every one of the other 27 rows, so under-sampling it corrupts the whole table — and at
-  the default best-of-3 it did (2026-07-28): a high Elixir boot sample (197 ms against a
-  true ~182 ms) exceeded its *wall* on six short rows, so `compute = max(0, wall −
-  startup)` clamped them to `0.0 ms` and handed Elixir spurious 1st places, while Brood's
-  ratios against that zero printed as nonsense (`bintree` `103×` where it is `12×`). Any
-  language whose boot variance approaches a row's total work is exposed to this; Elixir
-  (~±6 ms boot, rows of 4–10 ms) is the one that bites. A `0.0ms`/`< 1×` cell in
-  `report.md` means the run is corrupt — re-run, don't publish it.
+- **A corrupt run now fails itself; you do not have to remember anything.** `startup` is
+  subtracted from all 27 other rows, so an over-estimate of it corrupts the whole table
+  rather than merely blurring it — and at the old best-of-3 default it did (2026-07-28):
+  a high Elixir boot sample (197 ms against a true ~182 ms) exceeded its *wall* on six
+  short rows, so `compute = max(0, wall − startup)` clamped them to `0.0 ms`, which sorts
+  to **1st place** and made Brood's ratios against it nonsense (`bintree` `103×` where it
+  is `12×`). Two mechanisms close that off, both in `harness.py`:
+  - `startup` now defaults to **best of `max(runs, 9)`** — it is the one measurement whose
+    error propagates everywhere, so it is sampled hardest. `--startup-runs` still overrides.
+  - `verify_compute_floor` fails the run (**exit 1**, named cells on stderr, a banner in
+    `report.md`) if any cell's wall is at or below that language's own startup. `--quick`
+    warns without failing, because its smoke-test sizes clamp by construction.
+  Exposure scales with how close a runtime's boot variance is to a row's total work, so
+  Elixir (~±6 ms boot, rows of 4–10 ms) is the one that bites; nothing about it is
+  Elixir-specific though. `python3 bench/test_guard.py` pins all of this — the guard
+  cannot be exercised on demand from a real run (whether one clamps is boot-sample luck),
+  so it is tested against fabricated timings instead.
 - The harness runs `brood` from PATH (`~/.local/bin/brood` on this machine).
   **Rebuild + reinstall it first** when benchmarking a new brood commit:
   `cargo build --release --bin brood` in `../brood`, then copy to `~/.local/bin/`

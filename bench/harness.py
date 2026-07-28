@@ -471,7 +471,14 @@ def main():
     if args.warmup:
         warmup(langs, args.timeout)
 
-    startup_runs = args.startup_runs if args.startup_runs is not None else args.runs
+    # `startup` is SUBTRACTED FROM EVERY OTHER ROW, so it is the one measurement whose
+    # error propagates everywhere — it gets sampled harder than the rest by default.
+    # Under-sampled it corrupts the table rather than merely blurring it: on 2026-07-28 a
+    # high Elixir boot sample (197ms against a true ~182ms) exceeded its *wall* on six
+    # short rows, so `max(0.0, wall - startup)` clamped them to 0.0ms and handed Elixir
+    # spurious 1st places. `verify_compute_floor` now fails such a run outright; this
+    # default is what stops it happening in the first place.
+    startup_runs = args.startup_runs if args.startup_runs is not None else max(args.runs, 9)
     results = {}
     mismatched = []
     for name, default_n, where, what in BENCHES:
@@ -526,11 +533,35 @@ def main():
     json_path = out_dir / f"results{suffix}.json"
     report_path = out_dir / f"report{suffix}.md"
 
+    # Detect clamped compute BEFORE writing, so the report itself carries the warning
+    # banner and a stale corrupt report is self-identifying rather than merely wrong.
+    clamped = verify_compute_floor(results)
+
     json_path.write_text(json.dumps({**results, "_meta": meta}, indent=2))
     report = build_report(results, args, meta)
     report_path.write_text(report)
     print(f"\nWrote {json_path} and {report_path}")
     print("\n" + report)
+
+    if clamped:
+        rows = ", ".join(f"{name}/{lang}" for name, lang, _, _ in clamped)
+        print(f"\n!! COMPUTE CLAMPED in: {rows}", file=sys.stderr)
+        for name, lang, wall, start in clamped:
+            print(f"     {name}/{lang}: wall {wall:.1f}ms <= startup {start:.1f}ms",
+                  file=sys.stderr)
+        print("   `compute = wall - startup` went <= 0, which is not a measurement: the "
+              "startup sample for that language is an over-estimate, so its whole column "
+              "is under-reported and the clamped cells sort to a false 1st place. DO NOT "
+              "PUBLISH this run — re-run it (raise --startup-runs, currently "
+              f"{startup_runs}, and keep the machine quiet).", file=sys.stderr)
+        # `--quick` runs deliberately tiny sizes (bintree N=8), so a slow-booting runtime
+        # clamps there BY CONSTRUCTION — it is a smoke test, not a measurement. Failing it
+        # every time would train the reader to ignore this check, which is exactly how the
+        # real one gets missed, so quick mode warns and exits 0.
+        if not args.quick:
+            sys.exit(1)
+        print("   (--quick: sizes are smoke-test tiny, so this is expected here — not "
+              "failing the run. A FULL run that clamps does fail.)", file=sys.stderr)
 
     if mismatched:
         print(f"\n!! CHECKSUM MISMATCH in: {', '.join(mismatched)} — the languages "
@@ -552,6 +583,38 @@ def verify_checksums(name, data):
         data["checksum_mismatch"] = sums
         return sums
     return None
+
+
+def verify_compute_floor(results):
+    """Find cells where `compute = wall - startup` came out <= 0 and was clamped.
+
+    That is never a real measurement: a program cannot run in less time than its own
+    runtime takes to boot. It means this run's `startup` sample for that language is an
+    over-estimate, and every row of that language is therefore under-reported — the ones
+    that clamp are just the visible tip. The clamped cells are actively wrong rather than
+    imprecise: a 0.0ms compute sorts to *1st place* and turns every ratio against it into
+    nonsense (2026-07-28: Brood's `bintree` printed `103x` where it is `12x`).
+
+    Exposure is proportional to how close a language's boot variance is to a row's total
+    work, so it bites the fast-and-slow-booting combination first — Elixir (~+/-6ms boot,
+    rows of 4-10ms). Records the affected langs on the row (so the report flags it) and
+    returns the violations; the caller fails the run.
+    """
+    if "startup" not in results:
+        return []  # `--only fib` and friends never measured a baseline; nothing to check
+    startup = {l: d["wall_ms"] for l, d in results["startup"]["langs"].items()
+               if "wall_ms" in d and "error" not in d}
+    bad = []
+    for name, data in results.items():
+        if name == "startup":
+            continue
+        for l, d in data.get("langs", {}).items():
+            if "wall_ms" not in d or "error" in d or l not in startup:
+                continue
+            if d["wall_ms"] - startup[l] <= 0.0:
+                bad.append((name, l, d["wall_ms"], startup[l]))
+                data.setdefault("compute_clamped", []).append(l)
+    return bad
 
 
 def fmt_ms(ms):
@@ -604,6 +667,12 @@ def build_report(results, args, meta=None):
             continue
         L.append(f"## {name} — {data['what']}  (N={data['n']})")
         L.append("")
+        if "compute_clamped" in data:
+            L.append(f"> ⚠️ **COMPUTE CLAMPED** for `{'`, `'.join(data['compute_clamped'])}` "
+                     f"— wall came out at or below that language's own startup sample, so "
+                     f"its compute here is not a measurement. This run is **not** "
+                     f"publishable; re-run (see `--startup-runs`).")
+            L.append("")
         if "checksum_mismatch" in data:
             L.append(f"> ⚠️ **CHECKSUM MISMATCH** — the languages did not agree "
                      f"(`{data['checksum_mismatch']}`); these rows are **not** "
