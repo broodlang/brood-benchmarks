@@ -224,6 +224,17 @@ BENCHES = [
     ("regex",      20000,    "all", "regex full-match count (pure-Brood vs native)"),
     ("base64",     50000,    "all", "base64 encode+decode (pure-Brood vs native)"),
     ("spawn",      10000,    "all", "lightweight concurrent units + result collection"),
+    # HELD-ALIVE processes, and deliberately NOT "all". The unit must be a real process:
+    # its own isolated heap, a mailbox that COPIES messages in and out, and preemptive
+    # scheduling. A pending promise / asyncio task / .NET Task is none of those — it is a
+    # closure on a shared heap passing references — so counting it here would credit a
+    # much weaker guarantee at a much lower price (measured 2026-07-28: Node held 300k
+    # "units" in 0.20s/228MB, .NET 0.17s/72MB, against real processes at 0.8-1.9s and
+    # 0.9-1.9GB). The honest equivalent in those runtimes is an OS thread or worker, and
+    # that does not reach this scale: Ruby threads held alive go 1.26s/5k, 5.11s/10k,
+    # 20.78s/20k — quadratic, extrapolating to over an hour and ~6GB at 300k, which is
+    # why they are excluded rather than run. The absence IS the result.
+    ("spawn-live",  300000, ["brood", "elixir"], "hold N processes alive, then wake each"),
     ("pfib",       31,       "all", "parallel fib — 100 computed at once across cores"),
     ("http",       500,      "all", "concurrent HTTP — N in-flight GETs to a local server"),
     ("pingpong",   100000,   "all", "message round-trip latency — two units bounce a token N times"),

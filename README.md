@@ -1,6 +1,6 @@
 # benchmark — Brood vs Clojure vs Elixir vs Python vs Node vs Ruby vs .NET
 
-A cross-language micro-benchmark suite: **28 small programs, each implemented
+A cross-language micro-benchmark suite: **29 small programs, each implemented
 seven times** (once per language) and run under one identical harness, to see
 where the Brood runtime is faster or slower than the alternatives — on
 **startup**, **memory**, **raw performance**, and **concurrency**. The field spans
@@ -82,6 +82,7 @@ their compute measurement).
 | `regex`      | regex full-match counting — pure-Brood `std/regex` vs native engines |
 | `base64`     | base64 encode+decode — pure-Brood `std/encoding` vs native codecs |
 | `spawn`      | lightweight concurrent units + result collection |
+| `spawn-live` | hold **300,000 processes alive at once**, then wake each — Brood/Elixir only: the unit must be a real process (isolated heap, copying mailbox, preemption), and no other runtime's isolated primitive reaches this scale (see the note in `bench/brood/spawn-live.blsp`) |
 | `pfib`       | parallel CPU — 100 `fib(31)`s computed at once across cores |
 | `http`       | concurrent I/O — N in-flight HTTP GETs to a local server |
 | `pingpong`   | message round-trip **latency** — two units bounce a token N times |
