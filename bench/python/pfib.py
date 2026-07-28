@@ -19,6 +19,17 @@ def work(_):
 
 
 if __name__ == "__main__":
-    with mp.Pool() as pool:
-        total = sum(pool.map(work, range(TASKS)))
+    # close()+join(), NOT the `with` block: Pool.__exit__ calls terminate(), which KILLS
+    # the workers instead of reaping them. Their CPU time is then never charged to this
+    # process (getrusage only accounts waited-for children), so `/usr/bin/time` reported
+    # ~0% CPU for a run that actually saturated every core — which made Python look like
+    # the most CPU-efficient runtime in the suite. Joining makes the CPU-seconds column
+    # true; it does not change the wall time being measured.
+    # `fork`, not the 3.14 default `forkserver`: under forkserver the workers are children
+    # of the forkserver process, never of this one, so this process reaps nothing and their
+    # CPU time is invisible to getrusage/`/usr/bin/time`. Same parallelism either way.
+    pool = mp.get_context("fork").Pool()
+    total = sum(pool.map(work, range(TASKS)))
+    pool.close()
+    pool.join()
     print(total)

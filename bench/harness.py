@@ -245,6 +245,10 @@ BENCHES = [
 # contention. Since we report the best (least-noisy) run, taking more samples
 # tightens the floor — so these run more times than the steady compute benches.
 NOISY = {"spawn", "pfib", "http", "pingpong", "ring"}
+
+# Rows where a LOW CPU% is legitimate because the program genuinely blocks (waiting on the
+# local HTTP server), so the idle-CPU guard below must not flag them.
+BLOCKING_ROWS = {"http", "startup"}
 NOISY_RUNS = 7
 
 QUICK = {  # smaller sizes for a fast smoke run
@@ -255,6 +259,13 @@ QUICK = {  # smaller sizes for a fast smoke run
 }
 
 RSS_RE = re.compile(r"Maximum resident set size \(kbytes\):\s*(\d+)")
+# "Percent of CPU this job got" — 100% is one core, 1200% is all twelve. This is the
+# column that keeps a process row honest. A runtime that cannot use more than one core
+# can still post a good wall time when the total work is small enough for one fast core
+# to finish it, which is exactly how Node's single-threaded event loop looked competitive
+# on `spawn` until it was measured (2026-07-28: 102% CPU at N=200k, against Brood's 925%).
+# Wall time alone cannot distinguish "fast" from "cannot scale"; wall + cores can.
+CPU_RE = re.compile(r"Percent of CPU this job got:\s*(\d+)%")
 # Strip ANSI colour/SGR escapes from a benchmark's stdout before checksumming —
 # a runtime that auto-colourises (e.g. Node when FORCE_COLOR is set in the env)
 # prints the SAME integer wrapped in escapes; without this the string compare
@@ -263,7 +274,7 @@ ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
 
 
 def run_once(cmd, n, timeout, extra_env=None, pin=None, settle=0.0):
-    """Run `cmd` under /usr/bin/time -v with BENCH_N=n. Returns (ok, wall_ms, rss_kb, out).
+    """Run `cmd` under /usr/bin/time -v with BENCH_N=n. Returns (ok, wall_ms, rss_kb, cpu_pct, out).
 
     `pin` (a taskset core list like "11" or "0-11") confines the process to those
     CPUs so it isn't migrated and contends less with system noise; `settle` sleeps
@@ -279,13 +290,15 @@ def run_once(cmd, n, timeout, extra_env=None, pin=None, settle=0.0):
     try:
         p = subprocess.run(full, env=env, capture_output=True, text=True, timeout=timeout)
     except subprocess.TimeoutExpired:
-        return (False, timeout * 1000.0, None, "TIMEOUT")
+        return (False, timeout * 1000.0, None, None, "TIMEOUT")
     wall_ms = (time.perf_counter() - t0) * 1000.0
     m = RSS_RE.search(p.stderr)
     rss = int(m.group(1)) if m else None
+    c = CPU_RE.search(p.stderr)
+    cpu = int(c.group(1)) if c else None
     if p.returncode != 0:
-        return (False, wall_ms, rss, f"EXIT {p.returncode}: {p.stderr.strip().splitlines()[-1:]}" )
-    return (True, wall_ms, rss, ANSI_RE.sub("", p.stdout).strip())
+        return (False, wall_ms, rss, cpu, f"EXIT {p.returncode}: {p.stderr.strip().splitlines()[-1:]}" )
+    return (True, wall_ms, rss, cpu, ANSI_RE.sub("", p.stdout).strip())
 
 
 def warmup(langs, timeout):
@@ -320,15 +333,22 @@ def bench_lang(lang, name, n, runs, timeout, pin=None, settle=0.0):
     cmd = spec["cmd"](path)
     extra_env = spec.get("env")
     best_wall, rss_peak, checksum, err = float("inf"), 0, None, None
+    cpu_at_best = None
     for _ in range(runs):
-        ok, wall, rss, out = run_once(cmd, n, timeout, extra_env, pin, settle)
+        ok, wall, rss, cpu, out = run_once(cmd, n, timeout, extra_env, pin, settle)
         if not ok:
             return {"error": out, "wall_ms": wall, "rss_kb": rss}
+        if wall < best_wall:
+            # Report CPU% from the SAME run as the reported wall time. Taking the max
+            # across runs would pair a fast wall with a slow run's utilisation and
+            # describe a run that never happened.
+            cpu_at_best = cpu
         best_wall = min(best_wall, wall)          # best = least-noisy run
         if rss:
             rss_peak = max(rss_peak, rss)
         checksum = out
-    return {"wall_ms": round(best_wall, 1), "rss_kb": rss_peak, "checksum": checksum}
+    return {"wall_ms": round(best_wall, 1), "rss_kb": rss_peak,
+            "cpu_pct": cpu_at_best, "checksum": checksum}
 
 
 # Benchmarks that need a local HTTP server running while they execute. The
@@ -524,7 +544,12 @@ def main():
                 if "error" in r:
                     print(f"  {lang:8} ERROR  {r['error']}")
                 else:
-                    print(f"  {lang:8} {r['wall_ms']:9.1f} ms   {r['rss_kb']:>8} KB   = {r['checksum']}")
+                    cores = f"{r['cpu_pct']/100:.1f}x" if r.get("cpu_pct") else "  - "
+                    cs = ((r["wall_ms"] / 1000.0) * (r["cpu_pct"] / 100.0)
+                          if r.get("cpu_pct") else None)
+                    cstr = f"{cs:6.2f}" if cs is not None else "     -"
+                    print(f"  {lang:8} {r['wall_ms']:9.1f} ms   {r['rss_kb']:>8} KB  "
+                          f"{cores:>6} cores {cstr} CPU-s  = {r['checksum']}")
         finally:
             if server:
                 stop_http_server(server)
@@ -689,8 +714,8 @@ def build_report(results, args, meta=None):
                      f"(`{data['checksum_mismatch']}`); these rows are **not** "
                      f"comparable.")
             L.append("")
-        L.append("| lang | compute | vs fastest | pos | wall | startup | peak RSS | mem | checksum |")
-        L.append("|------|---------|------------|-----|------|---------|----------|-----|----------|")
+        L.append("| lang | compute | vs fastest | pos | wall | startup | peak RSS | mem | cores | CPU·s | vs best CPU | checksum |")
+        L.append("|------|---------|------------|-----|------|---------|----------|-----|-------|-------|-------------|----------|")
         oks = {l: d for l, d in langs.items() if "wall_ms" in d and "error" not in d}
         n = len(oks)
         # For the startup benchmark itself compute ≈ 0 for everyone, so rank by wall.
@@ -712,6 +737,38 @@ def build_report(results, args, meta=None):
         ratio_denom = max(fastest_compute, 1.0) if fastest_compute is not None else 1.0
         compute_rank = {l: i + 1 for i, l in enumerate(sorted(compute_ms, key=lambda l: compute_ms[l]))}
         mem_rank = {l: i + 1 for i, l in enumerate(sorted(oks, key=lambda l: oks[l]["rss_kb"]))}
+        # CPU-seconds = wall x cores actually used. This is the **per-CPU** comparison: it
+        # charges a runtime for the whole machine it consumed, not just the clock it
+        # finished against. Wall time flatters a runtime that burns every core to win by a
+        # nose, and flatters a single-threaded one that happens to be on a small input;
+        # CPU-seconds is the same work measured the same way for everyone. (2026-07-28 on
+        # `spawn` N=200k: Brood won on utilisation at 925% and still needed 8.05 CPU-s
+        # against Node's 1.23 on one core.)
+        # A CPU-bound program that finishes in W seconds must burn AT LEAST W CPU-seconds
+        # (100% = one core). Materially less means the process sat idle — which for these
+        # benchmarks means work happened in processes whose CPU was never charged back.
+        # That is not hypothetical: Python 3.14 defaults multiprocessing to `forkserver`,
+        # so `pfib`'s pool workers were children of the forkserver, this process reaped
+        # nothing, and `/usr/bin/time` read 4% CPU on a run that used 10.6 cores — which
+        # ranked Python as the MOST CPU-efficient runtime in the suite. Suspect readings are
+        # excluded from the "best CPU" denominator and marked, so a lost-accounting port can
+        # never win this column by under-reporting.
+        suspect = {
+            l for l, d in oks.items()
+            if d.get("cpu_pct") is not None
+            and name not in BLOCKING_ROWS
+            and d["wall_ms"] > 200.0
+            and d["cpu_pct"] < 50
+        }
+        cpu_s = {l: (d["wall_ms"] / 1000.0) * (d["cpu_pct"] / 100.0)
+                 for l, d in oks.items() if d.get("cpu_pct")}
+        best_cpu = min((v for l, v in cpu_s.items() if l not in suspect), default=None)
+        if suspect:
+            L.append(f"> \u26a0\ufe0f **CPU time under-reported** for: {', '.join(sorted(suspect))} "
+                     f"— under 50% CPU on a >200ms run means work ran in processes whose CPU "
+                     f"was not charged back (unreaped children). Their CPU\u00b7s is marked "
+                     f"`?` and excluded from the ranking.")
+            L.append("")
         for l in order:
             if l not in langs:
                 continue
@@ -719,7 +776,7 @@ def build_report(results, args, meta=None):
                 continue
             d = langs[l]
             if "error" in d:
-                L.append(f"| {l} | — | — | — | — | — | — | — | ERROR |")
+                L.append(f"| {l} | — | — | — | — | — | — | — | — | — | — | ERROR |")
                 continue
             r = compute_ms[l] / ratio_denom
             ratio_str = f"< 1×" if r < 1.0 else f"{r:.1f}×"
@@ -736,10 +793,24 @@ def build_report(results, args, meta=None):
             else:
                 start_str = fmt_ms(s)
                 comp_str = fmt_ms(max(0.0, d["wall_ms"] - s))
+            # Cores actually used (CPU% / 100). Without it a single-threaded runtime
+            # posting a good wall time is indistinguishable from a scalable one — the
+            # difference only appears when the work outgrows one core.
+            cores_str = f"{d['cpu_pct']/100:.1f}×" if d.get("cpu_pct") else "—"
+            if l in cpu_s and l not in suspect:
+                cs = cpu_s[l]
+                cpu_str = f"{cs:.2f}"
+                cpu_ratio = f"{cs / best_cpu:.1f}×" if best_cpu and best_cpu > 0 else "—"
+            elif l in cpu_s:
+                cpu_str = f"{cpu_s[l]:.2f}?"
+                cpu_ratio = "?"
+            else:
+                cpu_str = cpu_ratio = "—"
             L.append(f"| {l} | {comp_str} | {ratio_str} | "
                      f"{compute_rank[l]}/{n} | {fmt_ms(d['wall_ms'])} | {start_str} | "
                      f"{d['rss_kb']/1024:.1f} MB | "
-                     f"{mem_rank[l]}/{n} | {d['checksum']} |")
+                     f"{mem_rank[l]}/{n} | {cores_str} | {cpu_str} | {cpu_ratio} | "
+                     f"{d['checksum']} |")
         L.append("")
     return "\n".join(L)
 
