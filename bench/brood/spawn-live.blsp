@@ -1,0 +1,44 @@
+;; Hold N lightweight units ALIVE at once, then release them all.
+;;
+;; The `spawn` row measures fan-out throughput with units that exit immediately.
+;; This one measures the other half — what it costs to *keep* N of them parked,
+;; which is the process-per-connection shape (a server holding one unit per idle
+;; client). Peak RSS is as much the point as wall time here.
+;;
+;; WHY ONLY BROOD AND ELIXIR RUN THIS ROW.
+;;
+;; The unit has to be a real process — its own isolated heap, a mailbox that COPIES
+;; messages in and out, preemptive scheduling. A pending promise, an asyncio task or a
+;; .NET Task is none of those: it is a closure on a shared heap passing references, so
+;; counting it here would credit a much weaker guarantee at a much lower price. Measured
+;; 2026-07-28 at this N, those cost 0.15-0.97s and 72-285 MB — but they are not holding
+;; 300k isolated anythings.
+;;
+;; The honest equivalent in those runtimes is their ISOLATED primitive, and it does not
+;; reach this scale. Measured at safe sizes and projected, rather than run (which would
+;; take the machine down):
+;;
+;;   brood   (green process)    300,000 units   1.8 s      1.85 GB   MEASURED
+;;   elixir  (BEAM process)     300,000 units   0.8 s      0.91 GB   MEASURED
+;;   node    (worker_thread)    100 units = 0.53 s / 1.17 GB  ->  ~26 min, ~3.4 TB
+;;   ruby    (OS thread)        20,000 = 20.8 s / 0.42 GB    ->  >1 h,   ~6.2 GB
+;;
+;; Node's worker scaling is linear at ~11.4 MB and ~5.3 ms per unit (25/50/100 all
+;; agree); Ruby's threads are ~21 KB each but the time is quadratic (1.26 s at 5k,
+;; 5.11 s at 10k, 20.78 s at 20k). Neither projection is close to feasible, and that
+;; absence is the result this row reports.
+;;
+;; Checksum = N (every unit replies exactly once).
+(def n (let (e (getenv "BENCH_N")) (if e (string->number e) 300000)))
+(def me (self))
+
+;; Each child parks in `receive` — alive, waiting, holding whatever it allocated.
+(defn spawn-all (i acc)
+  (if (>= i n) acc (spawn-all (+ i 1) (cons (spawn (receive ([:go _] (send me [:r 1])))) acc))))
+
+(defn release (l) (if (empty? l) nil (do (send (first l) [:go 1]) (release (rest l)))))
+(defn collect (got) (if (= got n) got (collect (receive ([:r v] (+ got v))))))
+
+(def kids (spawn-all 0 nil))
+(release kids)
+(println (collect 0))
