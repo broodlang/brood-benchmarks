@@ -172,8 +172,10 @@ each, after one discarded warmup run per language; the concurrency benchmarks
 the best of 7, and **`startup` the best of 9** — it is subtracted from every other
 row, so an over-estimate of it silently deflates the whole field. At best-of-3 it
 did: a high Elixir boot sample (197 ms against a true ~182 ms) drove six of its
-short rows to a clamped `0.0 ms`, handing it spurious 1st places. `--startup-runs 9`
-is now the publish protocol. Each run is CPU-pinned with `taskset` (compute benchmarks to 4 dedicated
+short rows to a clamped `0.0 ms`, handing it spurious 1st places. The harness now
+samples `startup` hardest by default and **fails any run** in which a language's
+wall lands at or below its own startup, since that is a corrupted measurement
+rather than a fast one. Each run is CPU-pinned with `taskset` (compute benchmarks to 4 dedicated
 cores, the concurrency ones to all 12) with a 0.25 s settle between runs. The compute
 workload is single-threaded; the 4-core pin isolates it from system noise **without**
 serialising a runtime's background JIT/GC threads onto the work core — a single-core
