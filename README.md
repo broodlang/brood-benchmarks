@@ -21,25 +21,22 @@ claim to lead the field.
 
 ![Where the languages land — compute speed (startup excluded) vs memory](results/positioning.svg)
 
-**Where Brood stands** (2026-07-27 run):
+**Where Brood stands** (2026-07-28 run):
 
-- **Light and quick to start** — **20 MB and ~13 ms**: 2nd of seven on startup (behind Python's
-  10 ms) and 3rd on memory (behind Python 9.7 MB and Ruby 19.2 MB). Elixir boots ~14× and
+- **Light and quick to start** — **20 MB and ~12 ms**: 2nd of seven on startup (behind Python's
+  10 ms) and 3rd on memory (behind Python 9.7 MB and Ruby 19.2 MB). Elixir boots ~15× and
   Clojure's JVM ~27× slower.
-- **3rd of seven on raw compute** — aggregate single-threaded compute is **~3× the fastest**
-  (.NET), behind only .NET and Node (2.7×) and ahead of Elixir (3.4×), at the **lowest memory of
+- **3rd of seven on raw compute** — aggregate single-threaded compute is **~2.9× the fastest**
+  (.NET), behind only .NET and Node (2.6×) and ahead of Elixir (3.5×), at the **lowest memory of
   the compiled-class runtimes**. The aggregate covers the core-compute rows only and wobbles ±0.3
   run-to-run.
-- **The one deliberate regression is paid back:** `fib` 75 → 59 ms and `pfib` 218 → 172 ms,
-  restoring what a JIT deep-recursion crash fix had cost this morning — without giving the fix up.
-  The guard now runs one per-level check instead of two. Details in [BENCHMARKS.md](BENCHMARKS.md).
 - **No row is last-of-seven.** Wins `strings` and `reduce` outright; 2nd at `startup`, `fib`,
-  `collatz`, `wordcount`, `errors`, `errors-deep`, `pfib`; 3rd at `loop`, `ackermann`, `sieve`,
-  `spawn`, `http`, `pingpong`. (`ring` reads 4th this run — 730 ms to .NET's 727 ms is a tie whose
-  tiebreak flipped, not a change in standing.)
+  `collatz`, `wordcount`, `errors`, `errors-deep`, `pfib`; 3rd at `loop`, `mandelbrot`,
+  `ackermann`, `sieve`, `spawn`, `http`, `pingpong`, `ring`. Both rank moves this run are ties
+  rather than changes — see [BENCHMARKS.md](BENCHMARKS.md).
 - **Leads Elixir** — its closest peer — on essentially all of the core suite, plus `sieve` and
-  `persistent-map`. Elixir still leads **message-passing latency** (`pingpong` 56 vs 197 ms, `ring`
-  ~2.9×), `ackermann`, `nbody`, and the text rows where it uses native codecs.
+  `persistent-map`. Elixir still leads **message-passing latency** (`pingpong` 54 vs 188 ms, `ring`
+  ~2.8×), `ackermann`, `nbody`, and the text rows where it uses native codecs.
 - **Beats the interpreters and the JVM Lisp** — faster than Ruby, Python, and Clojure on most
   single-shot compute (see the Clojure caveat below).
 - **The remaining 6/7 rows are library/representation costs, not VM speed** — the text rows run
@@ -169,10 +166,14 @@ peak RSS, checksum), and `positioning.svg` (the compute-vs-memory map).
 Numbers in the docs were measured on `whklat`: a 12-core x86-64 Linux 7.0.0
 machine · Brood 0.1.0 (bytecode VM + tier-1 JIT) · Clojure 1.12.5 / OpenJDK 25.0.3
 (HotSpot) · Elixir 1.21.0-dev / OTP 28 (BeamAsm JIT) · Python 3.14.4 · Node 22.21.0
-(V8) · Ruby 3.3.8 · .NET 10.0.110 (RyuJIT). 2026-07-27. Best of 3 runs
+(V8) · Ruby 3.3.8 · .NET 10.0.110 (RyuJIT). 2026-07-28. Best of 3 runs
 each, after one discarded warmup run per language; the concurrency benchmarks
 (`spawn`/`pfib`/`http`/`pingpong`/`ring`) take
-the best of 7. Each run is CPU-pinned with `taskset` (compute benchmarks to 4 dedicated
+the best of 7, and **`startup` the best of 9** — it is subtracted from every other
+row, so an over-estimate of it silently deflates the whole field. At best-of-3 it
+did: a high Elixir boot sample (197 ms against a true ~182 ms) drove six of its
+short rows to a clamped `0.0 ms`, handing it spurious 1st places. `--startup-runs 9`
+is now the publish protocol. Each run is CPU-pinned with `taskset` (compute benchmarks to 4 dedicated
 cores, the concurrency ones to all 12) with a 0.25 s settle between runs. The compute
 workload is single-threaded; the 4-core pin isolates it from system noise **without**
 serialising a runtime's background JIT/GC threads onto the work core — a single-core
