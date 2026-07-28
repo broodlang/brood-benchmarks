@@ -41,6 +41,13 @@ claim to lead the field.
 - **Leads Elixir** — its closest peer — on essentially all of the core suite, plus `sieve` and
   `persistent-map`. Elixir still leads **message-passing latency** (`pingpong` 52 vs 194 ms, `ring`
   ~2.7×), `ackermann`, `nbody`, and the text rows where it uses native codecs.
+- **Holds 300,000 real processes** (`spawn-live`) — isolated heap, copying mailbox, preemption —
+  in 1.7 s and 1.86 GB. Only the BEAM also does this, and it does it better (0.8 s, 0.91 GB).
+  The rest of the field has no isolated primitive that reaches this scale: Node's
+  `worker_thread` projects to ~3.4 TB, Ruby's threads to over an hour. Their promises and
+  coroutines hold 300k "units" cheaply, but on a shared heap passing references — a different
+  and much weaker guarantee. **This is a structural property of the process model, not a speed
+  result.**
 - **Beats the interpreters and the JVM Lisp** — faster than Ruby, Python, and Clojure on most
   single-shot compute (see the Clojure caveat below).
 - **The remaining 6/7 rows are library/representation costs, not VM speed** — the text rows run
@@ -54,7 +61,7 @@ service would be far faster than these numbers. Brood, Python, Node, Ruby, and C
 source per run; only Elixir and .NET are precompiled (so per-run compilation never leaks into
 their compute measurement).
 
-## The benchmarks (28)
+## The benchmarks (29)
 
 | name | stresses |
 |------|----------|
@@ -88,7 +95,11 @@ their compute measurement).
 | `pingpong`   | message round-trip **latency** — two units bounce a token N times |
 | `ring`       | N-process **ring** — a token travels N×5000 hops around the ring |
 
-The five concurrency rows (`spawn`, `pfib`, `http`, `pingpong`, `ring`) each use
+`spawn-live` is the exception to everything below: it requires a *real process* (isolated
+heap, copying mailbox, preemption), so only Brood and Elixir run it — see
+[BENCHMARKS.md](BENCHMARKS.md#spawn-live--the-one-row-that-is-a-capability-not-a-speed).
+
+The five *idiomatic* concurrency rows (`spawn`, `pfib`, `http`, `pingpong`, `ring`) each use
 that language's **idiomatic** concurrency, not identical machinery: green
 processes + messages for Brood/Elixir; async/Promises, `worker_threads`, or an
 async HTTP client for Node; asyncio, forked pools, or thread pools for

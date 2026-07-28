@@ -42,18 +42,37 @@ def collect(results):
     langs = set()
     for b in COMPUTE:
         langs |= set(results.get(b, {}).get("langs", {}))
-    # Aggregate compute (ms) = Σ max(0, wall − startup) over the compute benchmarks.
+
+    def ok(b, l):
+        d = results.get(b, {}).get("langs", {}).get(l, {})
+        return "wall_ms" in d and "error" not in d
+
+    # **Compare every language over the SAME benchmarks.** The aggregate used to skip a
+    # language's failed/missing rows silently and sum what was left — which does not
+    # penalise a broken run, it REWARDS it: fewer terms in the sum means a smaller total
+    # and a better-looking position. A runtime that failed half the compute rows would
+    # have plotted at roughly half its true slowdown, with nothing on the chart saying so.
+    #
+    # So the denominator is the set of rows *every plotted language completed*. One
+    # language's failure then costs exactly that row for everyone — it cannot inflate the
+    # failer, and it cannot invalidate anyone else's results on the rows that did run.
+    ran_rows = {l: {b for b in COMPUTE if ok(b, l)} for l in langs}
+    ran_rows = {l: rows for l, rows in ran_rows.items() if rows}
+    common = set.intersection(*ran_rows.values()) if ran_rows else set()
+    dropped = sorted(set(COMPUTE) - common)
+    if dropped:
+        missing = {b: sorted(l for l in ran_rows if b not in ran_rows[l]) for b in dropped}
+        print("  aggregate excludes (not completed by every language): "
+              + ", ".join(f"{b} [missing: {', '.join(missing[b])}]" for b in dropped))
+    if not common:
+        print("  WARNING: no compute benchmark was completed by every language — "
+              "the aggregate would compare different work; plotting nothing.")
+
     agg = {}
-    for l in langs:
-        s, ran = 0.0, False
-        for b in COMPUTE:
-            d = results.get(b, {}).get("langs", {}).get(l, {})
-            if "wall_ms" not in d or "error" in d:
-                continue
-            s += max(0.0, d["wall_ms"] - startup.get(l, 0.0))
-            ran = True
-        if ran:
-            agg[l] = max(s, 1.0)
+    for l in ran_rows:
+        s = sum(max(0.0, results[b]["langs"][l]["wall_ms"] - startup.get(l, 0.0))
+                for b in common)
+        agg[l] = max(s, 1.0)
     fastest = min(agg.values()) if agg else 1.0
     out = {}
     for l, a in agg.items():

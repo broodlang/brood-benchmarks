@@ -21,7 +21,7 @@ don't excuse the number.
 
 | benchmark | Brood | Clojure <sup>c</sup> | Elixir <sup>p</sup> | Python | Node | Ruby | .NET <sup>p</sup> | Brood rank |
 |---|---|---|---|---|---|---|---|---|
-| `fib` <sup>g</sup> | **62ms** | 207ms | 88ms | 803ms | 79ms | 638ms | 48ms | 2/7 |
+| `fib` | **62ms** | 207ms | 88ms | 803ms | 79ms | 638ms | 48ms | 2/7 |
 | `loop` | **45ms** | 159ms | 56ms | 2.4s | 30ms | 594ms | 12ms | 3/7 |
 | `reduce` | **4ms** | 169ms | 33ms | 106ms | 220ms | 222ms | 12ms | **1/7** |
 | `primes` <sup>a</sup> | **41ms** | 143ms | 18ms | 124ms | 9ms | 119ms | 8ms | 4/7 |
@@ -75,15 +75,6 @@ the others mutate one buffer in place.
 slow there, so the fast runtimes finish in single-digit ms and the ordering *among them* is
 meaningless. Read Brood's absolute number, not the ratio.
 
-**<sup>g</sup> Why older published figures read ~75 ms.** Between 2026-07-26 and the 2026-07-27
-morning run, `fib` and `pfib` carried ~+30% from brood `f11f4cb` — a fix closing a crash where deep
-recursion through JIT'd code could run the *native* stack into its guard page (an abort that takes
-the whole OS process and that `try`/`catch` can never see). `e87cfc1` recovered it in full without
-giving the fix up: the cost was not the guard's check but that it ran *alongside* the old
-frame-count cap, so every level of a 30 M-call recursion paid two compares where one would do —
-and that cap was itself the thing the crash had proved wrong. `fib` has held ~59 ms across the two
-runs since.
-
 **<sup>i</sup> Idiomatic concurrency, not identical machinery.** Each language uses its own
 primitive — green processes for Brood/Elixir, Promises/`worker_threads` for Node, asyncio or
 thread pools for Python/Ruby, `future`/`pmap` for Clojure, tasks and channels for .NET. So these
@@ -93,12 +84,49 @@ particular is cooperative single-thread async, not isolated processes.
 The first 15 rows and `spawn`/`pfib`/`http` are the original core suite; the rest widen coverage
 past the numeric/allocation core (recursion depth, mutable-array algorithms, immutable-structure
 churn, float physics, text/parsing, message latency). **No row is last-of-seven.** Run-to-run the
-field drifts ±10%, so read the ordering rather than the digits.
+field drifts ±10%, so read the ordering rather than the digits. (`spawn-live` is excluded from
+every field-wide claim here — it is a two-runtime row by construction, reported on its own
+below.)
 
 **Brood vs Elixir** — its closest peer, immutable-functional on the BEAM. Brood leads essentially
 all of the original 18 rows plus `sieve` and `persistent-map`. Elixir leads the latency rows
 (`pingpong` 52 vs 194 ms, `ring` 266 vs 726 ms — ~2.7–3.7×), `ackermann`, `nbody`, and the text
 rows where it uses native codecs.
+
+## `spawn-live` — the one row that is a capability, not a speed
+
+Every other row asks *how fast*. This one asks *whether at all*, and only two runtimes in the
+field can answer.
+
+It holds **300,000 concurrent units alive at once** and then wakes each individually. The unit
+must be a real process: its own isolated heap, a mailbox that **copies** messages in and out,
+and preemptive scheduling — the guarantees that let you put one unit per connection and stop
+thinking about it.
+
+| | wall | peak RSS | |
+|---|---|---|---|
+| **Elixir** (BEAM process) | 0.8 s | 0.91 GB | measured |
+| **Brood** (green process) | 1.7 s | 1.86 GB | measured |
+| Node (`worker_thread`) | — | — | **projected ~26 min, ~3.4 TB** |
+| Ruby (OS thread) | — | — | **projected >1 h, ~6.2 GB** |
+| Python, .NET, Clojure | — | — | no isolated primitive at this scale |
+
+**Why the others are absent, and why that is the result.** Their idiomatic concurrency
+primitive — a pending promise, an `asyncio` task, a .NET `Task` — is a closure on a *shared*
+heap passing *references*. Those hold 300k units easily (measured: 0.15–0.97 s, 72–285 MB) and
+it is not the same thing: no isolation, no copy, nothing to preempt. Counting them here would
+credit a much weaker guarantee at a much lower price, so those ports were written, measured,
+and deleted.
+
+The honest equivalent is each runtime's **isolated** primitive, and it does not reach this
+scale. Rather than run it and take the machine down, it was measured small and projected:
+Node's `worker_thread` is linear at ~11.4 MB and ~5.3 ms per unit (25/50/100 agree), giving
+~3.4 TB at 300k; Ruby's threads are only ~21 KB each but quadratic in time (1.26 s at 5k,
+5.11 s at 10k, 20.78 s at 20k), giving over an hour.
+
+So read this row as a **structural advantage of the BEAM and Brood process models**, not as a
+2× win over the field. Brood is 2.1× slower and 2.0× heavier than the BEAM here — a real gap
+against the runtime that invented this — while the rest of the field is not on the axis.
 
 ## Memory (peak RSS) and startup
 
