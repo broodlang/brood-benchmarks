@@ -116,7 +116,7 @@ and much cheaper operation, so those ports copy explicitly to match.
 process against Elixir's ~3 KB. The cause is measured and understood: every green process
 compiles its own copy of every function it calls, so compiled code is duplicated per
 process instead of shared per runtime. `(fold + 0 nil)` — a fold over an *empty* list —
-costs ~18 KB in a freshly spawned process. See ADR-174 in the main repo.
+costs ~18 KB in a freshly spawned process. See ADR-175 in the main repo.
 
 **The units are not equivalent, and the table does not pretend otherwise.** A promise, an
 `asyncio` task and a .NET `Task` are closures on a *shared* heap with no isolated heap, no

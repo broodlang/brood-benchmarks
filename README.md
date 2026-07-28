@@ -40,7 +40,7 @@ alive and hands each one a message it must *copy* (a reference hand-off is a che
 operation, so it would not be the same benchmark). Brood is last of five on time and
 memory: ~15 KB per live process against Elixir's ~3 KB. The cause is measured and
 understood — every green process compiles its own copy of every function it calls, so
-compiled code is duplicated per process rather than shared per runtime. See ADR-174 in
+compiled code is duplicated per process rather than shared per runtime. See ADR-175 in
 the main repo.
 
 Read the `cores` and `CPU·s` columns alongside wall time on this row. Node and Python
