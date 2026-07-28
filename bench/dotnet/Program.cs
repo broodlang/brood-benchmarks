@@ -33,6 +33,7 @@ switch (name)
     case "base64":     Bench.Base64.Run(N(50000)); break;
     case "pfib":       Bench.Pfib.Run(N(31)); break;
     case "spawn":      await Bench.Spawn.Run(N(10000)); break;
+    case "spawn-live": await Bench.SpawnLive.Run(N(300000)); break;
     case "http":       await Bench.Http.Run(N(500)); break;
     case "pingpong":   await Bench.Pingpong.Run(N(100000)); break;
     case "ring":       await Bench.Ring.Run(N(200)); break;

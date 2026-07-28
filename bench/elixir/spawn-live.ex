@@ -1,14 +1,20 @@
 defmodule Bspawnlive do
-  # Hold N processes ALIVE at once, then release them all. The `spawn` row measures
-  # fan-out throughput with units that exit immediately; this measures what it costs
-  # to KEEP N parked — the process-per-connection shape. Peak RSS matters as much as
-  # wall time. Checksum = N.
+  # Hold N units alive, then send each a message it must COPY. See the Brood port for
+  # why the payload matters: without it the coroutine runtimes score by doing nothing.
+  # On the BEAM the copy is what `send` already does. Checksum = N * (sum(payload) + 1).
   def main do
     n = String.to_integer(System.get_env("BENCH_N") || "300000")
+    payload = Enum.to_list(0..15)
     parent = self()
-    pids = for _ <- 1..n, do: spawn(fn -> receive do {:go, _} -> send(parent, {:r, 1}) end end)
-    Enum.each(pids, fn p -> send(p, {:go, 1}) end)
+    pids = for id <- 1..n, do: spawn(fn -> unit(parent, id) end)
+    Enum.each(pids, fn p -> send(p, {:go, payload}) end)
     total = Enum.reduce(1..n, 0, fn _, acc -> receive do {:r, v} -> acc + v end end)
     IO.puts(total)
+  end
+
+  defp unit(parent, _id) do
+    receive do
+      {:go, p} -> send(parent, {:r, Enum.sum(p) + 1})
+    end
   end
 end
