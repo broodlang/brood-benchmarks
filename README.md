@@ -26,17 +26,21 @@ claim to lead the field.
 - **Light and quick to start** — **20 MB and ~12 ms**: 2nd of seven on startup (behind Python's
   10 ms) and 3rd on memory (behind Python 9.7 MB and Ruby 19.2 MB). Elixir boots ~15× and
   Clojure's JVM ~27× slower.
-- **3rd of seven on raw compute** — aggregate single-threaded compute is **~2.9× the fastest**
+- **3rd of seven on raw compute** — aggregate single-threaded compute is **~2.8× the fastest**
   (.NET), behind only .NET and Node (2.6×) and ahead of Elixir (3.5×), at the **lowest memory of
   the compiled-class runtimes**. The aggregate covers the core-compute rows only and wobbles ±0.3
   run-to-run.
+- **`sort` gained a place this run — 6/7 → 5/7, 193 → 137 ms.** Two runtime fixes: the collector's
+  forwarding tables became dense arrays instead of hash maps (GC pause 95.7 → 44.6 ms on that row),
+  and the JIT stopped deopting on reads of `def`'d data, which had been silently costing every such
+  loop the whole JIT. Details in [BENCHMARKS.md](BENCHMARKS.md).
 - **No row is last-of-seven.** Wins `strings` and `reduce` outright; 2nd at `startup`, `fib`,
-  `collatz`, `wordcount`, `errors`, `errors-deep`, `pfib`; 3rd at `loop`, `mandelbrot`,
-  `ackermann`, `sieve`, `spawn`, `http`, `pingpong`, `ring`. Both rank moves this run are ties
-  rather than changes — see [BENCHMARKS.md](BENCHMARKS.md).
+  `collatz`, `wordcount`, `errors`, `errors-deep`, `pfib`; 3rd at `loop`, `ackermann`, `sieve`,
+  `spawn`, `http`, `pingpong`, `ring`. (`mandelbrot` reads 4th here having read 3rd last run, while
+  Brood itself got *faster* — that row is a tie the JVM's variance keeps flipping.)
 - **Leads Elixir** — its closest peer — on essentially all of the core suite, plus `sieve` and
-  `persistent-map`. Elixir still leads **message-passing latency** (`pingpong` 54 vs 188 ms, `ring`
-  ~2.8×), `ackermann`, `nbody`, and the text rows where it uses native codecs.
+  `persistent-map`. Elixir still leads **message-passing latency** (`pingpong` 52 vs 194 ms, `ring`
+  ~2.7×), `ackermann`, `nbody`, and the text rows where it uses native codecs.
 - **Beats the interpreters and the JVM Lisp** — faster than Ruby, Python, and Clojure on most
   single-shot compute (see the Clojure caveat below).
 - **The remaining 6/7 rows are library/representation costs, not VM speed** — the text rows run
