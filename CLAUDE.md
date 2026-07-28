@@ -1,7 +1,7 @@
 # brood-benchmarks — guidance for Claude
 
-A cross-language micro-benchmark suite: 29 programs, each implemented once per
-language (Brood, Clojure, Elixir, Python, Node, Ruby, .NET), run under one
+A cross-language micro-benchmark suite: 29 programs (28 implemented once per
+language; `spawn-live` only in Brood and Elixir) (Brood, Clojure, Elixir, Python, Node, Ruby, .NET), run under one
 harness. See [README.md](README.md) for the full methodology.
 
 ## Running

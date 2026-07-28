@@ -93,12 +93,10 @@ all of the original 18 rows plus `sieve` and `persistent-map`. Elixir leads the 
 (`pingpong` 52 vs 194 ms, `ring` 266 vs 726 ms — ~2.7–3.7×), `ackermann`, `nbody`, and the text
 rows where it uses native codecs.
 
-## `spawn-live` — the one row that is a capability, not a speed
+## `spawn-live` — 300,000 processes held alive
 
-Every other row asks *how fast*. This one asks *whether at all*, and only two runtimes in the
-field can answer.
-
-It holds **300,000 concurrent units alive at once** and then wakes each individually. The unit
+A two-runtime row: it requires a unit that other runtimes in this field do not provide. It
+holds **300,000 concurrent units alive at once** and then wakes each individually. The unit
 must be a real process: its own isolated heap, a mailbox that **copies** messages in and out,
 and preemptive scheduling — the guarantees that let you put one unit per connection and stop
 thinking about it.
@@ -111,8 +109,7 @@ thinking about it.
 | Ruby (OS thread) | — | — | **projected >1 h, ~6.2 GB** |
 | Python, .NET, Clojure | — | — | no isolated primitive at this scale |
 
-**Why the others are absent, and why that is the result.** Their idiomatic concurrency
-primitive — a pending promise, an `asyncio` task, a .NET `Task` — is a closure on a *shared*
+**Why the others are absent.** Their idiomatic concurrency primitive — a pending promise, an `asyncio` task, a .NET `Task` — is a closure on a *shared*
 heap passing *references*. Those hold 300k units easily (measured: 0.15–0.97 s, 72–285 MB) and
 it is not the same thing: no isolation, no copy, nothing to preempt. Counting them here would
 credit a much weaker guarantee at a much lower price, so those ports were written, measured,
@@ -124,9 +121,9 @@ Node's `worker_thread` is linear at ~11.4 MB and ~5.3 ms per unit (25/50/100 agr
 ~3.4 TB at 300k; Ruby's threads are only ~21 KB each but quadratic in time (1.26 s at 5k,
 5.11 s at 10k, 20.78 s at 20k), giving over an hour.
 
-So read this row as a **structural advantage of the BEAM and Brood process models**, not as a
-2× win over the field. Brood is 2.1× slower and 2.0× heavier than the BEAM here — a real gap
-against the runtime that invented this — while the rest of the field is not on the axis.
+This row therefore measures a property of the process model, not relative speed across the
+field. Against the BEAM — the only other runtime on this axis — Brood is 2.1× slower and 2.0×
+heavier.
 
 ## Memory (peak RSS) and startup
 
@@ -162,13 +159,13 @@ measured by accident. See [`FRONTIER.md`](FRONTIER.md).)
   JIT's inline `first`/`rest` **deopted on any non-LOCAL handle**, which bailed the whole arm to the
   interpreter — so every loop over `def`'d data ran at interpreter speed (77 ns/element against 1 ns
   for the identical LOCAL list). `sort` is 22% of the aggregate, which is most of the 2.9 → 2.8 move.
-- **Strongest rows**: 1st at `strings` and `reduce`; 2nd at `startup`, `fib`, `collatz`,
+- **Rows ranked 1st–3rd**: 1st at `strings` and `reduce`; 2nd at `startup`, `fib`, `collatz`,
   `wordcount`, `errors`, `errors-deep`, `pfib`; 3rd at `loop`, `ackermann`, `sieve`, `spawn`,
   `http`, `pingpong`, `ring`.
 - **`mandelbrot` reads 4/7 where the last run read 3/7, and Brood got *faster*** (180 → 168 ms).
   Clojure went 181 → 158 ms. This row has now flipped in both directions on consecutive runs
   purely on the JVM's variance — it is a tie, not a standing.
-- **Weakest rows — none last**: the 6/7 rows are the by-design text costs
+- **Rows ranked 5th–6th**: the 6/7 rows are the by-design text costs
   (`json`/`regex`/`base64`) and representation costs — `pipeline` (lazy-seq churn the JIT doesn't
   cover), `nbody` (immutable float sim), and `bintree` (the one open watch-item). `bintree` and
   `nbody` were measured against both fixes above and are genuinely unaffected: they copy 45k and
