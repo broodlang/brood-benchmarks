@@ -8,7 +8,7 @@ play-by-play; this file is the current benchmark-suite read.)
 None of the gaps below are architectural — they are implementation headroom in a young runtime.
 Profiling puts ~60 % of an interpreted benchmark's time in the bytecode dispatch loop (`vm_run_bc`),
 so the two broad levers are **interpreter-dispatch cost** and **widening JIT coverage**.
-Numbers below are from the 2026-07-27 run unless dated otherwise.
+Numbers below are from the 2026-07-28 (afternoon) run unless dated otherwise.
 
 ## What runs native vs interpreted
 
@@ -54,36 +54,50 @@ reasoning at every step:
 Still interpreted (or only partly JIT'd) — the weak rows; ratios are Brood's compute vs the fastest
 language on that row:
 
-- **`nbody` (327 ms; ~25× Node, ~53× .NET's 6 ms)** — float physics rebuilding immutable body
+- **`nbody` (323 ms; ~23× Node, ~54× .NET's 6 ms)** — float physics rebuilding immutable body
   vectors every step. Vector + float-JIT work took it from 5.9 s; the residual is the rebuild
   itself. Closing further needs escape analysis that reuses the per-step vectors, or a native
   float-array primitive (philosophically fraught — see the immutability invariant). A known
-  immutable-cost data point more than a target.
-- **`bintree` (113 ms, 6th — the BEAM is unusually fast here at ~10 ms)** — inline small-vector
+  immutable-cost data point more than a target. **Ruled out 2026-07-28**, same sweep as `bintree`:
+  it copies **798** objects per run (6.2 ms of GC, ~2%), does not bail to the VM (323 ms vs 1112 ms
+  interpreted), and is flat across the nursery sweep — a bigger nursery makes it 9% *worse*.
+- **`bintree` (103 ms, 6th — the BEAM is unusually fast here at ~12 ms)** — inline small-vector
   storage closed it to 90 ms once; it has since drifted in the 95–115 ms band run-to-run,
   trading places with Python/Ruby. **The one open watch-item.** Remaining known headroom: the
-  non-tail-call safepoints in `check`/`make` block the in-arm alloc inline.
-- **`nqueens` (83 ms, ~12×)** — backtracking recursion; the `reduce`-over-`range` per node and the
+  non-tail-call safepoints in `check`/`make` block the in-arm alloc inline. **Ruled out
+  2026-07-28:** it is not GC-bound (only 45k objects copied per run, ~5 ms, ~4% of the row), it
+  does not bail to the VM (JIT 124 ms vs 405 ms interpreted), and nursery sizing does nothing —
+  flat across an 8K→128K floor sweep, and a 2M floor makes it **19% worse**. The cost is the call
+  protocol: ~77 ns per node covering four non-tail calls. That is the X-register/call-convention
+  redesign, not a tuning knob.
+- **`nqueens` (82 ms, ~12×)** — backtracking recursion; the `reduce`-over-`range` per node and the
   non-tail `solve`/`safe?` recursion dominate.
-- **`mandelbrot` (173 ms, ~9×)** — `esc` is JIT'd with register-carried f64 params (verified via
+- **`mandelbrot` (168 ms, ~8×)** — `esc` is JIT'd with register-carried f64 params (verified via
   CLIF); the residual is the boxed 24-byte `Value` tagging in the arithmetic itself plus loop
   overhead. Eliding back-edge slot stores was prototyped → ~0 (absorbed by the store buffer;
   don't re-attempt). Near the current JIT floor.
 - **`pipeline` (32 ms, ~8×)** — lazy-seq / transducer composition the JIT doesn't cover;
   allocation churn dominates. The known blocker: `eduction`'s step closures capture, and the
   fast-link bails on captures.
-- **`sort` (194 ms, ~3.0×)** — `(sort nums)` is native `%sort-asc`, and **the sorting is no longer
-  the expensive part of it.** Phase-isolated at 375k ints (best-of-11, same binary): building the
-  input list ~99 ms, the `sort` call ~79 ms, the checksum walk ~14 ms. Of that sort call, comparison
-  is now a few ms — brood `1749307` unboxes the all-`Int` case to a raw `Vec<i64>` (106 → 79 ms,
-  −25%), so what remains is `seq_items` walking the cons spine in and `heap.list` allocating a fresh
-  375k-cell list out. That is allocation, the same frontier as `bintree`/`nbody`, and it is also why
-  this row is the suite's heaviest for memory (188 MB, 7/7). Do not re-optimise the comparator.
-  (Earlier editions of this file said the cost was "building the input list"; that was measured
-  wrong — the sort call was the larger half.)
-- **`matmul` (134 ms; the ~33× ratio is inflated by .NET's 4 ms denominator)** — the inner loop is
+- **`sort` (137 ms, ~2.1×) — CLOSED a rank, 6/7 → 5/7 (2026-07-28).** Was 193 ms. Two runtime
+  fixes, neither in `%sort-asc` itself:
+  1. **The collector's forwarding tables were `HashMap<u32, u32>`s** (brood `46db4405`). The keys
+     are slab indices — dense, bounded by the source slab — so hashing them was pure overhead, and
+     it dominated collection. `(gc-stats)` on this row: 4 collections copying 946,464 objects spent
+     **95.7 ms of a 158 ms run**, i.e. 101 ns per copied object. Dense `Vec<u32>` tables: same
+     collections, same objects, **44.6 ms**.
+  2. **The JIT deopted on every non-LOCAL pair read** (brood `c9d3fac8`). `(def data (sort …))` puts
+     the list in the shared RUNTIME region, and the inline `first`/`rest` deopted on anything but
+     LOCAL — per element, until the arm bailed and the whole walk ran on the interpreter. Measured
+     77 ns/element against 1 ns for an identical LOCAL list, and *identical to `BROOD_NO_JIT=1`*.
+     Non-LOCAL now calls `car`/`cdr` instead of deopting.
+  Do not re-optimise the comparator (already unboxed, brood `1749307`). Still the suite's heaviest
+  row for memory (201 MB) — the allocation volume is unchanged, only the cost of surviving a
+  collection is. (Earlier editions blamed "building the input list", then `seq_items`/`heap.list`;
+  both were measured before the two costs above were visible.)
+- **`matmul` (128 ms; the ~32× ratio is inflated by .NET's 4 ms denominator)** — the inner loop is
   native; the residual is the one read LICM can't hoist plus boxed `Value` array storage.
-- **`primes` (46 ms, ~5×), `loop` (42 ms, ~4×)** — raw dispatch overhead; both already closed
+- **`primes` (41 ms, ~5×), `loop` (45 ms, ~4×)** — raw dispatch overhead; both already closed
   hard (loop was 304 ms before the 2026-07-16 match-lowering + call-gate round).
 
 **Memory is not a frontier row.** Base RSS is **20 MB** — 3rd-lightest of the seven, a megabyte
