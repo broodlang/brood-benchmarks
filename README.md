@@ -1,9 +1,10 @@
 # benchmark — Brood vs Clojure vs Elixir vs Python vs Node vs Ruby vs .NET
 
-A cross-language micro-benchmark suite: **29 small programs, each implemented
-seven times** (once per language) and run under one identical harness, to see
-where the Brood runtime is faster or slower than the alternatives — on
-**startup**, **memory**, **raw performance**, and **concurrency**. The field spans
+A cross-language micro-benchmark suite: **29 small programs** run under one
+identical harness, to see where the Brood runtime is faster or slower than the
+alternatives — on **startup**, **memory**, **raw performance**, and
+**concurrency**. 28 are implemented once per language; `spawn-live` requires a
+real process and only Brood and Elixir can express it. The field spans
 interpreters (Python, Ruby), JITs (Node/V8, Elixir/BeamAsm, .NET/RyuJIT), and a
 fellow **immutable-data Lisp on the JVM** (Clojure/HotSpot) — the closest peer to
 Brood's own immutable, functional design.
@@ -21,39 +22,21 @@ claim to lead the field.
 
 ![Where the languages land — compute speed (startup excluded) vs memory](results/positioning.svg)
 
-**Where Brood stands** (2026-07-28 run):
+**2026-07-28 run.** Numbers regenerate with each run; the full table is in
+[BENCHMARKS.md](BENCHMARKS.md).
 
-- **Light and quick to start** — **20 MB and ~12 ms**: 2nd of seven on startup (behind Python's
-  10 ms) and 3rd on memory (behind Python 9.7 MB and Ruby 19.2 MB). Elixir boots ~15× and
-  Clojure's JVM ~27× slower.
-- **3rd of seven on raw compute** — aggregate single-threaded compute is **~2.8× the fastest**
-  (.NET), behind only .NET and Node (2.6×) and ahead of Elixir (3.5×), at the **lowest memory of
-  the compiled-class runtimes**. The aggregate covers the core-compute rows only and wobbles ±0.3
-  run-to-run.
-- **`sort` gained a place this run — 6/7 → 5/7, 193 → 137 ms.** Two runtime fixes: the collector's
-  forwarding tables became dense arrays instead of hash maps (GC pause 95.7 → 44.6 ms on that row),
-  and the JIT stopped deopting on reads of `def`'d data, which had been silently costing every such
-  loop the whole JIT. Details in [BENCHMARKS.md](BENCHMARKS.md).
-- **No row is last-of-seven.** Wins `strings` and `reduce` outright; 2nd at `startup`, `fib`,
-  `collatz`, `wordcount`, `errors`, `errors-deep`, `pfib`; 3rd at `loop`, `ackermann`, `sieve`,
-  `spawn`, `http`, `pingpong`, `ring`. (`mandelbrot` reads 4th here having read 3rd last run, while
-  Brood itself got *faster* — that row is a tie the JVM's variance keeps flipping.)
-- **Leads Elixir** — its closest peer — on essentially all of the core suite, plus `sieve` and
-  `persistent-map`. Elixir still leads **message-passing latency** (`pingpong` 52 vs 194 ms, `ring`
-  ~2.7×), `ackermann`, `nbody`, and the text rows where it uses native codecs.
-- **Holds 300,000 real processes** (`spawn-live`) — isolated heap, copying mailbox, preemption —
-  in 1.7 s and 1.86 GB. Only the BEAM also does this, and it does it better (0.8 s, 0.91 GB).
-  The rest of the field has no isolated primitive that reaches this scale: Node's
-  `worker_thread` projects to ~3.4 TB, Ruby's threads to over an hour. Their promises and
-  coroutines hold 300k "units" cheaply, but on a shared heap passing references — a different
-  and much weaker guarantee. **This is a structural property of the process model, not a speed
-  result.**
-- **Beats the interpreters and the JVM Lisp** — faster than Ruby, Python, and Clojure on most
-  single-shot compute (see the Clojure caveat below).
-- **The remaining 6/7 rows are library/representation costs, not VM speed** — the text rows run
-  pure-Brood `std/` codecs against native ones by design; `nbody` is the price of immutable body
-  vectors in a float sim; `pipeline` is lazy-seq churn the JIT doesn't cover; `bintree` is the one
-  open watch-item. Details in [BENCHMARKS.md](BENCHMARKS.md).
+| | Brood | field |
+|---|---|---|
+| startup (wall) | 12 ms | Python 10, Node 18, .NET 22, Ruby 39, Elixir 183, Clojure 334 |
+| base RSS | 20 MB | Python 9.7, Ruby 19.2, .NET 25.8, Node 42.5, Elixir 72.9, Clojure 103.5 |
+| aggregate single-threaded compute | 2.8× the fastest | .NET 1.0, Node 2.6, Elixir 3.5, Clojure 7.7, Ruby 11.6, Python 27.8 |
+| rank by row | 1st on `strings`, `reduce`; 6/7 on `json`, `regex`, `base64`, `pipeline`, `nbody`, `bintree`; no row 7/7 | |
+| `spawn-live` (300k processes held alive) | 1.7 s, 1.86 GB | Elixir 0.8 s, 0.91 GB; no other runtime in the field has an isolated primitive at this scale |
+
+The aggregate covers the core-compute rows only and varies ±0.3 run-to-run. `spawn-live`
+requires a real process (isolated heap, copying mailbox, preemption) and is therefore a
+two-runtime row — see [BENCHMARKS.md](BENCHMARKS.md) for what the other runtimes' isolated
+primitives would cost.
 
 **A caveat on Clojure:** the JVM cold-starts (~0.35 s) on every one of these single-shot runs, and
 HotSpot never fully JIT-compiles the hot loops in that short a window — a long-running Clojure
