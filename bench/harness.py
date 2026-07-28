@@ -234,7 +234,13 @@ BENCHES = [
     # that does not reach this scale: Ruby threads held alive go 1.26s/5k, 5.11s/10k,
     # 20.78s/20k — quadratic, extrapolating to over an hour and ~6GB at 300k, which is
     # why they are excluded rather than run. The absence IS the result.
-    ("spawn-live",  300000, ["brood", "elixir"], "hold N processes alive, then wake each"),
+    # Every port must hold N units alive and hand each a message it COPIES (see
+    # bench/brood/spawn-live.blsp). The coroutine runtimes are included because the
+    # `cores` and `CPU\u00b7s` columns now make the difference legible: a promise/Task is
+    # not an isolated preemptively-scheduled process, and this row does not pretend
+    # otherwise -- it reports what each runtime spends to hold 300k live units.
+    ("spawn-live",  300000, ["brood", "elixir", "node", "dotnet", "python"],
+     "hold N units alive, then wake each with a copied message"),
     ("pfib",       31,       "all", "parallel fib — 100 computed at once across cores"),
     ("http",       500,      "all", "concurrent HTTP — N in-flight GETs to a local server"),
     ("pingpong",   100000,   "all", "message round-trip latency — two units bounce a token N times"),

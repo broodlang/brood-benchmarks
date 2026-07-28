@@ -27,16 +27,26 @@ claim to lead the field.
 
 | | Brood | field |
 |---|---|---|
-| startup (wall) | 12 ms | Python 10, Node 18, .NET 22, Ruby 39, Elixir 183, Clojure 334 |
-| base RSS | 20 MB | Python 9.7, Ruby 19.2, .NET 25.8, Node 42.5, Elixir 72.9, Clojure 103.5 |
-| aggregate single-threaded compute | 2.8× the fastest | .NET 1.0, Node 2.6, Elixir 3.5, Clojure 7.7, Ruby 11.6, Python 27.8 |
-| rank by row | 1st on `strings`, `reduce`; 6/7 on `json`, `regex`, `base64`, `pipeline`, `nbody`, `bintree`; no row 7/7 | |
-| `spawn-live` (300k processes held alive) | 1.7 s, 1.86 GB | Elixir 0.8 s, 0.91 GB; no other runtime in the field has an isolated primitive at this scale |
+| startup (wall) | 13.2 ms | Python 10.6, Node 18.6, .NET 22.2, Ruby 40.1, Elixir 183.5, Clojure 345.2 |
+| base RSS | 18.2 MB | Python 9.7, Ruby 19.0, .NET 25.8, Node 44.5, Elixir 72.0, Clojure 103.1 |
+| aggregate single-threaded compute | 2.8× the fastest | .NET 1.0, Node 2.6, Elixir 3.5, Clojure 7.8, Ruby 11.6, Python 27.3 |
+| rank by row | 1st on `strings`, `reduce`; last on `spawn-live` | |
+| `spawn-live` (300k units held alive, each sent a copied message) | 5.35 s, 4.45 GB, 18.45 CPU·s | .NET 0.33 s / 0.13 GB, Node 0.27 s / 0.27 GB, Python 1.20 s / 0.33 GB, Elixir 0.74 s / 0.92 GB |
 
-The aggregate covers the core-compute rows only and varies ±0.3 run-to-run. `spawn-live`
-requires a real process (isolated heap, copying mailbox, preemption) and is therefore a
-two-runtime row — see [BENCHMARKS.md](BENCHMARKS.md) for what the other runtimes' isolated
-primitives would cost.
+The aggregate covers the core-compute rows only and varies ±0.3 run-to-run.
+
+**`spawn-live` is Brood's worst row, by a wide margin.** Every port now holds 300k units
+alive and hands each one a message it must *copy* (a reference hand-off is a cheaper
+operation, so it would not be the same benchmark). Brood is last of five on time and
+memory: ~15 KB per live process against Elixir's ~3 KB. The cause is measured and
+understood — every green process compiles its own copy of every function it calls, so
+compiled code is duplicated per process rather than shared per runtime. See ADR-174 in
+the main repo.
+
+Read the `cores` and `CPU·s` columns alongside wall time on this row. Node and Python
+units are coroutines on a single-threaded event loop, not isolated preemptively-scheduled
+processes; they are cheap because they provide less, not because they are better at the
+same thing. The columns make that visible instead of leaving wall time to imply it.
 
 **A caveat on Clojure:** the JVM cold-starts (~0.35 s) on every one of these single-shot runs, and
 HotSpot never fully JIT-compiles the hot loops in that short a window — a long-running Clojure
