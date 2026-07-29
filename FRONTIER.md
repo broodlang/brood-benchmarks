@@ -27,8 +27,10 @@ arm's native code *and* its bytecode — compiled once per runtime, not once per
 
 Ratios are Brood's compute vs the fastest language on that row.
 
-- **`spawn-live` (3.10 s, 1.90 GB — last of five).** ~6.5 KB per live process against the
-  BEAM's ~3 KB. Compiled code is no longer the cause: every shared-region closure
+- **`spawn-live` (3.07 s, 1.74 GB — last of five).** ~6.1 KB per live process against the
+  BEAM's ~3.1 KB (was 6.5 KB / 1.90 GB before the 2026-07-29 `Heap` work — the single-copy
+  local send, one fast-link representation instead of two, and the checker state moved off
+  the process). Compiled code is no longer the cause: every shared-region closure
   (prelude *and* user code) compiles once per runtime. What is left is the process itself
   — mailbox, isolated heap, captured continuation — and roughly half of it is
   **unattributed**. Attributing it wants a real allocation profile; whole-program
@@ -72,12 +74,13 @@ lightest of the compiled-class runtimes.
 
 ## Levers (rough priority)
 
-1. **The green-process floor (~6.5 KB live / ~4.5 KB parked, vs the BEAM's ~3 KB).**
+1. **The green-process floor (~6.1 KB live, vs the BEAM's ~3.1 KB).**
    Now that compiled code is shared per runtime, this is the whole of the `spawn-live`
-   gap. Attributed per structure: the **inline-cache tables are 664 B** (`vm_call_ics`
-   384, `vm_fast_links` 160, `arm_ic_blocks` 120) of ~1144 B of per-process tables, on
-   top of `Box<Process>` (the `Heap` is inline in it), `Arc<Mailbox>` 184 B and
-   `Suspended` 128 B. A process that will idle for a long time can hand most of this
+   gap. Attributed per structure: the **inline-cache tables are ~536 B** (`vm_call_ics`
+   256 — the entry shrank 96 → 64 B once the duplicated fast-link memo was removed —
+   `vm_fast_links` 160, `arm_ic_blocks` 120), on top of `Box<Process>` (the `Heap` is
+   inline in it, and is 1376 B after the checker state moved off), `Arc<Mailbox>` 184 B
+   and `Suspended` 128 B. A process that will idle for a long time can hand most of this
    back explicitly with `(hibernate)`.
 
    **It is working state, not slack** — three tunings were measured and all reverted (see
