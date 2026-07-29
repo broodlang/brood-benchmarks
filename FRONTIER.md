@@ -68,30 +68,22 @@ lightest of the compiled-class runtimes.
 
 ## Levers (rough priority)
 
-1. **Split shared code from per-process JIT-tier state.** Compiled arms are now shared
-   across a runtime's processes (ADR-175), and a shared arm also shares
-   `jit_calls`/`jit_deopts`/`compile_epoch` — so tiering history persists across installs
-   where a per-process recompile used to reset it. That is a win on some rows and a loss
-   on others: measured against the pre-sharing baseline, `spawn` −14.8% and `ring` −3.9%,
-   but `nqueens` **+7.8%** and `collatz` **+4.9%** (both solo-confirmed). It is the tier
-   state and not the code sharing: with `BROOD_NO_JIT=1` sharing is if anything *faster*
-   (`nqueens` 298 vs 302 ms), and `BROOD_NO_SHARED_ARMS=1` recovers the loss. Separating
-   the two — shared body/chunk/shape, per-process counters — should keep the memory win
-   and drop the regression.
-2. **The green-process floor (~6.6 KB vs the BEAM's ~3 KB).** Now that code is shared this
-   is the whole of the `spawn-live` gap. Identified: `Box<Process>` 1736 B (with `Heap`
-   inline), `Arc<Mailbox>` ~184 B, `Suspended` 128 B, slabs ~480 B, roots/ICs ~170 B —
-   about half the total. The rest is unattributed and needs an allocation profile.
-3. **Heap-walking / allocation-heavy code** (`nqueens`, `pipeline`) — structure-walkers
+1. **The green-process floor (~6.6 KB vs the BEAM's ~3 KB).** Now that compiled code is
+   shared per runtime, this is the whole of the `spawn-live` gap. Identified:
+   `Box<Process>` 1736 B (with `Heap` inline), `Arc<Mailbox>` ~184 B, `Suspended` 128 B,
+   slabs ~480 B, roots/ICs ~170 B — about half the total. The rest is unattributed and
+   needs a real allocation profile; whole-program differencing is exhausted, and per-phase
+   `live_bytes()` deltas are invalid (the counter is process-wide across workers).
+2. **Heap-walking / allocation-heavy code** (`nqueens`, `pipeline`) — structure-walkers
    don't tier and some heap reads go through per-op FFI callbacks. Extending the proven
    inline small-vector read template to variable-index reads and in-arm alloc (blocked by
    non-tail-call safepoints) is the win toward Elixir. `pipeline` additionally wants the
    capturing-closure fast-link.
-4. **True call inlining / bounded unroll** — removes calls rather than cheapening them;
+3. **True call inlining / bounded unroll** — removes calls rather than cheapening them;
    the remaining `fib`/`bintree`-class lever.
-5. **Interpreter dispatch** — the ~60% `vm_run_bc` share bounds every un-JIT'd row.
-6. **LINMAP wider coverage** — next target is `reduce`-style folds over non-integer values.
-7. **`matmul`/`nbody` unboxed storage** — boxed 24-byte `Value` vs a register
+4. **Interpreter dispatch** — the ~60% `vm_run_bc` share bounds every un-JIT'd row.
+5. **LINMAP wider coverage** — next target is `reduce`-style folds over non-integer values.
+6. **`matmul`/`nbody` unboxed storage** — boxed 24-byte `Value` vs a register
    `long`/`double`; any design must not violate the immutability invariant.
 
 ## Measured and ruled out — don't re-attempt
@@ -104,6 +96,12 @@ lightest of the compiled-class runtimes.
   bottleneck.
 - **Always-on native-call timing** — 8–22% on the message rows.
 - **Comparator work in `sort`** — already unboxed.
+- **Splitting shared compiled code from per-process JIT-tier state.** The `collatz`/
+  `nqueens` regression that motivated it is an artifact of `make ab`'s single-core pin —
+  the background JIT compiler competes with the benchmark for that core. Unpinned, and
+  under this harness's own pinning, there is no regression. Sharing deliberately makes
+  more prelude arms tier up (18 lowered vs 7); splitting the state would undo `spawn`
+  −14.8% to fix nothing.
 
 See [`results/report.md`](results/report.md) for the current numbers and
 [`results/positioning.svg`](results/positioning.svg) for the compute-vs-memory map.
