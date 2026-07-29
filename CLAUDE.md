@@ -33,9 +33,30 @@ python3 bench/chart.py                # regenerate results/positioning.svg from 
   cannot be exercised on demand from a real run (whether one clamps is boot-sample luck),
   so it is tested against fabricated timings instead.
 - The harness runs `brood` from PATH (`~/.local/bin/brood` on this machine).
-  **Rebuild + reinstall it first** when benchmarking a new brood commit:
-  `cargo build --release --bin brood` in `../brood`, then copy to `~/.local/bin/`
-  (never `-p brood` — it doesn't relink the binary; see the brood CLAUDE.md).
+  **Rebuild + reinstall it first** when benchmarking a new brood commit, and
+  **always install the LEAN build** — from `../brood`:
+
+      make install INSTALL_FEATURES='$(RUN_FEATURES)'
+
+  `make install` alone adds `brood/dev-tools` (the REPL, `nest test`, the observer,
+  the MCP server) — developer tooling that is not part of the runtime an app ships.
+  The reason to install lean is **build consistency, not a measured startup cost**:
+  `RUN_FEATURES` is exactly what **`make ab` measures** (see the `RUN_FEATURES`
+  comment in the brood Makefile) and what `nest release` embeds, so installing lean
+  puts the published cross-language numbers, the A/B numbers, and what users run on
+  one build.
+
+  Measured 2026-07-29 (same commit, best-of-9 after a boot-cache warmup, pinned):
+  lean and dev-tools startup are **identical** — 10 ms / 18.8 MB each, binary 38.05
+  vs 38.32 MB. The DEV_MODULES are `require`d on demand, not baked into the boot
+  image, so dev-tools does *not* inflate the `startup` row or base RSS. Don't claim
+  it does; the case for lean is consistency.
+
+  Note this makes the installed `nest` lean too, so `nest test`/`repl` won't work
+  until you reinstall with the default `make install`.
+
+  (Never `cargo build -p brood` — it doesn't relink the binary; see the brood
+  CLAUDE.md.)
 - A full run takes tens of minutes and is timing-sensitive: **don't run builds
   or other heavy work concurrently.**
 - The harness does one discarded warmup run per language before measuring. Don't

@@ -22,26 +22,25 @@ claim to lead the field.
 
 ![Where the languages land — compute speed (startup excluded) vs memory](results/positioning.svg)
 
-**2026-07-28 run.** Numbers regenerate with each run; the full table is in
+**2026-07-29 run.** Numbers regenerate with each run; the full table is in
 [BENCHMARKS.md](BENCHMARKS.md).
 
 | | Brood | field |
 |---|---|---|
-| startup (wall) | 13.2 ms | Python 10.6, Node 18.6, .NET 22.2, Ruby 40.1, Elixir 183.5, Clojure 345.2 |
-| base RSS | 18.2 MB | Python 9.7, Ruby 19.0, .NET 25.8, Node 44.5, Elixir 72.0, Clojure 103.1 |
-| aggregate single-threaded compute | 2.8× the fastest | .NET 1.0, Node 2.6, Elixir 3.5, Clojure 7.8, Ruby 11.6, Python 27.3 |
+| startup (wall) | 14.4 ms | Python 10.9, Node 18.7, .NET 22.6, Ruby 40.5, Elixir 187.3, Clojure 352.3 |
+| base RSS | 20.1 MB | Python 9.6, Ruby 19.0, .NET 25.8, Node 43.0, Elixir 72.5, Clojure 102.4 |
+| aggregate single-threaded compute | 2.9× the fastest | .NET 1.0, Node 2.7, Elixir 3.5, Clojure 7.8, Ruby 11.9, Python 28.6 |
 | rank by row | 1st on `strings`, `reduce`; last on `spawn-live` | |
-| `spawn-live` (300k units held alive, each sent a copied message) | 5.35 s, 4.45 GB, 18.45 CPU·s | .NET 0.33 s / 0.13 GB, Node 0.27 s / 0.27 GB, Python 1.20 s / 0.33 GB, Elixir 0.74 s / 0.92 GB |
+| `spawn-live` (300k units held alive, each sent a copied message) | 3.47 s, 2.80 GB, 10.97 CPU·s | .NET 0.32 s / 0.13 GB, Node 0.24 s / 0.27 GB, Python 1.14 s / 0.33 GB, Elixir 0.71 s / 0.92 GB |
 
 The aggregate covers the core-compute rows only and varies ±0.3 run-to-run.
 
-**`spawn-live` is Brood's worst row, by a wide margin.** Every port now holds 300k units
-alive and hands each one a message it must *copy* (a reference hand-off is a cheaper
-operation, so it would not be the same benchmark). Brood is last of five on time and
-memory: ~15 KB per live process against Elixir's ~3 KB. The cause is measured and
-understood — every green process compiles its own copy of every function it calls, so
-compiled code is duplicated per process rather than shared per runtime. See ADR-175 in
-the main repo.
+**`spawn-live` is Brood's worst row.** Every port holds 300k units alive and hands each
+one a message it must *copy* (a reference hand-off is a cheaper operation, so it would not
+be the same benchmark). Brood is last of five on time and memory: ~9 KB per live process
+against Elixir's ~3 KB. The cause is understood — user-code functions are still compiled
+once per process rather than once per runtime (prelude functions are shared). See
+[FRONTIER.md](FRONTIER.md).
 
 Read the `cores` and `CPU·s` columns alongside wall time on this row. Node and Python
 units are coroutines on a single-threaded event loop, not isolated preemptively-scheduled
@@ -82,15 +81,16 @@ their compute measurement).
 | `regex`      | regex full-match counting — pure-Brood `std/regex` vs native engines |
 | `base64`     | base64 encode+decode — pure-Brood `std/encoding` vs native codecs |
 | `spawn`      | lightweight concurrent units + result collection |
-| `spawn-live` | hold **300,000 processes alive at once**, then wake each — Brood/Elixir only: the unit must be a real process (isolated heap, copying mailbox, preemption), and no other runtime's isolated primitive reaches this scale (see the note in `bench/brood/spawn-live.blsp`) |
+| `spawn-live` | hold **300,000 units alive at once**, then wake each with a message it must **copy**. Five languages run it, but their units differ in kind: Brood/Elixir processes are isolated + preemptively scheduled; Node/Python/.NET units are coroutines on a shared heap. Read the `cores` and `CPU·s` columns alongside wall time (see the note in `bench/brood/spawn-live.blsp`) |
 | `pfib`       | parallel CPU — 100 `fib(31)`s computed at once across cores |
 | `http`       | concurrent I/O — N in-flight HTTP GETs to a local server |
 | `pingpong`   | message round-trip **latency** — two units bounce a token N times |
 | `ring`       | N-process **ring** — a token travels N×5000 hops around the ring |
 
-`spawn-live` is the exception to everything below: it requires a *real process* (isolated
-heap, copying mailbox, preemption), so only Brood and Elixir run it — see
-[BENCHMARKS.md](BENCHMARKS.md#spawn-live--the-one-row-that-is-a-capability-not-a-speed).
+`spawn-live` is the exception to everything below: the units are not equivalent across
+languages (only Brood and Elixir provide isolation + preemption), so it is excluded from the
+field-wide aggregate and reported on its own — see
+[BENCHMARKS.md](BENCHMARKS.md#spawn-live--300000-units-held-alive-each-sent-a-copied-message).
 
 The five *idiomatic* concurrency rows (`spawn`, `pfib`, `http`, `pingpong`, `ring`) each use
 that language's **idiomatic** concurrency, not identical machinery: green
@@ -175,7 +175,7 @@ peak RSS, checksum), and `positioning.svg` (the compute-vs-memory map).
 Numbers in the docs were measured on `whklat`: a 12-core x86-64 Linux 7.0.0
 machine · Brood 0.1.0 (bytecode VM + tier-1 JIT) · Clojure 1.12.5 / OpenJDK 25.0.3
 (HotSpot) · Elixir 1.21.0-dev / OTP 28 (BeamAsm JIT) · Python 3.14.4 · Node 22.21.0
-(V8) · Ruby 3.3.8 · .NET 10.0.110 (RyuJIT). 2026-07-28. Best of 3 runs
+(V8) · Ruby 3.3.8 · .NET 10.0.110 (RyuJIT). 2026-07-29. Best of 5 runs
 each, after one discarded warmup run per language; the concurrency benchmarks
 (`spawn`/`pfib`/`http`/`pingpong`/`ring`) take
 the best of 7, and **`startup` the best of 9** — it is subtracted from every other
