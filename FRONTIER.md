@@ -27,8 +27,8 @@ arm's native code *and* its bytecode — compiled once per runtime, not once per
 
 Ratios are Brood's compute vs the fastest language on that row.
 
-- **`spawn-live` (3.07 s, 1.74 GB — last of five).** ~6.1 KB per live process against the
-  BEAM's ~3.1 KB (was 6.5 KB / 1.90 GB before the 2026-07-29 `Heap` work — the single-copy
+- **`spawn-live` (3.05 s, 1.66 GB — last of five).** ~5.8 KB per live process against the
+  BEAM's ~3.2 KB (was 6.5 KB / 1.90 GB before the 2026-07-29 `Heap` work — the single-copy
   local send, one fast-link representation instead of two, and the checker state moved off
   the process). Compiled code is no longer the cause: every shared-region closure
   (prelude *and* user code) compiles once per runtime. What is left is the process itself
@@ -74,7 +74,7 @@ lightest of the compiled-class runtimes.
 
 ## Levers (rough priority)
 
-1. **The green-process floor (~6.1 KB live, vs the BEAM's ~3.1 KB).**
+1. **The green-process floor (~5.8 KB live, vs the BEAM's ~3.2 KB).**
    Now that compiled code is shared per runtime, this is the whole of the `spawn-live`
    gap. Attributed per structure: the **inline-cache tables are ~536 B** (`vm_call_ics`
    256 — the entry shrank 96 → 64 B once the duplicated fast-link memo was removed —
