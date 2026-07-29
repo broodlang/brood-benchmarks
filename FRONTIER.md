@@ -20,18 +20,20 @@ recursion (`fib`, `ackermann`), inline small-vector reads (`bintree`), and the J
 `table-*` ops (`sieve`). Int/float recursion uses an unboxed i64/f64 register calling
 convention with an overflow deopt. A JIT'd caller links straight to a JIT'd callee through
 an epoch-guarded in-IR fast-link; processes of a runtime share one compiled copy of an
-arm's native code and (for prelude closures) its bytecode; a `def` deopts affected code,
-so hot reload holds.
+arm's native code *and* its bytecode — compiled once per runtime, not once per process; a
+`def` deopts affected code, so hot reload holds.
 
 ## Where the gaps are
 
 Ratios are Brood's compute vs the fastest language on that row.
 
-- **`spawn-live` (3.47 s, 2.80 GB — last of five).** ~9 KB per live process against the
-  BEAM's ~3 KB. Two known causes, in priority order: **user-code arms still compile
-  per-process** (only prelude closures are shared — see lever 1), and the process floor
-  itself is ~6 KB (mailbox, heap, captured continuation), of which ~2.9 KB is
-  unattributed and wants a real allocation profile.
+- **`spawn-live` (3.03 s, 1.97 GB — last of five).** ~6.6 KB per live process against the
+  BEAM's ~3 KB. Compiled code is no longer the cause: every shared-region closure
+  (prelude *and* user code) compiles once per runtime. What is left is the process itself
+  — mailbox, isolated heap, captured continuation — and roughly half of it is
+  **unattributed**. Attributing it wants a real allocation profile; whole-program
+  differencing has been taken as far as it goes (per-phase `live_bytes()` deltas are
+  invalid — the counter is process-wide across workers).
 - **`nbody` (~23× Node, ~54× .NET)** — float physics rebuilding immutable body vectors
   every step. The residual *is* the rebuild. Closing it needs escape analysis that reuses
   the per-step vectors, or a native float-array primitive (philosophically fraught — see
@@ -66,23 +68,30 @@ lightest of the compiled-class runtimes.
 
 ## Levers (rough priority)
 
-1. **Share user-code arms across processes.** Prelude closures are shared per runtime
-   (ADR-175); RUNTIME-keyed user arms are not, because those handles are freed and
-   recycled (ADR-091) and the shared map would need free-epoch discipline. This is most of
-   the residual `spawn-live` gap — a 40-arm user body still costs ~37 KB/proc. Paired
-   sub-item: **split shared code from per-process JIT-tier state**, since a shared arm
-   currently shares `jit_calls`/`jit_deopts`/`compile_epoch` (costs `collatz` ~8%, wins
-   `sort` ~5%).
-2. **Heap-walking / allocation-heavy code** (`nqueens`, `pipeline`) — structure-walkers
+1. **Split shared code from per-process JIT-tier state.** Compiled arms are now shared
+   across a runtime's processes (ADR-175), and a shared arm also shares
+   `jit_calls`/`jit_deopts`/`compile_epoch` — so tiering history persists across installs
+   where a per-process recompile used to reset it. That is a win on some rows and a loss
+   on others: measured against the pre-sharing baseline, `spawn` −14.8% and `ring` −3.9%,
+   but `nqueens` **+7.8%** and `collatz` **+4.9%** (both solo-confirmed). It is the tier
+   state and not the code sharing: with `BROOD_NO_JIT=1` sharing is if anything *faster*
+   (`nqueens` 298 vs 302 ms), and `BROOD_NO_SHARED_ARMS=1` recovers the loss. Separating
+   the two — shared body/chunk/shape, per-process counters — should keep the memory win
+   and drop the regression.
+2. **The green-process floor (~6.6 KB vs the BEAM's ~3 KB).** Now that code is shared this
+   is the whole of the `spawn-live` gap. Identified: `Box<Process>` 1736 B (with `Heap`
+   inline), `Arc<Mailbox>` ~184 B, `Suspended` 128 B, slabs ~480 B, roots/ICs ~170 B —
+   about half the total. The rest is unattributed and needs an allocation profile.
+3. **Heap-walking / allocation-heavy code** (`nqueens`, `pipeline`) — structure-walkers
    don't tier and some heap reads go through per-op FFI callbacks. Extending the proven
    inline small-vector read template to variable-index reads and in-arm alloc (blocked by
    non-tail-call safepoints) is the win toward Elixir. `pipeline` additionally wants the
    capturing-closure fast-link.
-3. **True call inlining / bounded unroll** — removes calls rather than cheapening them;
+4. **True call inlining / bounded unroll** — removes calls rather than cheapening them;
    the remaining `fib`/`bintree`-class lever.
-4. **Interpreter dispatch** — the ~60% `vm_run_bc` share bounds every un-JIT'd row.
-5. **LINMAP wider coverage** — next target is `reduce`-style folds over non-integer values.
-6. **`matmul`/`nbody` unboxed storage** — boxed 24-byte `Value` vs a register
+5. **Interpreter dispatch** — the ~60% `vm_run_bc` share bounds every un-JIT'd row.
+6. **LINMAP wider coverage** — next target is `reduce`-style folds over non-integer values.
+7. **`matmul`/`nbody` unboxed storage** — boxed 24-byte `Value` vs a register
    `long`/`double`; any design must not violate the immutability invariant.
 
 ## Measured and ruled out — don't re-attempt

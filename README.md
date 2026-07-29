@@ -27,19 +27,19 @@ claim to lead the field.
 
 | | Brood | field |
 |---|---|---|
-| startup (wall) | 14.4 ms | Python 10.9, Node 18.7, .NET 22.6, Ruby 40.5, Elixir 187.3, Clojure 352.3 |
-| base RSS | 20.1 MB | Python 9.6, Ruby 19.0, .NET 25.8, Node 43.0, Elixir 72.5, Clojure 102.4 |
-| aggregate single-threaded compute | 2.9× the fastest | .NET 1.0, Node 2.7, Elixir 3.5, Clojure 7.8, Ruby 11.9, Python 28.6 |
+| startup (wall) | 14.4 ms | Python 10.3, Node 18.1, .NET 22.0, Ruby 39.3, Elixir 185.7, Clojure 365.7 |
+| base RSS | 20.1 MB | Python 9.6, Ruby 19.0, .NET 25.9, Node 43.1, Elixir 70.9, Clojure 105.8 |
+| aggregate single-threaded compute | 2.8× the fastest | .NET 1.0, Node 2.6, Elixir 3.4, Clojure 6.9, Ruby 11.7, Python 28.1 |
 | rank by row | 1st on `strings`, `reduce`; last on `spawn-live` | |
-| `spawn-live` (300k units held alive, each sent a copied message) | 3.47 s, 2.80 GB, 10.97 CPU·s | .NET 0.32 s / 0.13 GB, Node 0.24 s / 0.27 GB, Python 1.14 s / 0.33 GB, Elixir 0.71 s / 0.92 GB |
+| `spawn-live` (300k units held alive, each sent a copied message) | 3.03 s, 1.97 GB, 7.98 CPU·s | .NET 0.31 s / 0.13 GB, Node 0.23 s / 0.27 GB, Python 1.12 s / 0.33 GB, Elixir 0.71 s / 0.92 GB |
 
 The aggregate covers the core-compute rows only and varies ±0.3 run-to-run.
 
 **`spawn-live` is Brood's worst row.** Every port holds 300k units alive and hands each
 one a message it must *copy* (a reference hand-off is a cheaper operation, so it would not
-be the same benchmark). Brood is last of five on time and memory: ~9 KB per live process
-against Elixir's ~3 KB. The cause is understood — user-code functions are still compiled
-once per process rather than once per runtime (prelude functions are shared). See
+be the same benchmark). Brood is last of five on time and memory: ~6.6 KB per live process
+against Elixir's ~3 KB. Compiled code is now shared per runtime rather than per process,
+so what remains is the process itself — mailbox, isolated heap, captured continuation. See
 [FRONTIER.md](FRONTIER.md).
 
 Read the `cores` and `CPU·s` columns alongside wall time on this row. Node and Python
