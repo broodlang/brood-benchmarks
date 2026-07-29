@@ -27,7 +27,7 @@ arm's native code *and* its bytecode — compiled once per runtime, not once per
 
 Ratios are Brood's compute vs the fastest language on that row.
 
-- **`spawn-live` (3.03 s, 1.97 GB — last of five).** ~6.6 KB per live process against the
+- **`spawn-live` (3.10 s, 1.90 GB — last of five).** ~6.5 KB per live process against the
   BEAM's ~3 KB. Compiled code is no longer the cause: every shared-region closure
   (prelude *and* user code) compiles once per runtime. What is left is the process itself
   — mailbox, isolated heap, captured continuation — and roughly half of it is
@@ -52,10 +52,14 @@ Ratios are Brood's compute vs the fastest language on that row.
 - **`matmul` (the ~32× ratio is inflated by .NET's 4 ms denominator)** — inner loop is
   native; residual is the one read LICM can't hoist plus boxed `Value` array storage.
 - **Message latency (`pingpong`, `ring` — Elixir leads ~2.8–3.5×)** — the widest honest
-  gap. What remains is the per-candidate `vm_apply` in the mailbox scan over an
-  irreducible floor of per-message immutable copies and heap-captured migratable
-  continuations. That floor is design, not something traded away. Brood beats every
-  thread/queue language here; Node's `ring` result is cooperative single-thread async.
+  gap, and the three large levers on it are now taken: direct handoff (worth 1.9×), the
+  HOF matcher fast path (3.0×), and the leading-keyword receive filter, which removed the
+  O(rounds × backlog) rescan that made a *backlogged* selective receive quadratic
+  (backlog 500: ~420 ms → 34 ms). What is left per message is a mailbox mutex, a
+  `wake_parked`, a re-enqueue and one matcher activation, over an irreducible floor of
+  per-message immutable copies and heap-captured migratable continuations — that floor is
+  design, not something traded away. Brood beats every thread/queue language here; Node's
+  `ring` result is cooperative single-thread async.
 - **Text codecs (`json`, `regex`, `base64` — all 6/7, ahead of Clojure)** — pure-Brood
   `std/` libraries against native codecs, by design. The next structural lever is a
   bytes/codepoint fast path shared by all three.
@@ -68,11 +72,13 @@ lightest of the compiled-class runtimes.
 
 ## Levers (rough priority)
 
-1. **The green-process floor (~6.6 KB RSS / ~4.5 KB allocated, vs the BEAM's ~3 KB).**
+1. **The green-process floor (~6.5 KB live / ~4.5 KB parked, vs the BEAM's ~3 KB).**
    Now that compiled code is shared per runtime, this is the whole of the `spawn-live`
    gap. Attributed per structure: the **inline-cache tables are 664 B** (`vm_call_ics`
    384, `vm_fast_links` 160, `arm_ic_blocks` 120) of ~1144 B of per-process tables, on
-   top of `Box<Process>` 1840 B, `Arc<Mailbox>` 184 B and `Suspended` 128 B.
+   top of `Box<Process>` (the `Heap` is inline in it), `Arc<Mailbox>` 184 B and
+   `Suspended` 128 B. A process that will idle for a long time can hand most of this
+   back explicitly with `(hibernate)`.
 
    **It is working state, not slack** — three tunings were measured and all reverted (see
    the ruled-out list). Closing on the BEAM needs the state to be *smaller*, not dropped:
