@@ -68,12 +68,18 @@ lightest of the compiled-class runtimes.
 
 ## Levers (rough priority)
 
-1. **The green-process floor (~6.6 KB vs the BEAM's ~3 KB).** Now that compiled code is
-   shared per runtime, this is the whole of the `spawn-live` gap. Identified:
-   `Box<Process>` 1736 B (with `Heap` inline), `Arc<Mailbox>` ~184 B, `Suspended` 128 B,
-   slabs ~480 B, roots/ICs ~170 B — about half the total. The rest is unattributed and
-   needs a real allocation profile; whole-program differencing is exhausted, and per-phase
-   `live_bytes()` deltas are invalid (the counter is process-wide across workers).
+1. **The green-process floor (~6.6 KB RSS / ~4.5 KB allocated, vs the BEAM's ~3 KB).**
+   Now that compiled code is shared per runtime, this is the whole of the `spawn-live`
+   gap. Attributed per structure: the **inline-cache tables are 664 B** (`vm_call_ics`
+   384, `vm_fast_links` 160, `arm_ic_blocks` 120) of ~1144 B of per-process tables, on
+   top of `Box<Process>` 1840 B, `Arc<Mailbox>` 184 B and `Suspended` 128 B.
+
+   **It is working state, not slack** — three tunings were measured and all reverted (see
+   the ruled-out list). Closing on the BEAM needs the state to be *smaller*, not dropped:
+   shrink `CallIcEntry` (96 B, of which the `fast` memo is 32), or share IC entries for
+   frozen callees across processes (ADR-175 Stage 3 — sound because a sealed binding's
+   resolution is process-independent). Both are design changes; cost them before starting.
+
 2. **Heap-walking / allocation-heavy code** (`nqueens`, `pipeline`) — structure-walkers
    don't tier and some heap reads go through per-op FFI callbacks. Extending the proven
    inline small-vector read template to variable-index reads and in-arm alloc (blocked by
@@ -96,6 +102,14 @@ lightest of the compiled-class runtimes.
   bottleneck.
 - **Always-on native-call timing** — 8–22% on the message rows.
 - **Comparator work in `sort`** — already unboxed.
+- **Three tunings of the green-process floor.** (a) Park-trim threshold at 0 (always
+  trim): no change at all. (b) Capacity-1 first touch for the slab `Vec`s — predicted
+  ~700 B/proc, delivered 110 B, and cost `bintree` +4.8% in extra reallocs. (c) Dropping
+  the inline-cache tables when a process parks: safe and effective on memory (floor 4.53
+  → 3.89 KB/proc, `spawn-live` 2.00 → 1.75 GB) but **`pingpong` +26% / `ring` +18%**, and
+  restricting it to the first park barely helped (+11.5% / +16.9%) — the cost is a process
+  losing caches it built at startup and rebuilding them entering its hot loop, not the
+  frequency of dropping.
 - **Splitting shared compiled code from per-process JIT-tier state.** The `collatz`/
   `nqueens` regression that motivated it is an artifact of `make ab`'s single-core pin —
   the background JIT compiler competes with the benchmark for that core. Unpinned, and
