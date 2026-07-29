@@ -681,7 +681,13 @@ def build_report(results, args, meta=None):
             L.append(f"> **Warmup:** {meta['warmup']}.")
         L.append("")
     mode = "quick" if args.quick else "full"
-    startup_runs = getattr(args, "startup_runs", None) or args.runs
+    # Mirror the MEASUREMENT default at line ~518 (`max(args.runs, 9)`), not `args.runs`:
+    # with no `--startup-runs`, startup really is sampled 9 times, and reporting it as
+    # `args.runs` under-stated the rigour of every default run.
+    startup_runs = (
+        args.startup_runs if getattr(args, "startup_runs", None) is not None
+        else max(args.runs, 9)
+    )
     noisy_runs = max(args.runs, NOISY_RUNS)
     bits = [f"best of {args.runs} runs"]
     if startup_runs != args.runs:
