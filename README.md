@@ -27,18 +27,18 @@ claim to lead the field.
 
 | | Brood | field |
 |---|---|---|
-| startup (wall) | 15.5 ms | Python 10.7, Node 19.0, .NET 21.8, Ruby 38.9, Elixir 191.1, Clojure 355.8 |
-| base RSS | 20.4 MB | Python 9.8, Ruby 19.0, .NET 25.7, Node 44.4, Elixir 72.8, Clojure 103.3 |
-| aggregate single-threaded compute | 2.8× the fastest | .NET 1.0, Node 2.6, Elixir 3.1, Clojure 7.1, Ruby 11.5, Python 27.5 |
+| startup (wall) | 15.6 ms | Python 10.2, Node 17.9, .NET 21.9, Ruby 38.9, Elixir 186.1, Clojure 337.7 |
+| base RSS | 21.0 MB | Python 9.8, Ruby 19.0, .NET 25.7, Node 44.4, Elixir 71.6, Clojure 102.6 |
+| aggregate single-threaded compute | 2.8× the fastest | .NET 1.0, Node 2.6, Elixir 3.4, Clojure 7.8, Ruby 11.6, Python 27.2 |
 | rank by row | 1st on `strings`, `reduce`; last on `spawn-live` | |
-| `spawn-live` (300k units held alive, each sent a copied message) | 3.10 s, 1.90 GB, 8.04 CPU·s | .NET 0.31 s / 0.13 GB, Node 0.23 s / 0.27 GB, Python 1.15 s / 0.33 GB, Elixir 0.70 s / 0.92 GB |
+| `spawn-live` (300k units held alive, each sent a copied message) | 3.07 s, 1.74 GB, 8.14 CPU·s | .NET 0.31 s / 0.13 GB, Node 0.23 s / 0.27 GB, Python 1.14 s / 0.33 GB, Elixir 0.71 s / 0.90 GB |
 
 The aggregate covers the core-compute rows only and varies ±0.3 run-to-run.
 
 **`spawn-live` is Brood's worst row.** Every port holds 300k units alive and hands each
 one a message it must *copy* (a reference hand-off is a cheaper operation, so it would not
-be the same benchmark). Brood is last of five on time and memory: ~6.5 KB per live process
-against Elixir's ~3 KB. Compiled code is shared per runtime rather than per process, so
+be the same benchmark). Brood is last of five on time and memory: ~6.1 KB per live process
+against Elixir's ~3.1 KB. Compiled code is shared per runtime rather than per process, so
 what remains is the process itself — mailbox, isolated heap, captured continuation. A
 process that will idle for a long time can hand most of that back with `(hibernate)`. See
 [FRONTIER.md](FRONTIER.md).
