@@ -22,16 +22,16 @@ claim to lead the field.
 
 ![Where the languages land — compute speed (startup excluded) vs memory](results/positioning.svg)
 
-**2026-07-29 run.** Numbers regenerate with each run; the full table is in
+**2026-07-30 run.** Numbers regenerate with each run; the full table is in
 [BENCHMARKS.md](BENCHMARKS.md).
 
 | | Brood | field |
 |---|---|---|
-| startup (wall) | 15.2 ms | Python 10.2, Node 18.2, .NET 22.1, Ruby 39.2, Elixir 184.2, Clojure 340.5 |
-| base RSS | 20.8 MB | Python 9.6, Ruby 19.0, .NET 25.7, Node 44.4, Elixir 72.1, Clojure 103.7 |
-| aggregate single-threaded compute | 2.8× the fastest | .NET 1.0, Node 2.7, Elixir 3.5, Clojure 8.1, Ruby 11.5, Python 28.9 |
+| startup (wall) | 15.4 ms | Python 10.2, Node 17.7, .NET 21.6, Ruby 38.9, Elixir 188.4, Clojure 340.7 |
+| base RSS | 21.0 MB | Python 9.7, Ruby 19.0, .NET 25.7, Node 44.4, Elixir 71.7, Clojure 103.7 |
+| aggregate single-threaded compute | 2.8× the fastest | .NET 1.0, Node 2.6, Elixir 3.4, Clojure 7.8, Ruby 11.6, Python 28.5 |
 | rank by row | 1st on `strings`, `reduce`; last on `spawn-live` | |
-| `spawn-live` (300k units held alive, each sent a copied message) | 3.05 s, 1.66 GB, 8.09 CPU·s | .NET 0.32 s / 0.13 GB, Node 0.23 s / 0.27 GB, Python 1.16 s / 0.33 GB, Elixir 0.73 s / 0.90 GB |
+| `spawn-live` (300k units held alive, each sent a copied message) | 2.37 s, 1.66 GB, 8.09 CPU·s | .NET 0.31 s / 0.13 GB, Node 0.23 s / 0.27 GB, Python 1.16 s / 0.33 GB, Elixir 0.71 s / 0.89 GB |
 
 The aggregate covers the core-compute rows only and varies ±0.3 run-to-run.
 
@@ -176,7 +176,7 @@ peak RSS, checksum), and `positioning.svg` (the compute-vs-memory map).
 Numbers in the docs were measured on `whklat`: a 12-core x86-64 Linux 7.0.0
 machine · Brood 0.1.0 (bytecode VM + tier-1 JIT) · Clojure 1.12.5 / OpenJDK 25.0.3
 (HotSpot) · Elixir 1.21.0-dev / OTP 28 (BeamAsm JIT) · Python 3.14.4 · Node 22.21.0
-(V8) · Ruby 3.3.8 · .NET 10.0.110 (RyuJIT). 2026-07-29. Best of 3 runs
+(V8) · Ruby 3.3.8 · .NET 10.0.110 (RyuJIT). 2026-07-30. Best of 3 runs
 each, after one discarded warmup run per language; the concurrency benchmarks
 (`spawn`/`pfib`/`http`/`pingpong`/`ring`) take
 the best of 7, and **`startup` the best of 9** — it is subtracted from every other
