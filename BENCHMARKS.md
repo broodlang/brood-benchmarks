@@ -40,7 +40,6 @@ Every language expresses these the same way, so the ordering is a runtime compar
 | `matmul` | 5ms | 63ms | 18ms | **131ms** | 282ms | 451ms | 203ms | 4/7 |
 | `strings` <sup>a</sup> | 31ms | 125ms | 68ms | **13ms** | 85ms | 43ms | 168ms | 1/7 |
 | `bintree` | 14ms | 7ms | 21ms | **107ms** | 99ms | 99ms | 172ms | 6/7 |
-| `sort` | 66ms | 113ms | 104ms | **136ms** | 74ms | 182ms | 250ms | 5/7 |
 | `nqueens` | 20ms | 8ms | 7ms | **85ms** | 124ms | 55ms | 277ms | 5/7 |
 | `errors` | 303ms | 21ms | 574ms | **43ms** | 109ms | 49ms | 1.1s | 2/7 |
 | `errors-deep` | 704ms | 12ms | 217ms | **44ms** | 109ms | 238ms | 1.4s | 2/7 |
@@ -62,7 +61,7 @@ from source each run. This favours Elixir and .NET, and is the fair analog of `n
 
 ### Immutable structures vs mutable buffers
 
-These four rows are two different comparisons wearing one name. Brood, Elixir and Clojure use
+These five rows are two different comparisons wearing one name. Brood, Elixir and Clojure use
 **persistent** structures — every update yields a new value and the old one stays valid.
 Python, Node, Ruby and .NET mutate one buffer in place.
 
@@ -71,7 +70,17 @@ data-mutation primitives — no `set-car!`, no `vector-set!`, no transients (ADR
 exception in the whole language is `Table`, a shared identity-mutable store behind an opaque
 handle that deep-copies keys and values in and out, so it is never a mutable *value* two
 places can alias. `sieve` uses one because Brood has no mutable array; `wordcount`,
-`persistent-map` and `nbody` are pure persistent structures throughout.
+`persistent-map`, `sort` and `nbody` are pure persistent structures throughout.
+
+**`sort` moved into this section on 2026-07-30**, having been in the like-for-like table
+where it did not belong: Brood, Elixir and Clojure sort an immutable **linked list** into a
+*new* one, while Python, Node, Ruby and .NET sort a flat **array in place**. The memory
+column splits exactly on that line — 124–191 MB for the three persistent languages against
+25–67 MB for the four in-place ones — so the row was reading as a Brood memory defect (191 MB
+"6× the field") when it is the price of the guarantee, and Brood sits 1.19× from Elixir on the
+same structure. Attribution: ~750 000 cons cells live at peak (the input list and the new
+sorted one) at 48 bytes each, doubled by the copying collector's to-space and again by `Vec`
+capacity growth.
 
 **Brood against its actual peers** — the three languages that make the same guarantee:
 
@@ -80,6 +89,7 @@ places can alias. `sieve` uses one because Brood has no mutable array; `wordcoun
 | `wordcount` | **34ms** | 164ms | 272ms | 1/3 |
 | `persistent-map` | **62ms** | 120ms | 282ms | 1/3 |
 | `sieve` | **35ms** | 55ms | 135ms | 1/3 |
+| `sort` | **136ms** | 113ms | 250ms | 2/3 |
 | `nbody` | **169ms** | 141ms | 174ms | 2/3 |
 
 **Brood against the in-place-mutation languages.** Brood is the *subject* of this table, not
@@ -92,6 +102,7 @@ visible rather than hidden:
 | `wordcount` | 40ms | 31ms | **34ms** | 73ms | 174ms | 2/5 |
 | `persistent-map` | 22ms | 23ms | **62ms** | 39ms | 83ms | 4/5 |
 | `sieve` | 3ms | 6ms | **35ms** | 88ms | 123ms | 3/5 |
+| `sort` | 66ms | 104ms | **136ms** | 74ms | 182ms | 4/5 |
 | `nbody` | 6ms | 14ms | **169ms** | 290ms | 731ms | 3/5 |
 
 ### In-language codecs vs native libraries
