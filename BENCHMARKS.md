@@ -135,43 +135,71 @@ Against its actual peer:
 
 | benchmark | Elixir <sup>p</sup> | Brood | Brood rank |
 |---|---|---|---|
-| `spawn` | 19ms | **41ms** | 2/2 |
-| `pfib` | 285ms | **180ms** | 1/2 |
-| `http` | 569ms | **158ms** | 1/2 |
-| `pingpong` | 50ms | **187ms** | 2/2 |
-| `ring` | 261ms | **699ms** | 2/2 |
+| `spawn` | 22ms | **39ms** | 2/2 |
+| `pfib` | 286ms | **181ms** | 1/2 |
+| `http` | 576ms | **154ms** | 1/2 |
+| `pingpong` | 50ms | **198ms** | 2/2 |
+| `ring` | 259ms | **709ms** | 2/2 |
+| `supervisor` | 250ms | **818ms** | 2/2 |
 
 Against the rest of the field, for context:
 
 | benchmark | .NET <sup>p</sup> | Brood | Node | Clojure <sup>c</sup> | Python | Ruby | Brood rank |
 |---|---|---|---|---|---|---|---|
-| `spawn` | 18ms | **41ms** | 54ms | 182ms | 554ms | 1.6s | 2/6 |
-| `pfib` | 115ms | **180ms** | 313ms | 380ms | 2.5s | 1.9s | 2/6 |
-| `http` | 145ms | **158ms** | 126ms | 824ms | 171ms | 210ms | 3/6 |
-| `pingpong` | 167ms | **187ms** | 640ms | 586ms | 822ms | 596ms | 2/6 |
-| `ring` | 842ms | **699ms** | 116ms | 4.3s | 4.6s | 3.4s | 2/6 |
+| `spawn` | 18ms | **39ms** | 53ms | 191ms | 547ms | 1.6s | 2/6 |
+| `pfib` | 115ms | **181ms** | 294ms | 386ms | 2.5s | 1.9s | 2/6 |
+| `http` | 152ms | **154ms** | 127ms | 806ms | 174ms | 208ms | 3/6 |
+| `pingpong` | 164ms | **198ms** | 629ms | 595ms | 825ms | 579ms | 2/6 |
+| `ring` | 794ms | **709ms** | 116ms | 4.3s | 4.6s | 3.4s | 2/6 |
 
 Across all of the above Brood is never last; it **is** last on `spawn-live`, reported on its
 own below. Run-to-run the field drifts ±10%, so read the ordering rather than the digits — and
 a single run cannot tell a real change from that drift in either direction, which is why the
-movement notes below cite controlled A/B rather than the table. (`spawn-live` is excluded from
-the field-wide aggregate: it runs five of the seven languages, and their units do not provide
-the same guarantees — see that section.)
+movement notes below cite controlled A/B rather than the table. (`spawn-live` and `supervisor`
+are excluded from the field-wide aggregate: they run a subset of the languages, because the
+others' units do not provide the same guarantees — see those sections.)
 
-**Moved since the last run: `nbody` 323 → 172 ms, 6/7 → 4/7.** The JIT was resolving a `def`'d
-float constant (`dt`) on the integer path, so the row's hottest function deopted on *every*
-activation and, after sixteen consecutive deopts, was permanently bailed to the interpreter —
-the arm ran interpreted for the whole benchmark. Nothing else moved materially: the apparent
-swings on `spawn` (+20%) and `spawn-live` (−22%) are run-to-run drift, and a controlled A/B
-against the previously published commit puts them at −3.6% and −2.0%. `sieve` is genuinely
-~4% slower.
+**`supervisor` runs two languages, and the absence is the point.** The unit of comparison is an
+OTP-style supervisor: a process that links its children, is told when one exits, and restarts it
+per a strategy and a restart-intensity budget. Only Brood and Elixir have that as a *runtime*
+facility. Everywhere else it would be a loop this repo wrote itself, which would measure the
+harness author rather than the runtime. The row supervises 20,000 children, then retires a
+quarter and lets the supervisor restart them — the supervisor's own bookkeeping (add a child,
+find the right one when its exit signal arrives, replace it), which is separate from raw spawn
+cost (`spawn`) and from holding processes alive (`spawn-live`).
+
+**Moved since the last run: the new `supervisor` row, and nothing else.** Every other row is
+within ±3% of the previous run. Two apparent swings are drift, not results, and the controlled
+A/B against the previously published commit says so: `spawn-live` reads **+20%** in the table
+and **−0.0%** under A/B; `pingpong` reads +6% and **+1.4%**. That is the third time `spawn-live`
+has wandered ~20% between whole harness invocations — treat any movement on it as unproven
+until a fixed-baseline A/B agrees. (`reduce` shows −29%, on a 3 ms row: the startup subtraction,
+not the runtime.)
+
+The `supervisor` row is new, so it has no previous number to move from — but it is worth
+recording what it would have published at. Measured on the code this suite ran against
+yesterday, the same row takes ~5 s at N=20,000 (≈20× Elixir) rather than 818 ms (3.3×). Three
+compounding quadratics in the supervised-child path were removed upstream on 2026-07-30: the
+supervisor's child list became a pid-keyed map (`start-child` was an O(N) list copy per child,
+so N children cost O(N²)), its restart-intensity window became an amortized-O(1) queue (it
+re-filtered every retained timestamp on every restart), and a closure that is already shared
+code now crosses a local send by handle instead of having its body deep-copied into the
+receiver. See the brood repo's devlog and ADR-194.
 
 **Brood vs Elixir** — its closest peer, and the only other language here with both persistent
 structures and isolated preemptive processes, so it is the one column that is a like-for-like
 comparison end to end. Brood leads the like-for-like core on most rows, and leads its immutable
 peers on `wordcount`, `persistent-map` and `sieve`. Elixir leads the latency rows (`pingpong`
-52 vs 188 ms, `ring` 255 vs 696 ms — ~2.7–3.6×), `ackermann`, `bintree`, `nqueens`, and the text
-rows where it uses native codecs. `nbody` is now close (145 vs 172 ms) where it was 2.2× apart.
+50 vs 198 ms, `ring` 259 vs 709 ms — ~2.7–4×), **`supervisor` (250 vs 818 ms — 3.3×)**,
+`ackermann`, `bintree`, `nqueens`, and the text rows where it uses native codecs. `nbody` is
+now close (145 vs 172 ms) where it was 2.2× apart.
+
+The three remaining process-side gaps are one family, not three: `pingpong`, `ring` and
+`supervisor` are all paying per-message cost, and the supervised path is mostly request/reply
+round trips. A known cliff sits under that — a `receive` pinned on a fresh `ref` rescans the
+whole mailbox backlog, where the BEAM skips it via the receive-mark optimization, so a *busy*
+process degrades with its own queue length. It does not show in these rows (they run with
+near-empty mailboxes) but it is the next lever on this path.
 
 ## `spawn-live` — 300,000 units held alive, each sent a copied message
 
@@ -264,13 +292,14 @@ is the figure above; the harness's warmup run keeps that populate out of both co
 ## How to read it
 
 - **Aggregate single-threaded compute** (the positioning chart's x-axis — Σ wall−startup over the
-  original core-compute rows, normalised to the fastest): .NET 1.0× · Node 2.6× · **Brood 2.8×** ·
-  Elixir 3.3× · Clojure 7.7× · Ruby 11.6× · Python 27.7×. Brood is **3rd of seven** — behind only
-  .NET and Node, ahead of Elixir (it wobbles ±0.3 run-to-run; the ordering is what holds). The
+  original core-compute rows, normalised to the fastest): .NET 1.0× · Node 2.7× · **Brood 2.7×** ·
+  Elixir 3.5× · Clojure 8.2× · Ruby 11.8× · Python 27.7×. Brood is **3rd of seven** — behind only
+  .NET and Node, and this run it is level with Node to the tenth (818 vs 791 ms of summed
+  compute), ahead of Elixir (it wobbles ±0.3 run-to-run; the ordering is what holds). The
   aggregate deliberately excludes the concurrency, error, and wider-range rows — folding them in
   would swamp the figure with library/representation outliers rather than core language speed.
-- **`nbody` gained two places: 6/7 → 4/7, 323 → 169 ms (−47.7%)** — the one real movement this
-  run, and a code change rather than drift. The JIT's tier-time type profile snapshots the live
+- **`nbody` gained two places: 6/7 → 4/7, 323 → 169 ms (−47.7%)** — the one real movement in the
+  *preceding* run (it is unchanged since), and a code change rather than drift. The JIT's tier-time type profile snapshots the live
   *frame*, so it only ever types an arm's **parameters**; nbody's hottest function takes a vector
   and an int while all its floats arrive from a `def`'d constant, so the arm read as non-float
   context, lowered its float multiply onto the *integer* path, and deopted on every activation
