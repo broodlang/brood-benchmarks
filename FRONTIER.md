@@ -36,10 +36,26 @@ Ratios are Brood's compute vs the fastest language on that row.
   **unattributed**. Attributing it wants a real allocation profile; whole-program
   differencing has been taken as far as it goes (per-phase `live_bytes()` deltas are
   invalid — the counter is process-wide across workers).
-- **`nbody` (~23× Node, ~54× .NET)** — float physics rebuilding immutable body vectors
-  every step. The residual *is* the rebuild. Closing it needs escape analysis that reuses
-  the per-step vectors, or a native float-array primitive (philosophically fraught — see
-  the immutability invariant). More a known immutable-cost data point than a target.
+- **`nbody` (~11× Node, ~25× .NET) — was ~23×/~54×; halved on 2026-07-30 and no longer a
+  top gap.** 323 → 172 ms, 6/7 → 4/7, and now within 1.2× of Elixir where it was 2.2×
+  apart. The cause was *not* the immutable rebuild this entry previously blamed: the
+  tier-time type profile snapshots the live **frame**, so it only ever types an arm's
+  *parameters*. `advance-body (b i)` takes a vector and an int while every float it touches
+  arrives from a `def`'d constant (`dt`) or a `nth` read — so the arm read as non-float
+  context, `(* dt nvx)` lowered onto the *integer* path, and `as_int`'s tag-check deopted on
+  **every** activation. Sixteen consecutive deopts then marked the arm `BAILED`, and the
+  hottest function in the row ran interpreted for the whole benchmark. The runtime's own
+  self-healing is what hid it: a deopt storm became silent interpretation, with no error and
+  no failing test. The fix records which read globals held a float at tier time and unboxes
+  those reads behind the existing tag guard.
+
+  What is left *is* the rebuild — a fresh 7-element vector per body per step, plus the
+  intermediate 3-vector `newvel` returns and immediately destructures. Closing that needs
+  escape analysis reusing the per-step vectors, or a native float-array primitive
+  (philosophically fraught — see the immutability invariant). A useful standing check fell
+  out of this: **the JIT-vs-no-JIT ratio per row.** `fib` gets 54× and `collatz` 40×, but
+  nbody was only 3.2× — that gap is what exposed the bail, and `bintree` (3.5×) and
+  `nqueens` (3.4×) still sit in the same band.
 - **`bintree` (~103 ms, 6th; the BEAM is unusually fast here at ~12 ms)** — drifts in the
   95–115 ms band, trading places with Python/Ruby. The cost is the call protocol: ~77 ns
   per node over four non-tail calls. That is the X-register/call-convention redesign, not
