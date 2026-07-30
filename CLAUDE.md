@@ -52,8 +52,10 @@ python3 bench/chart.py                # regenerate results/positioning.svg from 
   image, so dev-tools does *not* inflate the `startup` row or base RSS. Don't claim
   it does; the case for lean is consistency.
 
-  Note this makes the installed `nest` lean too, so `nest test`/`repl` won't work
-  until you reinstall with the default `make install`.
+  This makes the installed `nest` lean too. **Verified 2026-07-30: `nest test` still runs
+  fine on the lean build** — an earlier note here claimed it would not work until you
+  reinstalled with the default `make install`, and that is wrong. Reinstall if you find a
+  dev-tool that is genuinely absent, not on the strength of this warning.
 
   (Never `cargo build -p brood` — it doesn't relink the binary; see the brood
   CLAUDE.md.)
