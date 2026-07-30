@@ -20,6 +20,7 @@ switch (name)
     case "wordcount":  Bench.Wordcount.Run(N(750000)); break;
     case "bintree":    Bench.Bintree.Run(N(200)); break;
     case "sort":       Bench.Sort.Run(N(375000)); break;
+    case "latency":    Bench.Latency.Run(N(50000)); break;
     case "nqueens":    Bench.Nqueens.Run(N(10)); break;
     case "errors":     Bench.Errors.Run(N(200000)); break;
     case "errors-deep": Bench.ErrorsDeep.Run(N(50000)); break;

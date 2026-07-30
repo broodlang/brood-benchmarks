@@ -249,6 +249,14 @@ BENCHES = [
     # covers the supervisor's own bookkeeping at scale — add a child, find the right child
     # when its exit signal arrives, replace it — which is separate from raw spawn cost
     # (`spawn`) and from holding processes alive (`spawn-live`).
+    # LATENCY UNDER LOAD — the row that measures what a server actually feels like, and the
+    # only one here ranked by percentiles rather than by wall. Fixed arrival rate, open loop,
+    # every 20th request occupying 500us; percentiles cover the OTHER 95%, so the question it
+    # answers is "what does a busy handler do to everyone else?". Excluded: Ruby and Clojure,
+    # only because nobody has written those ports yet — unlike `spawn-live`/`supervisor`, there
+    # is no reason in principle they cannot run it, and they should be added.
+    ("latency",    50000, ["brood", "elixir", "node", "dotnet", "python"],
+     "latency under a fixed arrival rate, 5% of requests occupying 500us each"),
     ("supervisor", 20000, ["brood", "elixir"],
      "supervise N children, then retire a quarter and let the supervisor restart them"),
     ("pfib",       31,       "all", "parallel fib — 100 computed at once across cores"),
@@ -260,7 +268,7 @@ BENCHES = [
 # The concurrency benchmarks bounce 15–45% run-to-run with scheduler / CPU
 # contention. Since we report the best (least-noisy) run, taking more samples
 # tightens the floor — so these run more times than the steady compute benches.
-NOISY = {"spawn", "pfib", "http", "pingpong", "ring", "supervisor"}
+NOISY = {"spawn", "pfib", "http", "pingpong", "ring", "supervisor", "latency"}
 
 # Rows where a LOW CPU% is legitimate because the program genuinely blocks (waiting on the
 # local HTTP server), so the idle-CPU guard below must not flag them.
@@ -271,8 +279,33 @@ QUICK = {  # smaller sizes for a fast smoke run
     "fib": 25, "loop": 300000, "reduce": 100000, "primes": 5000, "collatz": 5000,
     "mandelbrot": 48, "matmul": 40, "strings": 10000, "wordcount": 20000,
     "bintree": 8, "sort": 10000, "nqueens": 8, "pipeline": 50000,
-    "spawn": 5000, "pfib": 24, "http": 100, "supervisor": 2000,
+    "spawn": 5000, "pfib": 24, "http": 100, "supervisor": 2000, "latency": 5000,
 }
+
+# `#metric name=value` lines a program may print alongside its checksum. Used by rows whose
+# result is not a single wall time — the `latency` row reports percentiles, and its wall is
+# fixed by the arrival schedule rather than by how fast the runtime is. Stripped from stdout
+# before checksum comparison so the checksum stays the cross-language correctness check.
+METRIC_RE = re.compile(r"^#metric\s+([A-Za-z0-9_]+)=(-?[\d.]+)\s*$")
+
+
+def split_metrics(out):
+    """(metrics, checksum) — pull `#metric k=v` lines out of a program's stdout."""
+    metrics, kept = {}, []
+    for line in out.splitlines():
+        m = METRIC_RE.match(line.strip())
+        if m:
+            raw = m.group(2)
+            metrics[m.group(1)] = float(raw) if "." in raw else int(raw)
+        else:
+            kept.append(line)
+    return metrics, "\n".join(kept).strip()
+
+
+# Rows selected by a metric instead of by wall time, and the metric that decides "best".
+# Lower is better. For `latency` the wall is N/rate by construction — identical in every
+# runtime — so picking the best run by wall would be picking at random.
+METRIC_ROWS = {"latency": "p99_us"}
 
 RSS_RE = re.compile(r"Maximum resident set size \(kbytes\):\s*(\d+)")
 # "Percent of CPU this job got" — 100% is one core, 1200% is all twelve. This is the
@@ -348,23 +381,35 @@ def bench_lang(lang, name, n, runs, timeout, pin=None, settle=0.0):
         return None
     cmd = spec["cmd"](path)
     extra_env = spec.get("env")
+    metric_key = METRIC_ROWS.get(name)
     best_wall, rss_peak, checksum, err = float("inf"), 0, None, None
     cpu_at_best = None
+    best_score, best_metrics, wall_at_best = float("inf"), {}, None
     for _ in range(runs):
         ok, wall, rss, cpu, out = run_once(cmd, n, timeout, extra_env, pin, settle)
         if not ok:
             return {"error": out, "wall_ms": wall, "rss_kb": rss}
-        if wall < best_wall:
-            # Report CPU% from the SAME run as the reported wall time. Taking the max
+        metrics, out = split_metrics(out)
+        # "Best" is the least-noisy run: by wall normally, but by the row's own metric where
+        # wall carries no information (see METRIC_ROWS).
+        score = metrics.get(metric_key, float("inf")) if metric_key else wall
+        if score < best_score:
+            best_score, best_metrics, wall_at_best = score, metrics, wall
+            # Report CPU% from the SAME run as the reported figure. Taking the max
             # across runs would pair a fast wall with a slow run's utilisation and
             # describe a run that never happened.
             cpu_at_best = cpu
-        best_wall = min(best_wall, wall)          # best = least-noisy run
+        if not metric_key and wall < best_wall:
+            cpu_at_best = cpu
+        best_wall = min(best_wall, wall)
         if rss:
             rss_peak = max(rss_peak, rss)
         checksum = out
-    return {"wall_ms": round(best_wall, 1), "rss_kb": rss_peak,
-            "cpu_pct": cpu_at_best, "checksum": checksum}
+    out = {"wall_ms": round(best_wall if not metric_key else wall_at_best, 1),
+           "rss_kb": rss_peak, "cpu_pct": cpu_at_best, "checksum": checksum}
+    if best_metrics:
+        out["metrics"] = best_metrics
+    return out
 
 
 # Benchmarks that need a local HTTP server running while they execute. The
@@ -564,8 +609,13 @@ def main():
                     cs = ((r["wall_ms"] / 1000.0) * (r["cpu_pct"] / 100.0)
                           if r.get("cpu_pct") else None)
                     cstr = f"{cs:6.2f}" if cs is not None else "     -"
+                    extra = ""
+                    if r.get("metrics"):
+                        m = r["metrics"]
+                        extra = (f"  p50={m.get('p50_us','-')}us p99={m.get('p99_us','-')}us"
+                                 f" max={m.get('max_us','-')}us")
                     print(f"  {lang:8} {r['wall_ms']:9.1f} ms   {r['rss_kb']:>8} KB  "
-                          f"{cores:>6} cores {cstr} CPU-s  = {r['checksum']}")
+                          f"{cores:>6} cores {cstr} CPU-s  = {r['checksum']}{extra}")
         finally:
             if server:
                 stop_http_server(server)
@@ -736,6 +786,22 @@ def build_report(results, args, meta=None):
                      f"(`{data['checksum_mismatch']}`); these rows are **not** "
                      f"comparable.")
             L.append("")
+        if name in METRIC_ROWS:
+            L.append(f"> **Ranked by `{METRIC_ROWS[name]}`, not by wall.** Every runtime is handed "
+                     f"the same fixed arrival schedule, so wall time is N/rate by construction and "
+                     f"says nothing about which is faster — the percentile table below is the "
+                     f"result. `compute` and `pos` in the standard table are not meaningful here.")
+            L.append("")
+            mrows = {l: d["metrics"] for l, d in langs.items() if d.get("metrics")}
+            if mrows:
+                L.append("| lang | p50 | **p99** | p99.9 | max | ordinary reqs | sustained |")
+                L.append("|------|-----|---------|-------|-----|---------------|-----------|")
+                for l in sorted(mrows, key=lambda l: mrows[l].get("p99_us", float("inf"))):
+                    m = mrows[l]
+                    L.append(f"| {l} | {m.get('p50_us','-')}µs | **{m.get('p99_us','-')}µs** | "
+                             f"{m.get('p999_us','-')}µs | {m.get('max_us','-')}µs | "
+                             f"{m.get('ordinary_n','-')} | {m.get('sustained_rps','-')}/s |")
+                L.append("")
         L.append("| lang | compute | vs fastest | pos | wall | startup | peak RSS | mem | cores | CPU·s | vs best CPU | checksum |")
         L.append("|------|---------|------------|-----|------|---------|----------|-----|-------|-------|-------------|----------|")
         oks = {l: d for l, d in langs.items() if "wall_ms" in d and "error" not in d}

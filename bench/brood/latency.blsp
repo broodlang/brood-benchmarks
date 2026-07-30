@@ -1,0 +1,128 @@
+;; Latency under a fixed arrival rate — what a server actually feels like.
+;;
+;; Every other concurrency row here measures throughput: how much work per second, with
+;; the load generator waiting for each reply before sending the next. That is a *closed*
+;; loop, and it hides the failure it should expose — when the system stalls, the generator
+;; politely stops sending, so the stall never appears in the numbers (coordinated omission).
+;;
+;; This row is OPEN loop. Request `i` is *scheduled* at `start + i * (1s / rate)` whether or
+;; not the system is keeping up, and its latency is measured from that scheduled time, not
+;; from when the generator got around to it. Queueing delay therefore lands in the number,
+;; which is the whole point: a runtime that cannot preempt shows up here and nowhere else.
+;;
+;; The work mix is deliberately tail-heavy: every 20th request OCCUPIES ~500us of CPU. That
+;; occupancy is fixed in *time*, not in work units, and deliberately so — sized in units it
+;; would take 20x longer on a runtime 20x slower at arithmetic, and this row would just
+;; re-measure compute speed, which every other row already does. Fixed occupancy asks the one
+;; question the compute rows cannot: while one handler is busy for 500us, what happens to the
+;; ~10 requests that arrive behind it?
+;;
+;; Each port CALIBRATES at startup — timing its own `work` loop to find how many rounds take
+;; 500us here — and the fat request then runs that many rounds. Real work, not a clock spin:
+;; it allocates (so collections participate), and it leaves no thread spinning on the clock,
+;; which is both unrepresentative of a handler and, on .NET, crashed the runtime outright
+;; (`Internal CLR error 0x80131506` in ~3 runs of 10 with spinning pool threads). Only the
+;; cheap round is checksummed, so the calibrated amount never enters the checksum.
+;;
+;; A runtime that can preempt it (BEAM, Brood) or run it on another core (.NET's pool) lets
+;; those requests complete on time and p99 stays flat. A runtime with one thread that runs a
+;; handler to completion makes all ten wait, and p99 inherits the fat request's duration.
+;; Offered load is 5% x 500us x 20k/s = 0.5 cores, so no runtime here is saturated: what the
+;; tail shows is scheduling, not capacity. Cheap requests allocate, so collections participate.
+;;
+;; Reported as percentiles, because the mean is exactly the statistic that hides this.
+;; Checksum = the summed work result, identical in every port.
+(def n (let (e (getenv "BENCH_N")) (if e (string->number e) 50000)))
+(def rate 20000)                      ; requests/second, open loop
+(def gap-ns (quot 1000000000 rate))
+(def cheap 40)                        ; work units in an ordinary request
+(def fat-ns 500000)                   ; every 20th request occupies ~this long (500us)
+
+;; Busy-wait until a given instant. Used twice: to hit each request's scheduled arrival
+;; (at 20k/s the gap is 50us, far below sleep granularity, and sleeping would add its own
+;; latency to the measurement) and to hold a fat handler's core for a fixed duration.
+(defn spin-until (t) (if (>= (now-ns) t) :ok (spin-until t)))
+
+;; One request's work: `k` rounds, each allocating a small vector and summing it.
+(defn work (k j acc)
+  (if (>= j k)
+    acc
+    (let (v [j (+ j 1) (+ j 2) (+ j 3)])
+      (work k (+ j 1) (+ acc (+ (+ (nth v 0) (nth v 1)) (+ (nth v 2) (nth v 3))))))))
+
+;; A handler runs in its own process, the way a connection would. Every 20th one holds its
+;; core for `fat-ns` (a CPU-bound request); the rest just do their arithmetic.
+(defn handle (i sched to)
+  (let (r (work cheap 0 0)
+        fat? (= 0 (mod i 20))
+        _ (when fat? (work fat-units 0 0)))   ; ~500us of real work, result discarded
+    ;; A fat request reports -1: its own latency is >=500us by construction, so including it
+    ;; would put fat requests in every high percentile and hide the only thing worth knowing —
+    ;; what the fat request did to the ORDINARY requests queued behind it. Percentiles below
+    ;; therefore cover the 95% that are ordinary.
+    (send to [:done (if fat? -1 (quot (- (now-ns) sched) 1000)) r])))
+
+(defn collector (to left lats sum)
+  (if (= left 0)
+    (send to [:all lats sum])
+    (receive ([:done lat r] (collector to (- left 1)
+                              (if (< lat 0) lats (cons lat lats))
+                              (+ sum r))))))
+
+(defn dispatch (i start to)
+  (if (>= i n)
+    :ok
+    (let (sched (+ start (* i gap-ns)))
+      (do (spin-until sched)
+          (spawn (handle i sched to))
+          (dispatch (+ i 1) start to)))))
+
+(defn pct (v p)
+  (nth v (min (- (count v) 1) (quot (* p (count v)) 100))))
+
+;; How many rounds of `work` take `fat-ns` in THIS runtime? Double `k` until a sample is long
+;; enough to time reliably, then scale. Takes the BEST of several samples, which is what makes
+;; it correct on a JIT: a single sample measures the cold, un-tiered run — measured here at
+;; 1323us where the warm figure is 20us, i.e. a calibration 25x too small and a fat request
+;; that was not fat at all. Run before the schedule starts, so the measurement never sees it.
+(defn best-work-ns (reps k best)
+  (if (= reps 0)
+    best
+    (let (t (now-ns)
+          _ (work k 0 0)
+          dt (- (now-ns) t))
+      (best-work-ns (- reps 1) k (if (or (= best 0) (< dt best)) dt best)))))
+
+(defn calibrate (k)
+  (let (dt (best-work-ns 9 k 0))
+    (if (< dt 200000)
+      (calibrate (* k 2))
+      (quot (* k fat-ns) dt))))
+
+;; Warm first, THEN calibrate. Brood tiers on a background thread, so a calibration that
+;; starts cold measures the interpreter and under-sizes the fat request by ~25x. Every port
+;; reports both the units it chose and what they actually cost, so a mis-calibration is
+;; visible in the published output instead of silently making the row meaningless.
+(defn warm (reps k) (if (= reps 0) :ok (do (work k 0 0) (warm (- reps 1) k))))
+(warm 60 5000)
+
+(def fat-units (calibrate 1000))
+(def fat-measured-us (quot (best-work-ns 5 fat-units 0) 1000))
+
+(def me (self))
+(def coll (spawn (collector me n () 0)))
+(def t0 (now-ns))
+(dispatch 0 t0 coll)
+(def res (receive ([:all l s] [l s]) (after 600000 :timeout)))
+(def elapsed-ns (- (now-ns) t0))
+(def lats (into [] (sort (nth res 0))))
+
+(println (str "#metric fat_units=" fat-units))
+(println (str "#metric fat_measured_us=" fat-measured-us))
+(println (str "#metric ordinary_n=" (count lats)))
+(println (str "#metric p50_us=" (pct lats 50)))
+(println (str "#metric p99_us=" (pct lats 99)))
+(println (str "#metric p999_us=" (nth lats (min (- (count lats) 1) (quot (* 999 (count lats)) 1000)))))
+(println (str "#metric max_us=" (nth lats (- (count lats) 1))))
+(println (str "#metric sustained_rps=" (quot (* n 1000000000) elapsed-ns)))
+(println (nth res 1))
