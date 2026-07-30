@@ -135,22 +135,22 @@ Against its actual peer:
 
 | benchmark | Elixir <sup>p</sup> | Brood | Brood rank |
 |---|---|---|---|
-| `spawn` | 22ms | **39ms** | 2/2 |
-| `pfib` | 286ms | **181ms** | 1/2 |
-| `http` | 576ms | **154ms** | 1/2 |
-| `pingpong` | 50ms | **198ms** | 2/2 |
-| `ring` | 259ms | **709ms** | 2/2 |
-| `supervisor` | 250ms | **818ms** | 2/2 |
+| `spawn` | 13ms | **34ms** | 2/2 |
+| `pfib` | 291ms | **182ms** | 1/2 |
+| `http` | 568ms | **155ms** | 1/2 |
+| `pingpong` | 58ms | **212ms** | 2/2 |
+| `ring` | 255ms | **788ms** | 2/2 |
+| `supervisor` | 253ms | **833ms** | 2/2 |
 
 Against the rest of the field, for context:
 
 | benchmark | .NET <sup>p</sup> | Brood | Node | Clojure <sup>c</sup> | Python | Ruby | Brood rank |
 |---|---|---|---|---|---|---|---|
-| `spawn` | 18ms | **39ms** | 53ms | 191ms | 547ms | 1.6s | 2/6 |
-| `pfib` | 115ms | **181ms** | 294ms | 386ms | 2.5s | 1.9s | 2/6 |
-| `http` | 152ms | **154ms** | 127ms | 806ms | 174ms | 208ms | 3/6 |
-| `pingpong` | 164ms | **198ms** | 629ms | 595ms | 825ms | 579ms | 2/6 |
-| `ring` | 794ms | **709ms** | 116ms | 4.3s | 4.6s | 3.4s | 2/6 |
+| `spawn` | 18ms | **34ms** | 54ms | 186ms | 557ms | 1.6s | 2/6 |
+| `pfib` | 116ms | **182ms** | 292ms | 371ms | 2.5s | 1.9s | 2/6 |
+| `http` | 149ms | **155ms** | 126ms | 812ms | 173ms | 205ms | 3/6 |
+| `pingpong` | 167ms | **212ms** | 638ms | 597ms | 793ms | 596ms | 2/6 |
+| `ring` | 816ms | **788ms** | 113ms | 4.4s | 4.6s | 3.4s | 2/6 |
 
 Across all of the above Brood is never last; it **is** last on `spawn-live`, reported on its
 own below. Run-to-run the field drifts ±10%, so read the ordering rather than the digits — and
@@ -168,12 +168,20 @@ quarter and lets the supervisor restart them — the supervisor's own bookkeepin
 find the right one when its exit signal arrives, replace it), which is separate from raw spawn
 cost (`spawn`) and from holding processes alive (`spawn-live`).
 
-**Moved since the last run: the new `latency` row, and nothing else.** Every other row is
-within ±8% of the previous run, and `spawn-live` drifted again — **−15%** this time, having
-read **+20%** last run, with a controlled A/B between the two commits saying **−0.0%**. That
-is the fourth observation of that row wandering ~20% between whole harness invocations; treat
-any movement on it as unproven until a fixed-baseline A/B agrees. (`reduce` shows +33% on a
-3 ms row: the startup subtraction, not the runtime.)
+**Moved since the last run: `latency`, and it is a code change.** Brood's p50 went 121 → **27 µs**
+and p99 439 → **124 µs**, moving it from 2nd to 2nd but well clear of Node/Python/.NET, and
+behind only Elixir. Scheduler placement was the cause: every child was spawned onto the
+spawner's own worker, so a dispatcher piled all its handlers onto one queue where a single slow
+handler blocked the rest; stealing rebalanced 12% of them. Placement now spills once the local
+queue is non-empty. `spawn` also improved (40 → 34 ms).
+
+Against that, `pingpong` **+2.8%** and `ring` **+2.3%** are real regressions rather than drift —
+measured with a base-vs-base control that put this box's noise floor at 0.5% on those rows. They
+are the cost of the receive-mark (a `receive` pinned on a fresh `ref` now skips the mailbox
+backlog, turning request/reply from O(backlog) into O(1)), which adds a field per envelope and
+an argument per receive. Those two rows run with near-empty mailboxes and so pay the cost
+without seeing the benefit; the benefit is a cliff that no row here models — a backlogged
+reply went from 653 µs to 4 µs at a 32 000-message backlog.
 
 **From the run before: the `supervisor` row.** Every other row was
 within ±3% of the run preceding it. Two apparent swings are drift, not results, and the controlled
@@ -225,11 +233,11 @@ nothing here is capacity-limited; the tail is scheduling, not saturation.
 
 | | p50 | **p99** | p99.9 | max | cores | CPU·s | peak RSS |
 |---|---|---|---|---|---|---|---|
-| **Elixir** | 8 µs | **59 µs** | 98 µs | 601 µs | 1.9× | 5.28 | 79 MB |
-| **Brood** | 121 µs | **439 µs** | 1300 µs | 2134 µs | 1.3× | 3.32 | 168 MB |
-| **Node** | <1 µs | **451 µs** | 561 µs | 1047 µs | 1.0× | 2.55 | 61 MB |
-| **Python** | 42 µs | **478 µs** | 624 µs | 852 µs | 1.0× | 2.53 | 11 MB |
-| **.NET** | **4 µs** | **714 µs** | **12,627 µs** | 15,082 µs | 2.4× | 6.04 | 49 MB |
+| **Elixir** | 8 µs | **54 µs** | 85 µs | 303 µs | 1.9× | 5.25 | 83 MB |
+| **Brood** | 27 µs | **124 µs** | 829 µs | 4356 µs | 1.8× | 4.57 | 169 MB |
+| **Node** | <1 µs | **410 µs** | 455 µs | 730 µs | 1.0× | 2.55 | 61 MB |
+| **Python** | 26 µs | **459 µs** | 590 µs | 673 µs | 1.0× | 2.55 | 11 MB |
+| **.NET** | **4 µs** | **654 µs** | **12,517 µs** | 14,951 µs | 2.4× | 6.01 | 49 MB |
 
 **.NET posts the best median in the field and the worst tail by 20×.** Its p50 of 4 µs is
 excellent — it is the fastest runtime here on the compute rows, and that shows. Then p99.9 is
@@ -251,10 +259,13 @@ scheduler, and per-process heaps mean a collection stalls one process rather tha
 This is the row that earns the BEAM's reputation, and the one that shows why "3.5× slower on
 compute" is the wrong summary of it.
 
-**Brood is mid-field and not where it should be.** p99 of 439 µs is second, but the 121 µs
-*median* is 15× Elixir's — that is per-message cost, the same gap `pingpong` and `ring` show —
-and p99.9 of 1300 µs is 13× Elixir's. Both are tracked in the Brood repo's
-`docs/runtime-frontier.md`; neither is a mystery, and neither is fixed.
+**Brood is second, and moved the most.** p50 121 → **27 µs** and p99 439 → **124 µs** since the
+previous run, which puts it ahead of Node, Python and .NET at p99 and behind only the BEAM.
+The cause was scheduler placement: children were always spawned onto the spawner's own worker,
+so a dispatcher piled every handler onto one queue where a slow handler blocked the rest, and
+work-stealing rebalanced only 12% of them. Placement now spills to another worker as soon as
+the local queue is non-empty (Brood repo `docs/runtime-frontier.md` A5). The remaining gap to
+Elixir is the 27 µs median — per-message cost, the same gap `pingpong` and `ring` show.
 
 **What this row does not claim.** Handlers here are CPU-bound, which is the hard case: a
 production Node or Python service would move that work to a worker pool or a subprocess, and
