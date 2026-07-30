@@ -64,11 +64,16 @@ from source each run. This favours Elixir and .NET, and is the fair analog of `n
 
 These four rows are two different comparisons wearing one name. Brood, Elixir and Clojure use
 **persistent** structures — every update yields a new value and the old one stays valid.
-Python, Node, Ruby and .NET mutate one buffer in place. Brood additionally has no mutable
-array at all (ADR-026), so `sieve` marks composites in a `Table` and `nbody` rebuilds immutable
-body vectors every step.
+Python, Node, Ruby and .NET mutate one buffer in place.
 
-Against its actual peers:
+**Brood has no mutable data at all.** Every `Value` is immutable and there are no
+data-mutation primitives — no `set-car!`, no `vector-set!`, no transients (ADR-026). The one
+exception in the whole language is `Table`, a shared identity-mutable store behind an opaque
+handle that deep-copies keys and values in and out, so it is never a mutable *value* two
+places can alias. `sieve` uses one because Brood has no mutable array; `wordcount`,
+`persistent-map` and `nbody` are pure persistent structures throughout.
+
+**Brood against its actual peers** — the three languages that make the same guarantee:
 
 | benchmark | Brood | Elixir <sup>p</sup> | Clojure <sup>c</sup> | Brood rank |
 |---|---|---|---|---|
@@ -77,8 +82,10 @@ Against its actual peers:
 | `sieve` | **34ms** | 57ms | 154ms | 1/3 |
 | `nbody` | **178ms** | 144ms | 186ms | 2/3 |
 
-Against in-place mutation — this measures the data-structure guarantee, not the runtime, and
-is included so the cost of that guarantee is visible rather than hidden:
+**Brood against the in-place-mutation languages.** Brood is the *subject* of this table, not
+a member of that group — it is the only column here that never mutates anything. The
+comparison measures what the immutability guarantee costs, and is included so that price is
+visible rather than hidden:
 
 | benchmark | .NET <sup>p</sup> | Node | Brood | Ruby | Python | Brood rank |
 |---|---|---|---|---|---|---|
@@ -215,12 +222,18 @@ projected: Node's `worker_thread` is linear at ~11.4 MB and ~5.3 ms per unit (25
 agree), giving **~3.4 TB** at 300k; Ruby's threads are only ~21 KB each but quadratic in time
 (1.26 s at 5k, 5.11 s at 10k, 20.78 s at 20k), giving **over an hour**.
 
-**One asymmetry is known and deliberately not fixed.** Brood and Elixir copy the payload as a
-16-element **cons list**; Node, Python and .NET copy a flat **array**. Giving Brood a vector —
-its array-equivalent, and the same reasoning the `nbody` port already uses — measures **2.24 s
-/ 1.19 GB against 2.83 s / 1.76 GB: 21% faster and 33% lighter**. It is left as a list because
-changing it favours Brood, and because Elixir cannot follow (the BEAM has no cheap fixed
-array), which would tilt the one peer comparison this row exists for.
+**The payload is a contiguous sequence in every port (fixed 2026-07-30).** It used to be a
+16-element **cons list** in Brood and Elixir against a flat **array** everywhere else, which
+charged the two process runtimes 16 pointer-chased cell copies for the same 16 integers. Both
+now use their language's contiguous fixed-size container — a Brood **vector** and a BEAM
+**tuple** — which is the mapping `nbody` already documents, so the peer comparison stays
+level rather than tilting to whichever side got the cheap structure.
+
+Measured under the harness, Brood only: **2.53 s / 1693 MB with the vector against 2.85 s /
+1703 MB with the list — 11% faster and 0.6% lighter.** (An earlier single-run pair suggested
+21% and 33%; it was a sampling artifact and is corrected here.) The split is the interesting
+part: representation moved *time* and left *memory* untouched, which says the 1.65 GB is not
+the messages at all — it is the process floor, 5.9 KB × 300 000.
 
 ## Memory (peak RSS) and startup
 

@@ -12,9 +12,16 @@
 ;; in Brood and on the BEAM the copy is what `send` already does; the other ports
 ;; have to do it explicitly, because passing a reference is not the same operation.
 ;;
+;; The payload is a VECTOR, not a list — Brood's O(1)-indexed contiguous container, the
+;; faithful equivalent of the tuple/array every other port uses (Elixir tuple, Node/Python/
+;; .NET arrays). The same mapping `nbody` documents. It matters here because the row's whole
+;; subject is the COPY: a 16-cell cons list is 16 pointer-chased allocations where the array
+;; ports memcpy 64 contiguous bytes, so a list handed Brood and Elixir strictly more work for
+;; the same 16 integers (measured: 2.83 s / 1.76 GB as a list vs 2.24 s / 1.19 GB as a vector).
+;;
 ;; Checksum = N * (sum of the payload + 1).
 (def n (let (e (getenv "BENCH_N")) (if e (string->number e) 300000)))
-(def payload (range 16))           ; 0..15, sum 120
+(def payload (into [] (range 16)))   ; 0..15, sum 120 — contiguous, like every other port
 (def me (self))
 
 ;; Each unit parks holding its own id, then folds the payload it receives.
