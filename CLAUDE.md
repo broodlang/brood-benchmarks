@@ -1,13 +1,15 @@
 # brood-benchmarks — guidance for Claude
 
-A cross-language micro-benchmark suite: 30 programs across Brood, Clojure, Elixir,
+A cross-language micro-benchmark suite: 31 programs across Brood, Clojure, Elixir,
 Python, Node, Ruby and .NET, run under one harness. 28 are implemented in every
 language. `spawn-live` runs in five, but only **two of those five provide the same
 thing** — Brood and Elixir have isolated preemptively-scheduled processes with
 copying sends; Node, .NET and Python have coroutines/tasks on a shared heap, and are
 included so the `cores`/`CPU·s` columns make that difference legible rather than to
 claim a like-for-like comparison. `supervisor` runs only in Brood and Elixir, the two
-with a runtime supervisor at all. See [README.md](README.md) for the full methodology.
+with a runtime supervisor at all. `latency` runs in five (Ruby and Clojure ports are simply
+unwritten) and is the one row reported as **percentiles**, ranked by p99 rather than by wall —
+its wall is fixed by the arrival schedule, so wall says nothing about which runtime is better. See [README.md](README.md) for the full methodology.
 
 ## Running
 
