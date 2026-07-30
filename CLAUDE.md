@@ -2,8 +2,12 @@
 
 A cross-language micro-benchmark suite: 30 programs across Brood, Clojure, Elixir,
 Python, Node, Ruby and .NET, run under one harness. 28 are implemented in every
-language; `spawn-live` runs in the five whose units can be compared at all, and
-`supervisor` only in Brood and Elixir (the two with a runtime supervisor). See [README.md](README.md) for the full methodology.
+language. `spawn-live` runs in five, but only **two of those five provide the same
+thing** — Brood and Elixir have isolated preemptively-scheduled processes with
+copying sends; Node, .NET and Python have coroutines/tasks on a shared heap, and are
+included so the `cores`/`CPU·s` columns make that difference legible rather than to
+claim a like-for-like comparison. `supervisor` runs only in Brood and Elixir, the two
+with a runtime supervisor at all. See [README.md](README.md) for the full methodology.
 
 ## Running
 
