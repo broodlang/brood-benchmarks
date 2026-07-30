@@ -27,17 +27,17 @@ claim to lead the field.
 
 | | Brood | field |
 |---|---|---|
-| startup (wall) | 15.4 ms | Python 10.2, Node 17.8, .NET 22.0, Ruby 38.7, Elixir 185.6, Clojure 341.5 |
-| base RSS | 20.8 MB | Python 9.8, Ruby 19.0, .NET 25.8, Node 44.4, Elixir 71.3, Clojure 102.8 |
-| aggregate single-threaded compute | 2.8× the fastest | .NET 1.0, Node 2.6, Elixir 3.4, Clojure 7.9, Ruby 11.8, Python 28.5 |
+| startup (wall) | 15.5 ms | Python 10.2, Node 18.1, .NET 21.9, Ruby 39.2, Elixir 186.3, Clojure 341.9 |
+| base RSS | 20.9 MB | Python 9.8, Ruby 19.0, .NET 25.9, Node 44.4, Elixir 71.5, Clojure 103.8 |
+| aggregate single-threaded compute | 2.8× the fastest | .NET 1.0, Node 2.6, Elixir 3.3, Clojure 7.7, Ruby 11.6, Python 27.7 |
 | rank by row | 1st on `strings`, `reduce`; last on `spawn-live` | |
-| `spawn-live` (300k units held alive, each sent a copied message) | 2.73 s, 1.66 GB, 7.95 CPU·s | Elixir 0.72 s / 0.91 GB — the only peer; Node 0.22 s / 0.24 GB, .NET 0.27 s / 0.13 GB, Python 1.29 s / 0.35 GB are coroutines on a shared heap |
+| `spawn-live` (300k units held alive, each sent a copied message) | 2.42 s, 1.67 GB, 6.89 CPU·s | Elixir 0.71 s / 0.89 GB — the only peer; Node 0.22 s / 0.24 GB, .NET 0.27 s / 0.13 GB, Python 1.28 s / 0.35 GB are coroutines on a shared heap |
 
 The aggregate covers the core-compute rows only and varies ±0.3 run-to-run.
 
 **`spawn-live` is Brood's worst row.** Every port holds 300k units alive and hands each
 one a message it must *copy* (a reference hand-off is a cheaper operation, so it would not
-be the same benchmark). Against its only peer Brood is 3.8× slower and 1.8× heavier: ~5.8 KB per live process
+be the same benchmark). Against its only peer Brood is 3.4× slower and 1.9× heavier: ~5.8 KB per live process
 against Elixir's ~3.2 KB. Compiled code is shared per runtime rather than per process, so
 what remains is the process itself — mailbox, isolated heap, captured continuation. A
 process that will idle for a long time can hand most of that back with `(hibernate)`. See
