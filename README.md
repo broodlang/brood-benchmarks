@@ -27,11 +27,12 @@ claim to lead the field.
 
 | | Brood | field |
 |---|---|---|
-| startup (wall) | 15.5 ms | Python 10.2, Node 18.1, .NET 21.9, Ruby 39.2, Elixir 186.3, Clojure 341.9 |
-| base RSS | 20.9 MB | Python 9.8, Ruby 19.0, .NET 25.9, Node 44.4, Elixir 71.5, Clojure 103.8 |
-| aggregate single-threaded compute | 2.8× the fastest | .NET 1.0, Node 2.6, Elixir 3.3, Clojure 7.7, Ruby 11.6, Python 27.7 |
+| startup (wall) | 16.2 ms | Python 10.4, Node 17.9, .NET 21.8, Ruby 39.1, Elixir 185.7, Clojure 336.5 |
+| base RSS | 21.1 MB | Python 9.7, Ruby 19.0, .NET 25.8, Node 44.5, Elixir 73.3, Clojure 103.1 |
+| aggregate single-threaded compute | 2.7× the fastest | .NET 1.0, Node 2.7, Elixir 3.5, Clojure 8.2, Ruby 11.8, Python 27.7 |
 | rank by row | 1st on `strings`, `reduce`; last on `spawn-live` | |
-| `spawn-live` (300k units held alive, each sent a copied message) | 2.42 s, 1.67 GB, 6.89 CPU·s | Elixir 0.71 s / 0.89 GB — the only peer; Node 0.22 s / 0.24 GB, .NET 0.27 s / 0.13 GB, Python 1.28 s / 0.35 GB are coroutines on a shared heap |
+| `spawn-live` (300k units held alive, each sent a copied message) | 2.91 s, 1.70 GB, 7.90 CPU·s | Elixir 0.70 s / 0.92 GB — the only peer; Node 0.22 s / 0.25 GB, .NET 0.27 s / 0.14 GB, Python 1.28 s / 0.36 GB are coroutines on a shared heap |
+| `supervisor` (20k supervised children, a quarter retired and restarted) | 818 ms, 440 MB | Elixir 250 ms / 158 MB — the only peer; no other runtime here has a supervisor |
 
 The aggregate covers the core-compute rows only and varies ±0.3 run-to-run.
 
