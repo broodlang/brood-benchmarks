@@ -155,9 +155,9 @@ Against the rest of the field, for context:
 Across all of the above Brood is never last; it **is** last on `spawn-live`, reported on its
 own below. Run-to-run the field drifts ±10%, so read the ordering rather than the digits — and
 a single run cannot tell a real change from that drift in either direction, which is why the
-movement notes below cite controlled A/B rather than the table. (`spawn-live` and `supervisor`
-are excluded from the field-wide aggregate: they run a subset of the languages, because the
-others' units do not provide the same guarantees — see those sections.)
+movement notes below cite controlled A/B rather than the table. (`spawn-live`, `supervisor` and
+`latency` are excluded from the field-wide aggregate: they run a subset of the languages, and
+`latency` is reported as percentiles rather than a wall time — see those sections.)
 
 **`supervisor` runs two languages, and the absence is the point.** The unit of comparison is an
 OTP-style supervisor: a process that links its children, is told when one exits, and restarts it
@@ -168,8 +168,15 @@ quarter and lets the supervisor restart them — the supervisor's own bookkeepin
 find the right one when its exit signal arrives, replace it), which is separate from raw spawn
 cost (`spawn`) and from holding processes alive (`spawn-live`).
 
-**Moved since the last run: the new `supervisor` row, and nothing else.** Every other row is
-within ±3% of the previous run. Two apparent swings are drift, not results, and the controlled
+**Moved since the last run: the new `latency` row, and nothing else.** Every other row is
+within ±8% of the previous run, and `spawn-live` drifted again — **−15%** this time, having
+read **+20%** last run, with a controlled A/B between the two commits saying **−0.0%**. That
+is the fourth observation of that row wandering ~20% between whole harness invocations; treat
+any movement on it as unproven until a fixed-baseline A/B agrees. (`reduce` shows +33% on a
+3 ms row: the startup subtraction, not the runtime.)
+
+**From the run before: the `supervisor` row.** Every other row was
+within ±3% of the run preceding it. Two apparent swings are drift, not results, and the controlled
 A/B against the previously published commit says so: `spawn-live` reads **+20%** in the table
 and **−0.0%** under A/B; `pingpong` reads +6% and **+1.4%**. That is the third time `spawn-live`
 has wandered ~20% between whole harness invocations — treat any movement on it as unproven
@@ -200,6 +207,62 @@ round trips. A known cliff sits under that — a `receive` pinned on a fresh `re
 whole mailbox backlog, where the BEAM skips it via the receive-mark optimization, so a *busy*
 process degrades with its own queue length. It does not show in these rows (they run with
 near-empty mailboxes) but it is the next lever on this path.
+
+## `latency` — what a server actually feels like
+
+Every other concurrency row measures throughput, and all of them are **closed loop**: the
+generator waits for each reply before sending the next. That hides the failure it should
+expose — when the system stalls, the generator politely stops sending, so the stall never
+enters the numbers. This is coordinated omission, and it is why a runtime can win every
+throughput row and still feel slow in production.
+
+This row is **open loop**. Request *i* is scheduled at `start + i × (1s / 20,000)` whether or
+not the system is keeping up, and its latency is measured from that scheduled instant — so
+queueing delay lands in the number. Every 20th request occupies **~500 µs of CPU**, and the
+percentiles cover the **other 95%**. The question it asks is the one an operator has: *what
+does a busy handler do to everyone else?* Offered load is 0.5 cores of a 12-core machine, so
+nothing here is capacity-limited; the tail is scheduling, not saturation.
+
+| | p50 | **p99** | p99.9 | max | cores | CPU·s | peak RSS |
+|---|---|---|---|---|---|---|---|
+| **Elixir** | 8 µs | **59 µs** | 98 µs | 601 µs | 1.9× | 5.28 | 79 MB |
+| **Brood** | 121 µs | **439 µs** | 1300 µs | 2134 µs | 1.3× | 3.32 | 168 MB |
+| **Node** | <1 µs | **451 µs** | 561 µs | 1047 µs | 1.0× | 2.55 | 61 MB |
+| **Python** | 42 µs | **478 µs** | 624 µs | 852 µs | 1.0× | 2.53 | 11 MB |
+| **.NET** | **4 µs** | **714 µs** | **12,627 µs** | 15,082 µs | 2.4× | 6.04 | 49 MB |
+
+**.NET posts the best median in the field and the worst tail by 20×.** Its p50 of 4 µs is
+excellent — it is the fastest runtime here on the compute rows, and that shows. Then p99.9 is
+**12.6 ms**: a spread of **3,157× from median to p99.9**, against Elixir's 12×. It is not
+short of resources while doing it — it spends the *most* CPU of any port (6.04 CPU·s, 2.4
+cores) and still tails worst. That combination — excellent median, occasional multi-millisecond
+stall, high CPU — is exactly the profile that reads as "fast in benchmarks, janky in
+production", and no other row in this suite can see it.
+
+**Node and Python, with one thread each, have better tails than .NET with twelve cores.**
+Their p99 (~450–480 µs) is precisely the fat request's own duration: a single-threaded runtime
+runs the handler to completion, so at worst you wait behind exactly one of them, and it stops
+there. Simple and bounded beats parallel and unpredictable at the tail. (Their p99 *is* the
+head-of-line blocking the row was built to show — it is just less bad than .NET's queueing.)
+
+**Elixir is what the BEAM claims to be**: 8 µs median, 59 µs at p99, 98 µs at p99.9 — the
+tail barely moves, because reduction-counted preemption means a 500 µs handler cannot hold a
+scheduler, and per-process heaps mean a collection stalls one process rather than all of them.
+This is the row that earns the BEAM's reputation, and the one that shows why "3.5× slower on
+compute" is the wrong summary of it.
+
+**Brood is mid-field and not where it should be.** p99 of 439 µs is second, but the 121 µs
+*median* is 15× Elixir's — that is per-message cost, the same gap `pingpong` and `ring` show —
+and p99.9 of 1300 µs is 13× Elixir's. Both are tracked in the Brood repo's
+`docs/runtime-frontier.md`; neither is a mystery, and neither is fixed.
+
+**What this row does not claim.** Handlers here are CPU-bound, which is the hard case: a
+production Node or Python service would move that work to a worker pool or a subprocess, and
+should. It measures *runtimes*, not frameworks — no HTTP server, no router, no serialization.
+And "sustained" confirms every port actually held the 20,000/s schedule (19,915–20,000/s), so
+none of these tails come from a runtime quietly falling behind. Each port calibrates its own
+fat request to ~500 µs at startup and reports what it achieved (500–517 µs across the five),
+so a mis-calibration would be visible here rather than silently voiding the comparison.
 
 ## `spawn-live` — 300,000 units held alive, each sent a copied message
 
@@ -292,10 +355,11 @@ is the figure above; the harness's warmup run keeps that populate out of both co
 ## How to read it
 
 - **Aggregate single-threaded compute** (the positioning chart's x-axis — Σ wall−startup over the
-  original core-compute rows, normalised to the fastest): .NET 1.0× · Node 2.7× · **Brood 2.7×** ·
-  Elixir 3.5× · Clojure 8.2× · Ruby 11.8× · Python 27.7×. Brood is **3rd of seven** — behind only
-  .NET and Node, and this run it is level with Node to the tenth (818 vs 791 ms of summed
-  compute), ahead of Elixir (it wobbles ±0.3 run-to-run; the ordering is what holds). The
+  original core-compute rows, normalised to the fastest): .NET 1.0× · Node 2.7× · **Brood 2.8×** ·
+  Elixir 3.8× · Clojure 8.2× · Ruby 11.7× · Python 28.0×. Brood is **3rd of seven** — behind only
+  .NET and Node (837 vs 784 ms of summed compute), ahead of Elixir (it wobbles ±0.3
+  run-to-run; the ordering is what holds). This aggregate is also the number the `latency`
+  section exists to qualify: it says nothing about how any of these behave under load. The
   aggregate deliberately excludes the concurrency, error, and wider-range rows — folding them in
   would swamp the figure with library/representation outliers rather than core language speed.
 - **`nbody` gained two places: 6/7 → 4/7, 323 → 169 ms (−47.7%)** — the one real movement in the
