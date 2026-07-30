@@ -241,6 +241,16 @@ BENCHES = [
     # otherwise -- it reports what each runtime spends to hold 300k live units.
     ("spawn-live",  300000, ["brood", "elixir", "node", "dotnet", "python"],
      "hold N units alive, then wake each with a copied message"),
+    # SUPERVISION, and like `spawn-live` deliberately not "all". The unit of comparison is
+    # an OTP-style supervisor: a process that links its children, is told when one exits,
+    # and restarts it per a strategy and a restart-intensity budget. Only Brood and Elixir
+    # have that as a runtime facility; everywhere else it would be a hand-rolled loop this
+    # repo wrote itself, which would measure the harness author, not the runtime. The row
+    # covers the supervisor's own bookkeeping at scale — add a child, find the right child
+    # when its exit signal arrives, replace it — which is separate from raw spawn cost
+    # (`spawn`) and from holding processes alive (`spawn-live`).
+    ("supervisor", 20000, ["brood", "elixir"],
+     "supervise N children, then retire a quarter and let the supervisor restart them"),
     ("pfib",       31,       "all", "parallel fib — 100 computed at once across cores"),
     ("http",       500,      "all", "concurrent HTTP — N in-flight GETs to a local server"),
     ("pingpong",   100000,   "all", "message round-trip latency — two units bounce a token N times"),
@@ -250,7 +260,7 @@ BENCHES = [
 # The concurrency benchmarks bounce 15–45% run-to-run with scheduler / CPU
 # contention. Since we report the best (least-noisy) run, taking more samples
 # tightens the floor — so these run more times than the steady compute benches.
-NOISY = {"spawn", "pfib", "http", "pingpong", "ring"}
+NOISY = {"spawn", "pfib", "http", "pingpong", "ring", "supervisor"}
 
 # Rows where a LOW CPU% is legitimate because the program genuinely blocks (waiting on the
 # local HTTP server), so the idle-CPU guard below must not flag them.
@@ -261,7 +271,7 @@ QUICK = {  # smaller sizes for a fast smoke run
     "fib": 25, "loop": 300000, "reduce": 100000, "primes": 5000, "collatz": 5000,
     "mandelbrot": 48, "matmul": 40, "strings": 10000, "wordcount": 20000,
     "bintree": 8, "sort": 10000, "nqueens": 8, "pipeline": 50000,
-    "spawn": 5000, "pfib": 24, "http": 100,
+    "spawn": 5000, "pfib": 24, "http": 100, "supervisor": 2000,
 }
 
 RSS_RE = re.compile(r"Maximum resident set size \(kbytes\):\s*(\d+)")

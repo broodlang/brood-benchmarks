@@ -1,0 +1,75 @@
+;; Supervision at scale: start N supervised children under a dynamic supervisor, then
+;; retire a quarter of them and let the supervisor restart every one.
+;;
+;; This is the *supervisor's own bookkeeping* under load — the cost of adding a child, of
+;; finding the right child when its exit signal arrives, and of replacing it — not the
+;; cost of spawning a process (the `spawn` row measures that). Both halves matter: a
+;; supervisor that is fast to fill but linear to search collapses on the restart path.
+;;
+;; The retired children exit **normally**. A `:permanent` child is restarted whatever its
+;; exit reason (OTP semantics, matched in both ports), so this exercises the identical
+;; exit -> find -> replace path a crash would, without either runtime logging N crash
+;; reports to stderr — which would measure the logger as much as the supervisor.
+;;
+;; Children announce to a REGISTERED name rather than closing over the collector's pid,
+;; in both ports. That is the idiomatic form in each (Erlang's `register`, Brood's
+;; `register`) and it keeps the child's start thunk free of captured locals, so neither
+;; runtime is charged for copying a closure per child.
+;;
+;; The announcements go to a SEPARATE collector process, not to the driver. If the driver
+;; collected them itself, its mailbox would fill with N announcements while it is still
+;; calling `start-child`, and each of those calls waits on a ref-matched reply — so the
+;; row would be dominated by how well each runtime skips a mailbox backlog in a selective
+;; receive, not by supervision. (That difference is real and large — measured 21x at
+;; N=10000 — but it belongs to the message rows, not here.)
+;;
+;; Checksum = N + N/4 — every child announces when started, and the retired quarter
+;; announces again when the supervisor brings it back.
+(defmodule bench-supervisor (:use proc/supervisor))
+
+(def n (let (e (getenv "BENCH_N")) (if e (string->number e) 20000)))
+(def retire (/ n 4))
+
+;; The collector: counts announcements and remembers the pids, so the driver's own
+;; mailbox stays empty while it fills the supervisor.
+(defn collector (pids k)
+  (receive
+    ([:up p] (collector (cons p pids) (+ k 1)))
+    ([:take want from] (do (send from [:pids (take want pids) k]) (collector pids k)))
+    ([:count-at-least want from] (if (>= k want)
+                                  (do (send from [:reached k]) (collector pids k))
+                                  (do (send (self) [:count-at-least want from]) (collector pids k))))))
+
+(register :bench-collector (spawn (collector () 0)))
+
+;; Announce, then park until retired. The `whereis` guard keeps a child that restarts
+;; during teardown from sending to a deregistered name.
+(defn child ()
+  (let (c (whereis :bench-collector))
+    (do (when c (send c [:up (self)]))
+        (receive (:retire :ok)))))
+
+(defn start-child-proc () (spawn-link (child)))
+
+(def sup (start-supervisor [] {:strategy :one-for-one
+                               :max-restarts 100000000
+                               :max-seconds 60}))
+
+(defn fill (i) (if (>= i n) nil (do (start-child sup {:id i :start start-child-proc}) (fill (+ i 1)))))
+(defn retire-each (ps k) (if (= k 0) nil (do (send (first ps) :retire) (retire-each (rest ps) (- k 1)))))
+
+;; Block until the collector has seen at least `want` announcements.
+(defn await-count (want)
+  (do (send (whereis :bench-collector) [:count-at-least want (self)])
+      (receive ([:reached k] k))))
+
+(defn victims (want)
+  (do (send (whereis :bench-collector) [:take want (self)])
+      (receive ([:pids ps _] ps))))
+
+(fill 0)
+(await-count n)
+(retire-each (victims retire) retire)
+(def total (await-count (+ n retire)))
+(stop-supervisor sup)
+(println total)
