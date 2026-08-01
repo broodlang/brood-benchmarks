@@ -44,7 +44,7 @@
   (cond
     (>= j 5) [vx vy vz]
     (= j i)  (newvel b i (+ j 1) vx vy vz)
-    :else
+    else
     (let (bi (nth b i) bj (nth b j)
           dx (- (nth bi 0) (nth bj 0))
           dy (- (nth bi 1) (nth bj 1))
@@ -77,7 +77,7 @@
   (cond
     (>= i 5) acc
     (> j 4)  (potential b (+ i 1) (+ i 2) acc)
-    :else
+    else
     (let (bi (nth b i) bj (nth b j)
           dx (- (nth bi 0) (nth bj 0))
           dy (- (nth bi 1) (nth bj 1))
