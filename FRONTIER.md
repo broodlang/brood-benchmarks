@@ -69,7 +69,7 @@ Ratios are Brood's compute vs the fastest language on that row.
   captures.
 - **`matmul` (the ~32× ratio is inflated by .NET's 4 ms denominator)** — inner loop is
   native; residual is the one read LICM can't hoist plus boxed `Value` array storage.
-- **Message latency (`pingpong`, `ring` — Elixir leads ~2.8–3.5×)** — the widest honest
+- **Message latency (`pingpong`, `ring` — Elixir leads ~2.7–3.5×)** — the widest honest
   gap, and the three large levers on it are now taken: direct handoff (worth 1.9×), the
   HOF matcher fast path (3.0×), and the leading-keyword receive filter, which removed the
   O(rounds × backlog) rescan that made a *backlogged* selective receive quadratic
@@ -78,6 +78,17 @@ Ratios are Brood's compute vs the fastest language on that row.
   per-message immutable copies and heap-captured migratable continuations — that floor is
   design, not something traded away. Brood beats every thread/queue language here; Node's
   `ring` result is cooperative single-thread async.
+
+  **Do not extend this bullet to `latency` — measured 2026-08-02, that row was never
+  per-message.** In Brood a `send` + `receive` costs **1.1 µs** and a full round trip
+  **4.3 µs**; `latency`'s 27 µs p50 was almost entirely the interval between `spawn` and the
+  handler's first instruction (with the handler doing *no work at all* it was still 26 µs).
+  It was spawn placement: a child goes on the spawner's own worker, and a dispatcher that
+  keeps running holds it there for a whole quantum. Fixing that — an idle peer is told
+  immediately rather than re-probing on a 10 ms timer, with a few µs of first refusal for the
+  owner — moved p50 27 → 20 µs and p99 124 → 79 µs without touching the message path. Whatever
+  remains on `pingpong`/`ring` should be re-derived against those absolute per-message
+  numbers rather than inferred from a wall-clock ratio.
 - **Text codecs (`json`, `regex`, `base64` — all 6/7, ahead of Clojure)** — pure-Brood
   `std/` libraries against native codecs, by design. The next structural lever is a
   bytes/codepoint fast path shared by all three.

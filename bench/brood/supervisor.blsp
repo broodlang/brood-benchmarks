@@ -28,7 +28,11 @@
 (defmodule bench-supervisor (:use proc/supervisor))
 
 (def n (let (e (getenv "BENCH_N")) (if e (string->number e) 20000)))
-(def retire (/ n 4))
+;; `quot`, not `/`: this is a COUNT. Brood's `/` is exact (ADR-196), so `(/ n 4)` on an
+;; N that is not a multiple of 4 yields a rational, which then flows into `take` and the
+;; retire loop as an iteration count. Harmless at the default N=20000 (exactly 5000) and
+;; broken for any other, which is the worst kind of latent.
+(def retire (quot n 4))
 
 ;; The collector: counts announcements and remembers the pids, so the driver's own
 ;; mailbox stays empty while it fills the supervisor.
