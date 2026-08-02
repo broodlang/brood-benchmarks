@@ -27,13 +27,13 @@ claim to lead the field.
 
 | | Brood | field |
 |---|---|---|
-| startup (wall) | 15.7 ms | Python 10.1, Node 18.1, .NET 22.7, Ruby 39.7, Elixir 179.6, Clojure 342.1 |
-| base RSS | 21.4 MB | Python 9.6, Ruby 19.0, .NET 25.9, Node 42.8, Elixir 72.4, Clojure 103.7 |
-| aggregate single-threaded compute | 3.1× the fastest | .NET 1.0, Node 2.7, Elixir 3.8, Clojure 8.7, Ruby 11.9, Python 27.9 |
+| startup (wall) | 15.8 ms | Python 10.2, Node 18.1, .NET 21.9, Ruby 39.0, Elixir 177.5, Clojure 340.1 |
+| base RSS | 21.2 MB | Python 9.6, Ruby 19.0, .NET 25.9, Node 42.8, Elixir 71.1, Clojure 103.8 |
+| aggregate single-threaded compute | 2.9× the fastest | .NET 1.0, Node 2.7, Elixir 3.7, Clojure 8.4, Ruby 11.8, Python 28.5 |
 | rank by row | 1st on `strings`, `reduce`; last on `spawn-live` | |
-| `spawn-live` (300k units held alive, each sent a copied message) | 2.55 s, 1.73 GB, 8.35 CPU·s | Elixir 0.91 s / 0.90 GB — the only peer; Node 0.25 s / 0.24 GB, .NET 0.31 s / 0.14 GB, Python 1.30 s / 0.35 GB are coroutines on a shared heap |
-| `supervisor` (20k supervised children, a quarter retired and restarted) | 882 ms, 454 MB | Elixir 449 ms / 154 MB — the only peer; no other runtime here has a supervisor |
-| `latency` p99 / p99.9 (20k req/s, 5% of them occupying 500µs) | **79 µs / 666 µs** | Elixir 55 / 93 µs, Python 462 / 599, Node 467 / 555, **.NET 814 / 13,004** — the compute winner has the worst tail |
+| `spawn-live` (300k units held alive, each sent a copied message) | 2.56 s, 1.75 GB, 8.40 CPU·s | Elixir 0.92 s / 0.90 GB — the only peer; Node 0.25 s / 0.24 GB, .NET 0.31 s / 0.13 GB, Python 1.39 s / 0.35 GB are coroutines on a shared heap |
+| `supervisor` (20k supervised children, a quarter retired and restarted) | 876 ms, 455 MB | Elixir 439 ms / 154 MB — the only peer; no other runtime here has a supervisor |
+| `latency` p99 / p99.9 (20k req/s, 5% of them occupying 500µs) | **78 µs / 658 µs** | Elixir 58 / 82 µs, Node 461 / 523, Python 485 / 657, **.NET 783 / 13,113** — the compute winner has the worst tail |
 
 The aggregate covers the core-compute rows only and varies ±0.3 run-to-run.
 
