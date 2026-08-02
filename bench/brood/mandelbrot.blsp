@@ -14,8 +14,15 @@
 (defn row-sum (px py acc)
   (if (>= px n)
     acc
-    (let (x0 (- (* (/ px n) 3.0) 2.0)
-          y0 (- (* (/ py n) 3.0) 1.5))
+    ;; `->float` before dividing, matching every other port (Clojure `(double py)`,
+    ;; .NET `(double)py`, Ruby `py.to_f`; Python/Node/Elixir `/` is float division).
+    ;; Brood's `/` is EXACT (ADR-196), so `(/ px n)` on two ints builds a rational —
+    ;; 291,600 of them here, each converted straight to float by the `* 3.0`. That is
+    ;; strictly more work than the other ports do for an identical checksum, so the row
+    ;; stopped measuring escape-time float compute and started measuring rational
+    ;; construction: 192 ms -> 668 ms when exact rationals landed, checksum unchanged.
+    (let (x0 (- (* (/ (->float px) n) 3.0) 2.0)
+          y0 (- (* (/ (->float py) n) 3.0) 1.5))
       (row-sum (+ px 1) py (+ acc (esc 0.0 0.0 0.0 0.0 x0 y0 0))))))
 
 (defn grid-sum (py acc)

@@ -22,25 +22,25 @@ claim to lead the field.
 
 ![Where the languages land — compute speed (startup excluded) vs memory](results/positioning.svg)
 
-**2026-07-30 run.** Numbers regenerate with each run; the full table is in
+**2026-08-02 run.** Numbers regenerate with each run; the full table is in
 [BENCHMARKS.md](BENCHMARKS.md).
 
 | | Brood | field |
 |---|---|---|
-| startup (wall) | 15.6 ms | Python 10.4, Node 17.9, .NET 21.8, Ruby 39.1, Elixir 185.7, Clojure 336.5 |
-| base RSS | 21.1 MB | Python 9.7, Ruby 19.0, .NET 25.8, Node 44.5, Elixir 73.3, Clojure 103.1 |
-| aggregate single-threaded compute | 2.8× the fastest | .NET 1.0, Node 2.7, Elixir 3.8, Clojure 8.2, Ruby 11.7, Python 28.0 |
+| startup (wall) | 15.7 ms | Python 10.1, Node 18.1, .NET 22.7, Ruby 39.7, Elixir 179.6, Clojure 342.1 |
+| base RSS | 21.4 MB | Python 9.6, Ruby 19.0, .NET 25.9, Node 42.8, Elixir 72.4, Clojure 103.7 |
+| aggregate single-threaded compute | 3.1× the fastest | .NET 1.0, Node 2.7, Elixir 3.8, Clojure 8.7, Ruby 11.9, Python 27.9 |
 | rank by row | 1st on `strings`, `reduce`; last on `spawn-live` | |
-| `spawn-live` (300k units held alive, each sent a copied message) | 2.91 s, 1.70 GB, 7.90 CPU·s | Elixir 0.70 s / 0.92 GB — the only peer; Node 0.22 s / 0.25 GB, .NET 0.27 s / 0.14 GB, Python 1.28 s / 0.36 GB are coroutines on a shared heap |
-| `supervisor` (20k supervised children, a quarter retired and restarted) | 818 ms, 440 MB | Elixir 250 ms / 158 MB — the only peer; no other runtime here has a supervisor |
-| `latency` p99 / p99.9 (20k req/s, 5% of them occupying 500µs) | 439 µs / 1300 µs | Elixir 59 / 98 µs, Node 451 / 561, Python 478 / 624, **.NET 714 / 12,627** — the compute winner has the worst tail |
+| `spawn-live` (300k units held alive, each sent a copied message) | 2.55 s, 1.73 GB, 8.35 CPU·s | Elixir 0.91 s / 0.90 GB — the only peer; Node 0.25 s / 0.24 GB, .NET 0.31 s / 0.14 GB, Python 1.30 s / 0.35 GB are coroutines on a shared heap |
+| `supervisor` (20k supervised children, a quarter retired and restarted) | 882 ms, 454 MB | Elixir 449 ms / 154 MB — the only peer; no other runtime here has a supervisor |
+| `latency` p99 / p99.9 (20k req/s, 5% of them occupying 500µs) | **79 µs / 666 µs** | Elixir 55 / 93 µs, Python 462 / 599, Node 467 / 555, **.NET 814 / 13,004** — the compute winner has the worst tail |
 
 The aggregate covers the core-compute rows only and varies ±0.3 run-to-run.
 
 **`spawn-live` is Brood's worst row.** Every port holds 300k units alive and hands each
 one a message it must *copy* (a reference hand-off is a cheaper operation, so it would not
-be the same benchmark). Against its only peer Brood is 3.4× slower and 1.9× heavier: ~5.8 KB per live process
-against Elixir's ~3.2 KB. Compiled code is shared per runtime rather than per process, so
+be the same benchmark). Against its only peer Brood is 2.8× slower and 1.9× heavier: ~6.1 KB per live process
+against Elixir's ~3.1 KB. Compiled code is shared per runtime rather than per process, so
 what remains is the process itself — mailbox, isolated heap, captured continuation. A
 process that will idle for a long time can hand most of that back with `(hibernate)`. See
 [FRONTIER.md](FRONTIER.md).
@@ -178,7 +178,7 @@ peak RSS, checksum), and `positioning.svg` (the compute-vs-memory map).
 Numbers in the docs were measured on `whklat`: a 12-core x86-64 Linux 7.0.0
 machine · Brood 0.1.0 (bytecode VM + tier-1 JIT) · Clojure 1.12.5 / OpenJDK 25.0.3
 (HotSpot) · Elixir 1.21.0-dev / OTP 28 (BeamAsm JIT) · Python 3.14.4 · Node 22.21.0
-(V8) · Ruby 3.3.8 · .NET 10.0.110 (RyuJIT). 2026-07-30. Best of 3 runs
+(V8) · Ruby 3.3.8 · .NET 10.0.110 (RyuJIT). 2026-08-02. Best of 3 runs
 each, after one discarded warmup run per language; the concurrency benchmarks
 (`spawn`/`pfib`/`http`/`pingpong`/`ring`) take
 the best of 7, and **`startup` the best of 9** — it is subtracted from every other
