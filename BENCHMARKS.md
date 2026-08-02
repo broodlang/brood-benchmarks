@@ -31,34 +31,40 @@ Every language expresses these the same way, so the ordering is a runtime compar
 
 | benchmark | .NET <sup>p</sup> | Elixir <sup>p</sup> | Node | Brood | Ruby | Python | Clojure <sup>c</sup> | Brood rank |
 |---|---|---|---|---|---|---|---|---|
-| `fib` | 39ms | 84ms | 74ms | **60ms** | 610ms | 751ms | 249ms | 2/7 |
-| `loop` | 14ms | 60ms | 31ms | **44ms** | 594ms | 2.3s | 149ms | 3/7 |
-| `reduce` | 11ms | 32ms | 222ms | **4ms** | 224ms | 106ms | 209ms | 1/7 |
-| `primes` <sup>a</sup> | 9ms | 24ms | 9ms | **45ms** | 115ms | 124ms | 154ms | 4/7 |
-| `collatz` | 45ms | 111ms | 182ms | **86ms** | 890ms | 2.4s | 433ms | 2/7 |
-| `mandelbrot` | 19ms | 284ms | 21ms | **237ms** | 415ms | 1.3s | 175ms | 4/7 |
-| `matmul` | 4ms | 70ms | 17ms | **127ms** | 281ms | 506ms | 221ms | 4/7 |
-| `strings` <sup>a</sup> | 32ms | 133ms | 66ms | **13ms** | 83ms | 44ms | 172ms | 1/7 |
-| `bintree` | 15ms | 10ms | 20ms | **115ms** | 104ms | 103ms | 190ms | 6/7 |
-| `nqueens` | 19ms | 15ms | 9ms | **86ms** | 128ms | 55ms | 267ms | 5/7 |
-| `errors` | 296ms | 25ms | 572ms | **45ms** | 112ms | 50ms | 1.1s | 2/7 |
-| `errors-deep` | 674ms | 14ms | 221ms | **46ms** | 119ms | 230ms | 1.3s | 2/7 |
-| `pipeline` | 7ms | 16ms | 8ms | **34ms** | 8ms | 4ms | 143ms | 6/7 |
-| `ackermann` | 250ms | 292ms | 399ms | **356ms** | 1.7s | 4.2s | 578ms | 3/7 |
+| `fib` | 40ms | 83ms | 75ms | **60ms** | 620ms | 750ms | 214ms | 2/7 |
+| `loop` | 14ms | 58ms | 31ms | **42ms** | 598ms | 2.5s | 151ms | 3/7 |
+| `reduce` | 13ms | 34ms | 229ms | **4ms** | 227ms | 107ms | 199ms | 1/7 |
+| `primes` <sup>a</sup> | 9ms | 28ms | 9ms | **45ms** | 127ms | 131ms | 156ms | 4/7 |
+| `collatz` | 46ms | 120ms | 183ms | **84ms** | 883ms | 2.6s | 446ms | 2/7 |
+| `mandelbrot` | 19ms | 261ms | 21ms | **176ms** | 415ms | 1.3s | 177ms | 3/7 |
+| `matmul` | 5ms | 70ms | 15ms | **135ms** | 283ms | 495ms | 208ms | 4/7 |
+| `strings` <sup>a</sup> | 32ms | 124ms | 65ms | **14ms** | 82ms | 43ms | 192ms | 1/7 |
+| `bintree` | 16ms | 20ms | 22ms | **112ms** | 98ms | 98ms | 173ms | 6/7 |
+| `nqueens` | 20ms | 18ms | 7ms | **89ms** | 123ms | 55ms | 252ms | 5/7 |
+| `errors` | 302ms | 27ms | 574ms | **44ms** | 111ms | 48ms | 1.1s | 2/7 |
+| `errors-deep` | 672ms | 12ms | 221ms | **46ms** | 120ms | 227ms | 1.4s | 2/7 |
+| `pipeline` | 8ms | 10ms | 8ms | **32ms** | 8ms | 4ms | 146ms | 6/7 |
+| `ackermann` | 278ms | 288ms | 406ms | **354ms** | 1.7s | 3.9s | 575ms | 3/7 |
 | `startup` (wall) | 22ms | 186ms | 18ms | **16ms** | 39ms | 10ms | 342ms | 2/7 |
 
 **<sup>a</sup> Algorithmic asymmetry, against Brood.** `primes`: most languages hoist a `sqrt`
 bound where Brood/Clojure re-test `(* d d) > m` each step. `strings`: Brood/Elixir join the
 range directly.
 
-**`mandelbrot` moved 169 → 237 ms, and the port changed with it.** Brood's `/` became *exact*
-(a rational, not a float) when kernel rationals landed, so the port's per-pixel `(/ px n)` on
-two integers was building and discarding 291,600 exact rationals before converting each to a
-float anyway — strictly more work than the other six ports do, for an identical checksum. The
-port now converts to float first, matching Clojure's `(double py)`, .NET's `(double)py` and
-Ruby's `.to_f`; Python, Node and Elixir divide in floats by definition. That recovered most of
-it, and a **28% residual against the pre-rationals runtime remains under investigation** — it
-is a genuine runtime regression, not a port artifact, and it is why this row lost a place.
+**`mandelbrot`: the port drifted twice, and neither was the runtime.** Brood's `/` became
+*exact* (a rational, not a float) when kernel rationals landed, so the port's per-pixel
+`(/ px n)` on two integers built and discarded 291,600 exact rationals before converting each
+to a float anyway — strictly more work than the other six ports do, for an identical checksum,
+and worth 192 → 668 ms. Converting to float first (Clojure's `(double py)`, .NET's
+`(double)py`, Ruby's `.to_f`; Python/Node/Elixir divide in floats by definition) recovered most
+of it. The rest was a second asymmetry the first fix exposed: this port recomputed `y0` for
+every *pixel*, where every other port hoists it out of the px loop, so it paid two `->float`
+calls per pixel — 583,200 of them, and `->float` is a Brood function call where `(double)` is a
+machine cast. Hoisting it restored the row to **192 ms**, its pre-rationals figure.
+
+**There was no runtime regression at any point**, which is worth stating because the
+intermediate number looked exactly like one: with *identical* source, the pre-rationals binary
+and the current one measure 201 ms and 200 ms.
 
 **<sup>c</sup> Clojure runs cold.** The JVM cold-starts (~0.34 s) on every single-shot run and
 HotSpot never fully JIT-compiles the hot loops in that window — a long-running Clojure service
@@ -95,11 +101,11 @@ capacity growth.
 
 | benchmark | Brood | Elixir <sup>p</sup> | Clojure <sup>c</sup> | Brood rank |
 |---|---|---|---|---|
-| `wordcount` | **34ms** | 185ms | 291ms | 1/3 |
-| `persistent-map` | **58ms** | 124ms | 306ms | 1/3 |
-| `sieve` | **35ms** | 68ms | 154ms | 1/3 |
-| `sort` | **128ms** | 116ms | 287ms | 2/3 |
-| `nbody` | **176ms** | 142ms | 179ms | 2/3 |
+| `wordcount` | **34ms** | 178ms | 281ms | 1/3 |
+| `persistent-map` | **60ms** | 130ms | 308ms | 1/3 |
+| `sieve` | **35ms** | 65ms | 154ms | 1/3 |
+| `sort` | **133ms** | 120ms | 271ms | 2/3 |
+| `nbody` | **170ms** | 161ms | 208ms | 2/3 |
 
 **Brood against the in-place-mutation languages.** Brood is the *subject* of this table, not
 a member of that group — it is the only column here that never mutates anything. The
@@ -108,11 +114,11 @@ visible rather than hidden:
 
 | benchmark | .NET <sup>p</sup> | Node | Brood | Ruby | Python | Brood rank |
 |---|---|---|---|---|---|---|
-| `wordcount` | 38ms | 31ms | **34ms** | 73ms | 175ms | 2/5 |
-| `persistent-map` | 22ms | 24ms | **58ms** | 41ms | 81ms | 4/5 |
-| `sieve` | 4ms | 7ms | **35ms** | 86ms | 120ms | 3/5 |
-| `sort` | 66ms | 106ms | **128ms** | 78ms | 196ms | 4/5 |
-| `nbody` | 6ms | 14ms | **176ms** | 300ms | 757ms | 3/5 |
+| `wordcount` | 37ms | 30ms | **34ms** | 78ms | 177ms | 2/5 |
+| `persistent-map` | 23ms | 24ms | **60ms** | 42ms | 86ms | 4/5 |
+| `sieve` | 3ms | 6ms | **35ms** | 85ms | 118ms | 3/5 |
+| `sort` | 65ms | 104ms | **133ms** | 72ms | 187ms | 4/5 |
+| `nbody` | 7ms | 13ms | **170ms** | 293ms | 688ms | 3/5 |
 
 ### In-language codecs vs native libraries
 
@@ -123,9 +129,9 @@ native columns finish in single-digit ms and the ordering *among them* is meanin
 
 | benchmark | Node | Ruby | Python | .NET <sup>p</sup> | Elixir <sup>p</sup> | Brood | Clojure <sup>c</sup> | Brood rank |
 |---|---|---|---|---|---|---|---|---|
-| `json` <sup>n</sup> | 2ms | 4ms | 9ms | 43ms | 13ms | **156ms** | 452ms | 6/7 |
-| `regex` <sup>n</sup> | 4ms | 7ms | 13ms | 13ms | 21ms | **86ms** | 142ms | 6/7 |
-| `base64` <sup>n</sup> | 6ms | 9ms | 14ms | 4ms | 19ms | **102ms** | 177ms | 6/7 |
+| `json` <sup>n</sup> | 2ms | 5ms | 8ms | 44ms | 12ms | **153ms** | 416ms | 6/7 |
+| `regex` <sup>n</sup> | 4ms | 8ms | 13ms | 12ms | 26ms | **85ms** | 136ms | 6/7 |
+| `base64` <sup>n</sup> | 6ms | 9ms | 13ms | 4ms | 17ms | **100ms** | 171ms | 6/7 |
 
 **<sup>n</sup> Denominator at the noise floor.** Read Brood's absolute number, not the ratio.
 This run shows the failure mode concretely: Elixir's `json` cell is `&lt;1ms`, because
@@ -144,22 +150,22 @@ Against its actual peer:
 
 | benchmark | Elixir <sup>p</sup> | Brood | Brood rank |
 |---|---|---|---|
-| `spawn` | 25ms | **34ms** | 2/2 |
-| `pfib` | 337ms | **188ms** | 1/2 |
-| `http` | 572ms | **159ms** | 1/2 |
-| `pingpong` | 58ms | **205ms** | 2/2 |
-| `ring` | 275ms | **756ms** | 2/2 |
-| `supervisor` | 269ms | **867ms** | 2/2 |
+| `spawn` | 26ms | **35ms** | 2/2 |
+| `pfib` | 308ms | **186ms** | 1/2 |
+| `http` | 610ms | **157ms** | 1/2 |
+| `pingpong` | 59ms | **202ms** | 2/2 |
+| `ring` | 263ms | **794ms** | 2/2 |
+| `supervisor` | 261ms | **860ms** | 2/2 |
 
 Against the rest of the field, for context:
 
 | benchmark | .NET <sup>p</sup> | Node | Brood | Clojure <sup>c</sup> | Python | Ruby | Brood rank |
 |---|---|---|---|---|---|---|---|
-| `spawn` | 18ms | 56ms | **34ms** | 196ms | 556ms | 1.6s | 2/6 |
-| `pfib` | 119ms | 306ms | **188ms** | 408ms | 2.5s | 2.0s | 2/6 |
-| `http` | 147ms | 119ms | **159ms** | 822ms | 173ms | 207ms | 3/6 |
-| `pingpong` | 165ms | 647ms | **205ms** | 600ms | 829ms | 582ms | 2/6 |
-| `ring` | 810ms | 119ms | **756ms** | 4.5s | 4.7s | 3.5s | 2/6 |
+| `spawn` | 18ms | 53ms | **35ms** | 205ms | 549ms | 1.6s | 2/6 |
+| `pfib` | 119ms | 310ms | **186ms** | 410ms | 2.5s | 1.9s | 2/6 |
+| `http` | 153ms | 120ms | **157ms** | 806ms | 173ms | 209ms | 3/6 |
+| `pingpong` | 168ms | 652ms | **202ms** | 602ms | 813ms | 589ms | 2/6 |
+| `ring` | 835ms | 116ms | **794ms** | 4.4s | 4.7s | 3.4s | 2/6 |
 
 Across all of the above Brood is never last; it **is** last on `spawn-live`, reported on its
 own below. Run-to-run the field drifts ±10%, so read the ordering rather than the digits — and
@@ -178,16 +184,16 @@ find the right one when its exit signal arrives, replace it), which is separate 
 cost (`spawn`) and from holding processes alive (`spawn-live`).
 
 **Moved since the last run: `latency` again, and again it is scheduler placement.** Brood's
-p50 went 27 → **20 µs** and p99 124 → **79 µs**, which at the percentile that row is ranked by
-puts it within 25 µs of the BEAM. The previous run fixed placement when the spawner's queue was
+p50 went 27 → **19 µs** and p99 124 → **78 µs**, which at the percentile that row is ranked by
+puts it within 20 µs of the BEAM. The previous run fixed placement when the spawner's queue was
 *backlogged*; this one fixes it when the queue is **empty** and the spawner is merely CPU-bound,
 by telling an idle worker at once that a peer has queued a child instead of leaving it to a
 10 ms re-probe, with a brief first refusal for the owner so a spawn-then-block parent keeps its
 child locally. Full derivation in the `latency` section below.
 
-Nothing else moved beyond drift: every other row in this table is within ±8% of the previous
-run, and the one row outside it is `mandelbrot` (see the like-for-like note), which is a port
-change rather than a runtime one.
+Nothing else moved beyond drift: every row is within ±6% of the previous run. `mandelbrot`
+moved 253 → 192 ms, which is a port fix rather than a runtime change — see the like-for-like
+note.
 
 **From the run before: the `supervisor` row.** Every other row was
 within ±3% of the run preceding it. Two apparent swings are drift, not results, and the controlled
@@ -211,9 +217,9 @@ receiver. See the brood repo's devlog and ADR-194.
 structures and isolated preemptive processes, so it is the one column that is a like-for-like
 comparison end to end. Brood leads the like-for-like core on most rows, and leads its immutable
 peers on `wordcount`, `persistent-map` and `sieve`. Elixir leads the latency rows (`pingpong`
-58 vs 205 ms, `ring` 275 vs 756 ms — ~2.7–3.5×), **`supervisor` (269 vs 867 ms — 3.2×)**,
+59 vs 202 ms, `ring` 263 vs 794 ms — ~3.0–3.4×), **`supervisor` (261 vs 860 ms — 3.3×)**,
 `ackermann`, `bintree`, `nqueens`, and the text rows where it uses native codecs. `nbody` is
-now close (142 vs 176 ms) where it was 2.2× apart.
+now close (161 vs 170 ms) where it was 2.2× apart.
 
 **The three remaining process-side gaps are one family, and it is not "per-message cost".**
 That was the previous reading of `pingpong`, `ring` and `supervisor`, and profiling on
@@ -247,35 +253,35 @@ nothing here is capacity-limited; the tail is scheduling, not saturation.
 
 | | p50 | **p99** | p99.9 | max | cores | CPU·s | peak RSS |
 |---|---|---|---|---|---|---|---|
-| **Elixir** | 8 µs | **55 µs** | 93 µs | 132 µs | 1.6× | 4.48 | 80 MB |
-| **Brood** | 20 µs | **79 µs** | 666 µs | 2027 µs | 1.8× | 4.77 | 170 MB |
-| **Python** | 25 µs | **462 µs** | 599 µs | 841 µs | 1.0× | 2.52 | 11 MB |
-| **Node** | 5 µs | **467 µs** | 555 µs | 840 µs | 1.0× | 2.55 | 58 MB |
-| **.NET** | **4 µs** | **814 µs** | **13,004 µs** | 15,433 µs | 2.4× | 6.01 | 49 MB |
+| **Elixir** | 8 µs | **58 µs** | 82 µs | 337 µs | 2.0× | 5.53 | 80 MB |
+| **Brood** | 19 µs | **78 µs** | 658 µs | 6,036 µs | 1.8× | 4.77 | 173 MB |
+| **Node** | 6 µs | **461 µs** | 523 µs | 664 µs | 1.0× | 2.55 | 59 MB |
+| **Python** | 33 µs | **485 µs** | 657 µs | 1,190 µs | 1.0× | 2.52 | 11 MB |
+| **.NET** | **4 µs** | **783 µs** | **13,113 µs** | 15,544 µs | 2.4× | 6.14 | 49 MB |
 
 **.NET posts the best median in the field and the worst tail by 20×.** Its p50 of 4 µs is
 excellent — it is the fastest runtime here on the compute rows, and that shows. Then p99.9 is
-**13.0 ms**: a spread of **3,251× from median to p99.9**, against Elixir's 12×. It is not
-short of resources while doing it — it spends the *most* CPU of any port (6.01 CPU·s, 2.4
+**13.1 ms**: a spread of **3,278× from median to p99.9**, against Elixir's 10×. It is not
+short of resources while doing it — it spends the *most* CPU of any port (6.14 CPU·s, 2.4
 cores) and still tails worst. That combination — excellent median, occasional multi-millisecond
 stall, high CPU — is exactly the profile that reads as "fast in benchmarks, janky in
 production", and no other row in this suite can see it.
 
 **Node and Python, with one thread each, have better tails than .NET with twelve cores.**
-Their p99 (~460–470 µs) is precisely the fat request's own duration: a single-threaded runtime
+Their p99 (~460–490 µs) is precisely the fat request's own duration: a single-threaded runtime
 runs the handler to completion, so at worst you wait behind exactly one of them, and it stops
 there. Simple and bounded beats parallel and unpredictable at the tail. (Their p99 *is* the
 head-of-line blocking the row was built to show — it is just less bad than .NET's queueing.)
 
-**Elixir is what the BEAM claims to be**: 8 µs median, 55 µs at p99, 93 µs at p99.9 — the
+**Elixir is what the BEAM claims to be**: 8 µs median, 58 µs at p99, 82 µs at p99.9 — the
 tail barely moves, because reduction-counted preemption means a 500 µs handler cannot hold a
 scheduler, and per-process heaps mean a collection stalls one process rather than all of them.
 This is the row that earns the BEAM's reputation, and the one that shows why "3.5× slower on
 compute" is the wrong summary of it.
 
-**Brood is second, and moved the most again.** p50 27 → **20 µs** and p99 124 → **79 µs**
-since the previous run — within 25 µs of the BEAM at the percentile this row is ranked by, and
-5.8× ahead of the next runtime. Over two runs that is p50 121 → 20 and p99 439 → 79.
+**Brood is second, and moved the most again.** p50 27 → **19 µs** and p99 124 → **78 µs**
+since the previous run — within 20 µs of the BEAM at the percentile this row is ranked by, and
+5.9× ahead of the next runtime. Over two runs that is p50 121 → 19 and p99 439 → 78.
 
 Both improvements were scheduler placement, and the second is worth stating precisely because
 the first diagnosis was incomplete. Children are spawned onto the spawner's own worker, so a
@@ -292,16 +298,16 @@ a 10 ms timer, which made stealing a background rebalancer rather than a latency
 while the owning worker keeps a few microseconds of first refusal, so a spawn-then-block
 parent still runs its own child on a warm cache. See the Brood repo's devlog, 2026-08-02.
 
-The remaining gap to Elixir is the 20 µs median, and it is **not** per-message cost, which was
+The remaining gap to Elixir is the 19 µs median, and it is **not** per-message cost, which was
 the previous reading: measured directly, a send + receive is 1.1 µs and a full round trip
 4.3 µs. It is what is left of spawn-to-first-instruction.
 
 **What this row does not claim.** Handlers here are CPU-bound, which is the hard case: a
 production Node or Python service would move that work to a worker pool or a subprocess, and
 should. It measures *runtimes*, not frameworks — no HTTP server, no router, no serialization.
-And "sustained" confirms every port actually held the 20,000/s schedule (19,918–20,000/s), so
+And "sustained" confirms every port actually held the 20,000/s schedule (19,924–20,000/s), so
 none of these tails come from a runtime quietly falling behind. Each port calibrates its own
-fat request to ~500 µs at startup and reports what it achieved (479–511 µs across the five),
+fat request to ~500 µs at startup and reports what it achieved (494–526 µs across the five),
 so a mis-calibration would be visible here rather than silently voiding the comparison.
 
 ## `spawn-live` — 300,000 units held alive, each sent a copied message
@@ -318,8 +324,8 @@ first and the rest is context — the same split the concurrency rows use above.
 
 | | compute | peak RSS | cores | CPU·s |
 |---|---|---|---|---|
-| **Elixir** (BEAM process) | 0.91 s | 0.90 GB | 2.3× | 2.06 |
-| **Brood** (green process) | 2.55 s | 1.73 GB | 3.3× | 8.35 |
+| **Elixir** (BEAM process) | 0.92 s | 0.90 GB | 2.2× | 2.05 |
+| **Brood** (green process) | 2.56 s | 1.75 GB | 3.3× | 8.40 |
 
 **This is Brood's worst row: 2.8× slower and 1.9× heavier than the BEAM** — a gap this
 project owns and is working on, not one the row is framed to hide. ~5.9 KB per live process
@@ -338,9 +344,9 @@ because they are better at the same thing.
 
 | | compute | peak RSS | cores | CPU·s |
 |---|---|---|---|---|
-| **Node** (promise) | 0.25 s | 0.24 GB | 2.1× | 0.51 |
-| **.NET** (`Task`) | 0.31 s | 0.14 GB | 1.6× | 0.50 |
-| **Python** (`asyncio` task) | 1.30 s | 0.35 GB | 1.0× | 1.30 |
+| **Node** (promise) | 0.25 s | 0.24 GB | 2.2× | 0.54 |
+| **.NET** (`Task`) | 0.31 s | 0.13 GB | 1.7× | 0.53 |
+| **Python** (`asyncio` task) | 1.39 s | 0.35 GB | 1.0× | 1.37 |
 
 **Two defects in these ports were found and fixed on 2026-07-30, and the result was not what
 was expected.** `TaskCompletionSource` resumes its continuation *inline on the setter's
@@ -379,14 +385,14 @@ the messages at all — it is the process floor, 5.9 KB × 300 000.
 
 ## Memory (peak RSS) and startup
 
-- **Base RSS** (the `startup` row): Brood **21.4 MB — 3rd-lightest**, behind Python (9.6 MB) and
-  Ruby (19.0 MB); ahead of .NET (25.9 MB), Node (42.8 MB), Elixir (72.4 MB) and
-  Clojure (103.7 MB). That is **the lightest of the compiled-class runtimes**; the gap to
+- **Base RSS** (the `startup` row): Brood **21.2 MB — 3rd-lightest**, behind Python (9.6 MB) and
+  Ruby (19.0 MB); ahead of .NET (25.9 MB), Node (42.8 MB), Elixir (71.1 MB) and
+  Clojure (103.8 MB). That is **the lightest of the compiled-class runtimes**; the gap to
   Ruby is ~2 MB, so that ordering flips run to run. Brood stays light across the suite — 3rd or
   4th on most compute rows, and *1st of seven* on `strings` — with the allocation-heavy rows
-  (`sort` 188 MB, `latency` 170 MB, `supervisor` 454 MB, `spawn-live` 1.7 GB) the exceptions.
+  (`sort` 188 MB, `latency` 173 MB, `supervisor` 455 MB, `spawn-live` 1.7 GB) the exceptions.
 - **Startup**: Brood ~16 ms — 2nd, behind Python (10 ms); ahead of Node (18 ms), .NET
-  (23 ms), Ruby (40 ms), Elixir (180 ms), Clojure (342 ms).
+  (22 ms), Ruby (39 ms), Elixir (178 ms), Clojure (340 ms).
 
 Both are the **warm steady state**. Brood's expanded-prelude boot cache is keyed by build-id, so
 the first run of a freshly-built binary pays ~50 ms and ~28 MB to populate it and every run after
