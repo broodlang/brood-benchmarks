@@ -77,30 +77,18 @@ lightest of the compiled-class runtimes.
 
 ## Levers (rough priority)
 
-1. **Per-process inline caches — the newly-measured top lever.** A freshly spawned unit
-   resolves every call site from cold: ~4 call-IC and 1 global-IC miss for a unit that does
-   almost nothing, and the same 16-element fold costs ~16 µs there against 3.7 µs in a warm
-   process. Sharing the caches (as compiled code now is) needs a **call-site id scheme first**:
-   ids are dense per-process indices baked into shared `Node::Call`s, so naive sharing forces
-   every process's IC vectors to the global maximum — measured at 21 sites for a unit against
-   251 for the root, which would cost more memory than it saves. Options: sparse per-process
-   storage, per-arm numbering with a per-process block table, or sharing the block itself with
-   a race design.
-2. **The green-process floor (~5.3 KB live, vs the BEAM's ~3.1 KB).**
-   With compiled code now genuinely shared per runtime, this is the rest of the `spawn-live`
-   gap. Attributed per structure: the **inline-cache tables are ~536 B** (`vm_call_ics`
-   256 — the entry shrank 96 → 64 B once the duplicated fast-link memo was removed —
-   `vm_fast_links` 160, `arm_ic_blocks` 120), on top of `Box<Process>` (the `Heap` is
-   inline in it, and is 1376 B after the checker state moved off), `Arc<Mailbox>` 184 B
-   and `Suspended` 128 B. A process that will idle for a long time can hand most of this
-   back explicitly with `(hibernate)`.
-
-   **It is working state, not slack** — three tunings were measured and all reverted (see
-   the ruled-out list). Closing on the BEAM needs the state to be *smaller*, not dropped:
-   shrink `CallIcEntry` (96 B, of which the `fast` memo is 32), or share IC entries for
-   frozen callees across processes (ADR-175 Stage 3 — sound because a sealed binding's
-   resolution is process-independent). Both are design changes; cost them before starting.
-
+1. **Per-process inline caches — the top lever, newly measured.** A fresh unit resolves every call
+   site cold (~4 call-IC + 1 global-IC miss for a unit doing almost nothing), so a 16-element fold
+   costs ~16 µs there against 3.7 µs warm. Sharing them needs a **call-site id scheme first**: ids
+   are dense per-process indices baked into shared `Node::Call`s, so naive sharing forces every
+   process's IC vectors to the global maximum (21 sites for a unit vs 251 for the root) and costs
+   more than it saves. Options: sparse per-process storage, per-arm numbering with a block table, or
+   sharing the block with a race design.
+2. **The green-process floor (~5.3 KB live vs the BEAM's ~3.1 KB)** — the rest of `spawn-live`.
+   Attributed: IC tables ~536 B, `Box<Process>` (the inline `Heap` is 1376 B), `Arc<Mailbox>` 184 B,
+   `Suspended` 128 B. **Working state, not slack** — three tunings were measured and reverted (see
+   ruled-out). Closing needs it *smaller*, not dropped: shrink `CallIcEntry`, or share IC entries
+   for frozen callees (sound — a sealed binding resolves process-independently).
 3. **Heap-walking / allocation-heavy code** (`nqueens`, `pipeline`) — structure-walkers
    don't tier and some heap reads go through per-op FFI callbacks. Extending the proven
    inline small-vector read template to variable-index reads and in-arm alloc (blocked by
