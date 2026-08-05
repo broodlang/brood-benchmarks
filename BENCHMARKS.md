@@ -29,23 +29,29 @@ native library read as a runtime result.
 
 Every language expresses these the same way, so the ordering is a runtime comparison.
 
-| benchmark | .NET <sup>p</sup> | Elixir <sup>p</sup> | Node | Brood | Ruby | Python | Clojure <sup>c</sup> | Brood rank |
-|---|---|---|---|---|---|---|---|---|
-| `fib` | 39ms | 82ms | 75ms | **60ms** | 657ms | 802ms | 209ms | 2/7 |
-| `loop` | 13ms | 57ms | 30ms | **43ms** | 591ms | 2.4s | 155ms | 3/7 |
-| `reduce` | 12ms | 37ms | 235ms | **4ms** | 235ms | 116ms | 177ms | 1/7 |
-| `primes` <sup>a</sup> | 9ms | 20ms | 10ms | **47ms** | 123ms | 123ms | 151ms | 4/7 |
-| `collatz` | 46ms | 104ms | 175ms | **87ms** | 849ms | 2.8s | 442ms | 2/7 |
-| `mandelbrot` | 20ms | 266ms | 21ms | **187ms** | 410ms | 1.4s | 167ms | 4/7 |
-| `matmul` | 5ms | 69ms | 17ms | **131ms** | 307ms | 531ms | 205ms | 4/7 |
-| `strings` <sup>a</sup> | 32ms | 115ms | 65ms | **14ms** | 91ms | 44ms | 162ms | 1/7 |
-| `bintree` | 16ms | 13ms | 22ms | **114ms** | 98ms | 100ms | 173ms | 6/7 |
-| `nqueens` | 20ms | 12ms | 8ms | **86ms** | 135ms | 55ms | 266ms | 5/7 |
-| `errors` | 287ms | 27ms | 565ms | **42ms** | 112ms | 52ms | 1.1s | 2/7 |
-| `errors-deep` | 676ms | 13ms | 220ms | **44ms** | 121ms | 237ms | 1.4s | 2/7 |
-| `pipeline` | 8ms | 16ms | 9ms | **34ms** | 9ms | 4ms | 142ms | 6/7 |
-| `ackermann` | 252ms | 285ms | 401ms | **354ms** | 1.7s | 3.9s | 562ms | 3/7 |
-| `startup` (wall) | 22ms | 181ms | 18ms | **16ms** | 39ms | 10ms | 343ms | 2/7 |
+**`vs best` is Brood's distance to the fastest column in that table** — read it with the rank,
+because the two answer different questions and often disagree. `nqueens` is **5/7 and 11.5×**:
+mid-table by position, an order of magnitude away by distance, because four languages are bunched
+within 20 ms of each other. `ackermann` is **3/7 and 1.4×** — a worse rank, far better standing.
+Rank tells you how many runtimes are ahead; the rating tells you whether that matters.
+
+| benchmark | .NET <sup>p</sup> | Elixir <sup>p</sup> | Node | Brood | Ruby | Python | Clojure <sup>c</sup> | Brood rank | vs best |
+|---|---|---|---|---|---|---|---|---|---|
+| `fib` | 39ms | 82ms | 75ms | **60ms** | 657ms | 802ms | 209ms | 2/7 | 1.5× |
+| `loop` | 13ms | 57ms | 30ms | **43ms** | 591ms | 2.4s | 155ms | 3/7 | 3.4× |
+| `reduce` | 12ms | 37ms | 235ms | **4ms** | 235ms | 116ms | 177ms | 1/7 | **best** |
+| `primes` <sup>a</sup> | 9ms | 20ms | 10ms | **47ms** | 123ms | 123ms | 151ms | 4/7 | 5.3× |
+| `collatz` | 46ms | 104ms | 175ms | **87ms** | 849ms | 2.8s | 442ms | 2/7 | 1.9× |
+| `mandelbrot` | 20ms | 266ms | 21ms | **187ms** | 410ms | 1.4s | 167ms | 4/7 | 9.4× |
+| `matmul` | 5ms | 69ms | 17ms | **131ms** | 307ms | 531ms | 205ms | 4/7 | 25.2× |
+| `strings` <sup>a</sup> | 32ms | 115ms | 65ms | **14ms** | 91ms | 44ms | 162ms | 1/7 | **best** |
+| `bintree` | 16ms | 13ms | 22ms | **114ms** | 98ms | 100ms | 173ms | 6/7 | 8.5× |
+| `nqueens` | 20ms | 12ms | 8ms | **86ms** | 135ms | 55ms | 266ms | 5/7 | 11.5× |
+| `errors` | 287ms | 27ms | 565ms | **42ms** | 112ms | 52ms | 1.1s | 2/7 | 1.6× |
+| `errors-deep` | 676ms | 13ms | 220ms | **44ms** | 121ms | 237ms | 1.4s | 2/7 | 3.3× |
+| `pipeline` | 8ms | 16ms | 9ms | **34ms** | 9ms | 4ms | 142ms | 6/7 | 8.0× |
+| `ackermann` | 252ms | 285ms | 401ms | **354ms** | 1.7s | 3.9s | 562ms | 3/7 | 1.4× |
+| `startup` (wall) | 22ms | 181ms | 18ms | **16ms** | 39ms | 10ms | 343ms | 2/7 | 1.6× |
 
 **<sup>a</sup> Algorithmic asymmetry, against Brood.** `primes`: most languages hoist a `sqrt`
 bound where Brood/Clojure re-test `(* d d) > m` each step. `strings`: Brood/Elixir join the
@@ -99,26 +105,26 @@ capacity growth.
 
 **Brood against its actual peers** — the three languages that make the same guarantee:
 
-| benchmark | Brood | Elixir <sup>p</sup> | Clojure <sup>c</sup> | Brood rank |
-|---|---|---|---|---|
-| `wordcount` | **36ms** | 173ms | 282ms | 1/3 |
-| `persistent-map` | **63ms** | 123ms | 306ms | 1/3 |
-| `sieve` | **37ms** | 63ms | 160ms | 1/3 |
-| `sort` | **131ms** | 110ms | 267ms | 2/3 |
-| `nbody` | **175ms** | 142ms | 211ms | 2/3 |
+| benchmark | Brood | Elixir <sup>p</sup> | Clojure <sup>c</sup> | Brood rank | vs best |
+|---|---|---|---|---|---|
+| `wordcount` | **36ms** | 173ms | 282ms | 1/3 | **best** |
+| `persistent-map` | **63ms** | 123ms | 306ms | 1/3 | **best** |
+| `sieve` | **37ms** | 63ms | 160ms | 1/3 | **best** |
+| `sort` | **131ms** | 110ms | 267ms | 2/3 | 1.2× |
+| `nbody` | **175ms** | 142ms | 211ms | 2/3 | 1.2× |
 
 **Brood against the in-place-mutation languages.** Brood is the *subject* of this table, not
 a member of that group — it is the only column here that never mutates anything. The
 comparison measures what the immutability guarantee costs, and is included so that price is
 visible rather than hidden:
 
-| benchmark | .NET <sup>p</sup> | Node | Brood | Ruby | Python | Brood rank |
-|---|---|---|---|---|---|---|
-| `wordcount` | 38ms | 31ms | **36ms** | 70ms | 179ms | 2/5 |
-| `persistent-map` | 23ms | 25ms | **63ms** | 45ms | 90ms | 4/5 |
-| `sieve` | 3ms | 7ms | **37ms** | 94ms | 118ms | 3/5 |
-| `sort` | 69ms | 105ms | **131ms** | 76ms | 193ms | 4/5 |
-| `nbody` | 8ms | 14ms | **175ms** | 324ms | 813ms | 3/5 |
+| benchmark | .NET <sup>p</sup> | Node | Brood | Ruby | Python | Brood rank | vs best |
+|---|---|---|---|---|---|---|---|
+| `wordcount` | 38ms | 31ms | **36ms** | 70ms | 179ms | 2/5 | 1.2× |
+| `persistent-map` | 23ms | 25ms | **63ms** | 45ms | 90ms | 4/5 | 2.7× |
+| `sieve` | 3ms | 7ms | **37ms** | 94ms | 118ms | 3/5 | 11.9× |
+| `sort` | 69ms | 105ms | **131ms** | 76ms | 193ms | 4/5 | 1.9× |
+| `nbody` | 8ms | 14ms | **175ms** | 324ms | 813ms | 3/5 | 21.0× |
 
 ### In-language codecs vs native libraries
 
@@ -134,6 +140,9 @@ native columns finish in single-digit ms and the ordering *among them* is meanin
 | `base64` <sup>n</sup> | 6ms | 9ms | 14ms | 6ms | 19ms | **102ms** | 174ms | 6/7 |
 
 **<sup>n</sup> Denominator at the noise floor.** Read Brood's absolute number, not the ratio.
+This is the one ordered table with **no `vs best` column**, deliberately: a rating here would be
+Brood-in-Brood against a C/JVM/.NET library — 6.7× and 17.9× say nothing about the VM, and the
+whole point of the note below is that the denominator is unreliable.
 This run shows the failure mode concretely: Elixir's `json` cell is `&lt;1ms`, because
 `compute = wall − startup` and its `json` wall (188.9 ms) landed 0.5 ms above its own boot
 floor (188.4 ms). Its real JSON time is a few ms; the subtraction, not the runtime, produced
@@ -148,24 +157,24 @@ provide less, not because they are better at the same thing.
 
 Against its actual peer:
 
-| benchmark | Elixir <sup>p</sup> | Brood | Brood rank |
-|---|---|---|---|
-| `spawn` | 24ms | **35ms** | 2/2 |
-| `pfib` | 297ms | **187ms** | 1/2 |
-| `http` | 568ms | **152ms** | 1/2 |
-| `pingpong` | 62ms | **207ms** | 2/2 |
-| `ring` | 268ms | **731ms** | 2/2 |
-| `supervisor` | 258ms | **862ms** | 2/2 |
+| benchmark | Elixir <sup>p</sup> | Brood | Brood rank | vs best |
+|---|---|---|---|---|
+| `spawn` | 24ms | **35ms** | 2/2 | 1.5× |
+| `pfib` | 297ms | **187ms** | 1/2 | **best** |
+| `http` | 568ms | **152ms** | 1/2 | **best** |
+| `pingpong` | 62ms | **207ms** | 2/2 | 3.3× |
+| `ring` | 268ms | **731ms** | 2/2 | 2.7× |
+| `supervisor` | 258ms | **862ms** | 2/2 | 3.3× |
 
 Against the rest of the field, for context:
 
-| benchmark | .NET <sup>p</sup> | Node | Brood | Clojure <sup>c</sup> | Python | Ruby | Brood rank |
-|---|---|---|---|---|---|---|---|
-| `spawn` | 19ms | 56ms | **35ms** | 185ms | 553ms | 1.6s | 2/6 |
-| `pfib` | 120ms | 305ms | **187ms** | 407ms | 2.5s | 2.0s | 2/6 |
-| `http` | 152ms | 120ms | **152ms** | 833ms | 175ms | 208ms | 3/6 |
-| `pingpong` | 169ms | 648ms | **207ms** | 600ms | 803ms | 594ms | 2/6 |
-| `ring` | 794ms | 117ms | **731ms** | 4.4s | 4.6s | 3.4s | 2/6 |
+| benchmark | .NET <sup>p</sup> | Node | Brood | Clojure <sup>c</sup> | Python | Ruby | Brood rank | vs best |
+|---|---|---|---|---|---|---|---|---|
+| `spawn` | 19ms | 56ms | **35ms** | 185ms | 553ms | 1.6s | 2/6 | 1.9× |
+| `pfib` | 120ms | 305ms | **187ms** | 407ms | 2.5s | 2.0s | 2/6 | 1.6× |
+| `http` | 152ms | 120ms | **152ms** | 833ms | 175ms | 208ms | 3/6 | 1.3× |
+| `pingpong` | 169ms | 648ms | **207ms** | 600ms | 803ms | 594ms | 2/6 | 1.2× |
+| `ring` | 794ms | 117ms | **731ms** | 4.4s | 4.6s | 3.4s | 2/6 | 6.3× |
 
 Across all of the above Brood is never last; it **is** last on `spawn-live`, reported on its
 own below. Run-to-run the field drifts ±10%, so read the ordering rather than the digits — and
@@ -267,13 +276,13 @@ percentiles cover the **other 95%**. The question it asks is the one an operator
 does a busy handler do to everyone else?* Offered load is 0.5 cores of a 12-core machine, so
 nothing here is capacity-limited; the tail is scheduling, not saturation.
 
-| | p50 | **p99** | p99.9 | max | cores | CPU·s | peak RSS |
-|---|---|---|---|---|---|---|---|
-| **Elixir** | 8 µs | **56 µs** | 80 µs | 191 µs | 2.0× | 5.55 | 80 MB |
-| **Brood** | 14 µs | **68 µs** | 461 µs | 1,606 µs | 1.8× | 4.72 | 118 MB |
-| **Node** | 12 µs | **470 µs** | 565 µs | 1,128 µs | 1.0× | 2.55 | 59 MB |
-| **Python** | 31 µs | **469 µs** | 607 µs | 1,033 µs | 1.0× | 2.52 | 11 MB |
-| **.NET** | **4 µs** | **719 µs** | **12,782 µs** | 15,230 µs | 2.4× | 6.13 | 49 MB |
+| | p50 | **p99** | p99.9 | max | cores | CPU·s | peak RSS | vs best (p99) |
+|---|---|---|---|---|---|---|---|---|
+| **Elixir** | 8 µs | **56 µs** | 80 µs | 191 µs | 2.0× | 5.55 | 80 MB | **best** |
+| **Brood** | 14 µs | **68 µs** | 461 µs | 1,606 µs | 1.8× | 4.72 | 118 MB | 1.2× |
+| **Python** | 31 µs | **469 µs** | 607 µs | 1,033 µs | 1.0× | 2.52 | 11 MB | 8.4× |
+| **Node** | 12 µs | **470 µs** | 565 µs | 1,128 µs | 1.0× | 2.55 | 59 MB | 8.4× |
+| **.NET** | **4 µs** | **719 µs** | **12,782 µs** | 15,230 µs | 2.4× | 6.13 | 49 MB | 12.8× |
 
 **.NET posts the best median in the field and the worst tail by 20×.** Its p50 of 4 µs is
 excellent — it is the fastest runtime here on the compute rows, and that shows. Then p99.9 is
@@ -348,10 +357,10 @@ first and the rest is context — the same split the concurrency rows use above.
 
 ### Against the only other runtime with the same guarantees
 
-| | compute | peak RSS | cores | CPU·s |
-|---|---|---|---|---|
-| **Elixir** (BEAM process) | 0.74 s | 0.92 GB | 2.3× | 2.10 |
-| **Brood** (green process) | 2.13 s | 1.61 GB | 2.9× | 6.24 |
+| | compute | peak RSS | cores | CPU·s | vs best |
+|---|---|---|---|---|---|
+| **Elixir** (BEAM process) | 0.74 s | 0.92 GB | 2.3× | 2.10 | **best** |
+| **Brood** (green process) | 2.13 s | 1.61 GB | 2.9× | 6.24 | 2.9× |
 
 **This is still Brood's worst row: 2.9× slower and 1.75× heavier than the BEAM** — a gap this
 project owns and is working on, not one the row is framed to hide. It did move this run, for
