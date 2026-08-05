@@ -68,15 +68,6 @@ def dot(ratio):
     return "🟢" if ratio <= 1.0 else ("🟠" if ratio <= 3.0 else "🔴")
 
 
-def dot_score(score):
-    """Band for a normalized *score*, where 1.00 is the table leader rather than parity:
-    🟢 within 2× of it, 🟠 within 5×, 🔴 beyond. A ratio band would paint everything but
-    the leader orange, which says nothing."""
-    if not score:
-        return ""
-    return "🟢" if score <= 2.0 else ("🟠" if score <= 5.0 else "🔴")
-
-
 def signed(ratio):
     """A ratio as a signed factor: `+2.5×` = 2.5× slower, `−3.0×` = 3.0× faster.
 
@@ -241,7 +232,7 @@ def score_row(res, starts, rows, cols):
             cells.append("—")
             continue
         v = f"{scores[n]:.2f}"
-        cells.append(f"{dot_score(scores[n])} " + (f"**{v}**" if n == "Brood" else v))
+        cells.append(f"**{v}**" if n == "Brood" else v)
     gb, ga = geomean(best_r), geomean(avg_r)
     tail = (f" | **{rank}/{len(scores)}** | {dot(gb)} {signed(gb)} | "
             f"{dot(ga)} {signed(ga)} |")
@@ -420,14 +411,14 @@ def scoreboard_block(res, starts, specs):
             if v is None:
                 cells.append("·")
             else:
-                txt = f"{dot_score(v)} {v:.2f}"
+                txt = f"{v:.2f}"
                 cells.append(f"**{txt}**" if n == "Brood" else txt)
         body.append(f"| {label} ({len(rows)}) | " + " | ".join(cells) + " |")
     return [begin("SCOREBOARD"), *head, *body, "",
             "`1.00` = that table's fastest column; each score is the geometric mean of a "
-            "language's time ÷ that row's best. **Scores:** 🟢 within 2× of the leader · "
-            "🟠 within 5× · 🔴 beyond. **`vs best`/`vs avg` in the tables:** 🟢 at least as "
-            "fast · 🟠 up to 3× slower · 🔴 beyond. `·` = no port.",
+            "language's time ÷ that row's best. `·` = no port in that table. (The colour "
+            "bands are on the `vs best` / `vs avg` columns in the tables below: 🟢 at least "
+            "as fast · 🟠 up to 3× slower · 🔴 beyond.)",
             end("SCOREBOARD")]
 
 
