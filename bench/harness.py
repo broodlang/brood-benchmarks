@@ -184,6 +184,31 @@ def probe_version(lang):
     return next((ln for ln in lines if ln.startswith("Elixir")), lines[0])
 
 
+def brood_commit():
+    """The brood commit the `brood` on PATH was built from — provenance the version
+    string cannot give (it is always `brood 0.1.0`).
+
+    Recorded here so nobody has to retype it into BENCHMARKS.md per publish; that is
+    exactly the field that was found stale on 2026-08-05, three days after the run it
+    described. Best effort: `None` when the sibling checkout is missing or dirty
+    reporting fails, and a `+` suffix when the tree had uncommitted changes, because a
+    number measured against a dirty tree is not reproducible and should say so.
+    """
+    repo = Path(__file__).resolve().parent.parent.parent / "brood"
+    if not (repo / ".git").exists():
+        return None
+    try:
+        sha = subprocess.run(["git", "-C", str(repo), "rev-parse", "--short", "HEAD"],
+                             capture_output=True, text=True, timeout=10)
+        if sha.returncode != 0:
+            return None
+        dirty = subprocess.run(["git", "-C", str(repo), "status", "--porcelain"],
+                               capture_output=True, text=True, timeout=10)
+        return sha.stdout.strip() + ("+" if dirty.stdout.strip() else "")
+    except Exception:
+        return None
+
+
 def collect_meta(langs):
     """Provenance for the report header: host, core count, OS, date, runtime versions."""
     return {
@@ -191,6 +216,7 @@ def collect_meta(langs):
         "cores": os.cpu_count(),
         "platform": platform.platform(),
         "date": time.strftime("%Y-%m-%d %H:%M"),
+        "brood_commit": brood_commit(),
         "versions": {l: probe_version(l) for l in langs},
     }
 

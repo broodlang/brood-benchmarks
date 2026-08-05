@@ -90,7 +90,13 @@ at best of 7. Higher `--runs` costs tens of minutes for movement well inside the
 what you actually ran.
 
 1. `python3 bench/chart.py` — the README's positioning chart.
-2. `BENCHMARKS.md` — the per-row table, ranks, and standings prose.
+2. **`python3 bench/tables.py`** — regenerates everything in `BENCHMARKS.md` that is
+   derivable from `results.json`: the machine/date/commit line, the **Overall rating**
+   block, and all six ordered per-row tables (times, `Brood rank`, `vs best`). Then write
+   the *prose* by hand. `--check` exits 1 if the doc is stale — run it before committing.
+   This step exists because "update BENCHMARKS.md by hand" left six tables, the run date
+   and the brood commit describing the previous run on 2026-08-05, with the prose around
+   them describing the new one. Numbers a human retypes per publish go stale.
 3. `README.md` — the "Where Brood stands" bullets + Environment date.
 4. `FRONTIER.md` — only if a gap materially moved or closed.
 
