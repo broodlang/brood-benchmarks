@@ -31,21 +31,21 @@ Every language expresses these the same way, so the ordering is a runtime compar
 
 | benchmark | .NET <sup>p</sup> | Elixir <sup>p</sup> | Node | Brood | Ruby | Python | Clojure <sup>c</sup> | Brood rank |
 |---|---|---|---|---|---|---|---|---|
-| `fib` | 40ms | 83ms | 75ms | **60ms** | 620ms | 750ms | 214ms | 2/7 |
-| `loop` | 14ms | 58ms | 31ms | **42ms** | 598ms | 2.5s | 151ms | 3/7 |
-| `reduce` | 13ms | 34ms | 229ms | **4ms** | 227ms | 107ms | 199ms | 1/7 |
-| `primes` <sup>a</sup> | 9ms | 28ms | 9ms | **45ms** | 127ms | 131ms | 156ms | 4/7 |
-| `collatz` | 46ms | 120ms | 183ms | **84ms** | 883ms | 2.6s | 446ms | 2/7 |
-| `mandelbrot` | 19ms | 261ms | 21ms | **176ms** | 415ms | 1.3s | 177ms | 3/7 |
-| `matmul` | 5ms | 70ms | 15ms | **135ms** | 283ms | 495ms | 208ms | 4/7 |
-| `strings` <sup>a</sup> | 32ms | 124ms | 65ms | **14ms** | 82ms | 43ms | 192ms | 1/7 |
-| `bintree` | 16ms | 20ms | 22ms | **112ms** | 98ms | 98ms | 173ms | 6/7 |
-| `nqueens` | 20ms | 18ms | 7ms | **89ms** | 123ms | 55ms | 252ms | 5/7 |
-| `errors` | 302ms | 27ms | 574ms | **44ms** | 111ms | 48ms | 1.1s | 2/7 |
-| `errors-deep` | 672ms | 12ms | 221ms | **46ms** | 120ms | 227ms | 1.4s | 2/7 |
-| `pipeline` | 8ms | 10ms | 8ms | **32ms** | 8ms | 4ms | 146ms | 6/7 |
-| `ackermann` | 278ms | 288ms | 406ms | **354ms** | 1.7s | 3.9s | 575ms | 3/7 |
-| `startup` (wall) | 22ms | 186ms | 18ms | **16ms** | 39ms | 10ms | 342ms | 2/7 |
+| `fib` | 39ms | 82ms | 75ms | **60ms** | 657ms | 802ms | 209ms | 2/7 |
+| `loop` | 13ms | 57ms | 30ms | **43ms** | 591ms | 2.4s | 155ms | 3/7 |
+| `reduce` | 12ms | 37ms | 235ms | **4ms** | 235ms | 116ms | 177ms | 1/7 |
+| `primes` <sup>a</sup> | 9ms | 20ms | 10ms | **47ms** | 123ms | 123ms | 151ms | 4/7 |
+| `collatz` | 46ms | 104ms | 175ms | **87ms** | 849ms | 2.8s | 442ms | 2/7 |
+| `mandelbrot` | 20ms | 266ms | 21ms | **187ms** | 410ms | 1.4s | 167ms | 4/7 |
+| `matmul` | 5ms | 69ms | 17ms | **131ms** | 307ms | 531ms | 205ms | 4/7 |
+| `strings` <sup>a</sup> | 32ms | 115ms | 65ms | **14ms** | 91ms | 44ms | 162ms | 1/7 |
+| `bintree` | 16ms | 13ms | 22ms | **114ms** | 98ms | 100ms | 173ms | 6/7 |
+| `nqueens` | 20ms | 12ms | 8ms | **86ms** | 135ms | 55ms | 266ms | 5/7 |
+| `errors` | 287ms | 27ms | 565ms | **42ms** | 112ms | 52ms | 1.1s | 2/7 |
+| `errors-deep` | 676ms | 13ms | 220ms | **44ms** | 121ms | 237ms | 1.4s | 2/7 |
+| `pipeline` | 8ms | 16ms | 9ms | **34ms** | 9ms | 4ms | 142ms | 6/7 |
+| `ackermann` | 252ms | 285ms | 401ms | **354ms** | 1.7s | 3.9s | 562ms | 3/7 |
+| `startup` (wall) | 22ms | 181ms | 18ms | **16ms** | 39ms | 10ms | 343ms | 2/7 |
 
 **<sup>a</sup> Algorithmic asymmetry, against Brood.** `primes`: most languages hoist a `sqrt`
 bound where Brood/Clojure re-test `(* d d) > m` each step. `strings`: Brood/Elixir join the
@@ -101,11 +101,11 @@ capacity growth.
 
 | benchmark | Brood | Elixir <sup>p</sup> | Clojure <sup>c</sup> | Brood rank |
 |---|---|---|---|---|
-| `wordcount` | **34ms** | 178ms | 281ms | 1/3 |
-| `persistent-map` | **60ms** | 130ms | 308ms | 1/3 |
-| `sieve` | **35ms** | 65ms | 154ms | 1/3 |
-| `sort` | **133ms** | 120ms | 271ms | 2/3 |
-| `nbody` | **170ms** | 161ms | 208ms | 2/3 |
+| `wordcount` | **36ms** | 173ms | 282ms | 1/3 |
+| `persistent-map` | **63ms** | 123ms | 306ms | 1/3 |
+| `sieve` | **37ms** | 63ms | 160ms | 1/3 |
+| `sort` | **131ms** | 110ms | 267ms | 2/3 |
+| `nbody` | **175ms** | 142ms | 211ms | 2/3 |
 
 **Brood against the in-place-mutation languages.** Brood is the *subject* of this table, not
 a member of that group — it is the only column here that never mutates anything. The
@@ -114,11 +114,11 @@ visible rather than hidden:
 
 | benchmark | .NET <sup>p</sup> | Node | Brood | Ruby | Python | Brood rank |
 |---|---|---|---|---|---|---|
-| `wordcount` | 37ms | 30ms | **34ms** | 78ms | 177ms | 2/5 |
-| `persistent-map` | 23ms | 24ms | **60ms** | 42ms | 86ms | 4/5 |
-| `sieve` | 3ms | 6ms | **35ms** | 85ms | 118ms | 3/5 |
-| `sort` | 65ms | 104ms | **133ms** | 72ms | 187ms | 4/5 |
-| `nbody` | 7ms | 13ms | **170ms** | 293ms | 688ms | 3/5 |
+| `wordcount` | 38ms | 31ms | **36ms** | 70ms | 179ms | 2/5 |
+| `persistent-map` | 23ms | 25ms | **63ms** | 45ms | 90ms | 4/5 |
+| `sieve` | 3ms | 7ms | **37ms** | 94ms | 118ms | 3/5 |
+| `sort` | 69ms | 105ms | **131ms** | 76ms | 193ms | 4/5 |
+| `nbody` | 8ms | 14ms | **175ms** | 324ms | 813ms | 3/5 |
 
 ### In-language codecs vs native libraries
 
@@ -129,9 +129,9 @@ native columns finish in single-digit ms and the ordering *among them* is meanin
 
 | benchmark | Node | Ruby | Python | .NET <sup>p</sup> | Elixir <sup>p</sup> | Brood | Clojure <sup>c</sup> | Brood rank |
 |---|---|---|---|---|---|---|---|---|
-| `json` <sup>n</sup> | 2ms | 5ms | 8ms | 44ms | 12ms | **153ms** | 416ms | 6/7 |
-| `regex` <sup>n</sup> | 4ms | 8ms | 13ms | 12ms | 26ms | **85ms** | 136ms | 6/7 |
-| `base64` <sup>n</sup> | 6ms | 9ms | 13ms | 4ms | 17ms | **100ms** | 171ms | 6/7 |
+| `json` <sup>n</sup> | 3ms | 4ms | 10ms | 47ms | 10ms | **153ms** | 422ms | 6/7 |
+| `regex` <sup>n</sup> | 4ms | 8ms | 14ms | 14ms | 17ms | **92ms** | 148ms | 6/7 |
+| `base64` <sup>n</sup> | 6ms | 9ms | 14ms | 6ms | 19ms | **102ms** | 174ms | 6/7 |
 
 **<sup>n</sup> Denominator at the noise floor.** Read Brood's absolute number, not the ratio.
 This run shows the failure mode concretely: Elixir's `json` cell is `&lt;1ms`, because
@@ -150,12 +150,12 @@ Against its actual peer:
 
 | benchmark | Elixir <sup>p</sup> | Brood | Brood rank |
 |---|---|---|---|
-| `spawn` | 26ms | **35ms** | 2/2 |
-| `pfib` | 308ms | **186ms** | 1/2 |
-| `http` | 610ms | **157ms** | 1/2 |
-| `pingpong` | 59ms | **202ms** | 2/2 |
-| `ring` | 263ms | **794ms** | 2/2 |
-| `supervisor` | 261ms | **860ms** | 2/2 |
+| `spawn` | 24ms | **35ms** | 2/2 |
+| `pfib` | 297ms | **187ms** | 1/2 |
+| `http` | 568ms | **152ms** | 1/2 |
+| `pingpong` | 62ms | **207ms** | 2/2 |
+| `ring` | 268ms | **731ms** | 2/2 |
+| `supervisor` | 258ms | **862ms** | 2/2 |
 
 Against the rest of the field, for context:
 
@@ -163,9 +163,9 @@ Against the rest of the field, for context:
 |---|---|---|---|---|---|---|---|
 | `spawn` | 19ms | 56ms | **35ms** | 185ms | 553ms | 1.6s | 2/6 |
 | `pfib` | 120ms | 305ms | **187ms** | 407ms | 2.5s | 2.0s | 2/6 |
-| `http` | 152ms | 120ms | **152ms** | 833ms | 175ms | 208ms | 2/6 |
+| `http` | 152ms | 120ms | **152ms** | 833ms | 175ms | 208ms | 3/6 |
 | `pingpong` | 169ms | 648ms | **207ms** | 600ms | 803ms | 594ms | 2/6 |
-| `ring` | 795ms | 117ms | **731ms** | 4.4s | 4.6s | 3.4s | 2/6 |
+| `ring` | 794ms | 117ms | **731ms** | 4.4s | 4.6s | 3.4s | 2/6 |
 
 Across all of the above Brood is never last; it **is** last on `spawn-live`, reported on its
 own below. Run-to-run the field drifts ±10%, so read the ordering rather than the digits — and
@@ -233,9 +233,9 @@ receiver. See the brood repo's devlog and ADR-194.
 structures and isolated preemptive processes, so it is the one column that is a like-for-like
 comparison end to end. Brood leads the like-for-like core on most rows, and leads its immutable
 peers on `wordcount`, `persistent-map` and `sieve`. Elixir leads the latency rows (`pingpong`
-59 vs 202 ms, `ring` 263 vs 794 ms — ~3.0–3.4×), **`supervisor` (261 vs 860 ms — 3.3×)**,
+62 vs 207 ms, `ring` 268 vs 731 ms — ~2.7–3.3×), **`supervisor` (258 vs 862 ms — 3.3×)**,
 `ackermann`, `bintree`, `nqueens`, and the text rows where it uses native codecs. `nbody` is
-now close (161 vs 170 ms) where it was 2.2× apart.
+now close (142 vs 175 ms) where it was 2.2× apart.
 
 **The three remaining process-side gaps are one family, and it is not "per-message cost".**
 That was the previous reading of `pingpong`, `ring` and `supervisor`, and profiling on
@@ -417,8 +417,9 @@ level rather than tilting to whichever side got the cheap structure.
 Measured under the harness, Brood only: **2.53 s / 1693 MB with the vector against 2.85 s /
 1703 MB with the list — 11% faster and 0.6% lighter.** (An earlier single-run pair suggested
 21% and 33%; it was a sampling artifact and is corrected here.) The split is the interesting
-part: representation moved *time* and left *memory* untouched, which says the 1.65 GB is not
-the messages at all — it is the process floor, 5.9 KB × 300 000.
+part: representation moved *time* and left *memory* untouched, which says the GB is not the
+messages at all — it is the process floor (~5.3 KB × 300,000 as of the 2026-08-05 run, when
+sharing the compiled code took the row's peak RSS 1.75 → 1.61 GB).
 
 ## Memory (peak RSS) and startup
 
@@ -451,22 +452,24 @@ is the figure above; the harness's warmup run keeps that populate out of both co
   section exists to qualify: it says nothing about how any of these behave under load. The
   aggregate deliberately excludes the concurrency, error, and wider-range rows — folding them in
   would swamp the figure with library/representation outliers rather than core language speed.
-- **`nbody` gained two places: 6/7 → 4/7, 323 → 169 ms (−47.7%)** — the one real movement in the
-  *preceding* run (it is unchanged since), and a code change rather than drift. The JIT's tier-time type profile snapshots the live
+- **`nbody` gained two places: 6/7 → 4/7, 323 → 175 ms** — the one real movement two runs back,
+  and it has held (4/7 again here). A code change rather than drift. The JIT's tier-time type profile snapshots the live
   *frame*, so it only ever types an arm's **parameters**; nbody's hottest function takes a vector
   and an int while all its floats arrive from a `def`'d constant, so the arm read as non-float
   context, lowered its float multiply onto the *integer* path, and deopted on every activation
   until the sixteen-deopt rule bailed it to the interpreter for the whole benchmark. The runtime's
   own self-healing is what hid it: a deopt storm became silent interpretation, with no error and
   no failing test.
-- **Two apparent movements are drift, not results.** The table shows `spawn` +20% and `spawn-live`
-  −22% against the previous run; controlled A/B against that commit puts them at **−3.6%** and
-  **−2.0%**. A 22% gain on the process-floor row would have been notable and is not real. Only
-  `sieve` moved for a reason (~4% slower). A single harness sample does not separate signal from
-  drift on this machine, in either direction.
+- **`spawn-live` moved this run and it is a result, not drift — which took proving.** The table
+  shows −16%; controlled A/B against the previous commit agrees at −12.5% wall / −25% CPU, and the
+  cause is counted (100,154 bytecode compiles per 100,000 units → 163). That matters because the
+  two previous apparent swings on this row were *not* real: `spawn` +20% and `spawn-live` −22% in
+  earlier runs measured **−3.6%** and **−2.0%** under A/B. A single harness sample cannot separate
+  signal from drift on this machine in either direction; the A/B is what decides, and it has now
+  said no twice and yes once.
 - **Rows ranked 1st–3rd**: 1st at `reduce` and `strings`; 2nd at `fib`, `collatz`, `wordcount`,
-  `errors`, `errors-deep`, `pfib` (and `startup`); 3rd at `loop`, `ackermann`, `sieve`, `spawn`,
-  `http`, `pingpong`, `ring`.
+  `errors`, `errors-deep`, `pfib`, `http` (and `startup`); 3rd at `loop`, `ackermann`, `sieve`,
+  `spawn`, `pingpong`, `ring`.
 - **Rows ranked 5th–6th**: `sort` and `nqueens` at 5th; the 6/7 rows are the by-design text costs
   (`json`/`regex`/`base64` — in-language codecs against native ones) plus `pipeline` (lazy-seq
   churn the JIT doesn't cover) and `bintree` (the call protocol, ~77 ns/node over four non-tail
