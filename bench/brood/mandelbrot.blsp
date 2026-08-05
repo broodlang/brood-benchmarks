@@ -11,16 +11,31 @@
       (esc nx ny (* nx nx) (* ny ny) x0 y0 (+ i 1)))
     i))
 
-(defn row-sum (px py acc)
+;; Two things here match the other ports, and both matter to what this row measures.
+;;
+;; 1. Convert to float BEFORE dividing (Clojure `(double py)`, .NET `(double)py`, Ruby
+;;    `py.to_f`; Python/Node/Elixir `/` is float division). Brood's `/` is EXACT
+;;    (ADR-196), so `(/ px n)` on two ints builds a rational — one per pixel, each
+;;    converted straight back to float by the `* 3.0`. That is strictly more work than
+;;    any other port does for an identical checksum: 192 ms -> 668 ms when exact
+;;    rationals landed, same answer.
+;; 2. `y0` depends only on the ROW, so it is computed once per row, as every other port
+;;    does (see the Clojure/.NET/Node/Python sources — all hoist it out of the px loop).
+;;    Brood's port used to recompute it per pixel, which doubled both the divisions and,
+;;    after (1), the `->float` calls — 583,200 of them, and `->float` is a Brood function
+;;    call where `(double)` is a machine cast. That, not the runtime, was the whole of a
+;;    28% "regression" this row appeared to have: with identical source, the pre-rationals
+;;    and current binaries measure 201 ms and 200 ms.
+(defn row-sum (px py y0 acc)
   (if (>= px n)
     acc
-    (let (x0 (- (* (/ px n) 3.0) 2.0)
-          y0 (- (* (/ py n) 3.0) 1.5))
-      (row-sum (+ px 1) py (+ acc (esc 0.0 0.0 0.0 0.0 x0 y0 0))))))
+    (let (x0 (- (* (/ (->float px) n) 3.0) 2.0))
+      (row-sum (+ px 1) py y0 (+ acc (esc 0.0 0.0 0.0 0.0 x0 y0 0))))))
 
 (defn grid-sum (py acc)
   (if (>= py n)
     acc
-    (grid-sum (+ py 1) (+ acc (row-sum 0 py 0)))))
+    (let (y0 (- (* (/ (->float py) n) 3.0) 1.5))
+      (grid-sum (+ py 1) (+ acc (row-sum 0 py y0 0))))))
 
 (println (grid-sum 0 0))
