@@ -1498,6 +1498,7 @@
       "dotnet": "10.0.110"
     },
     "isolation": "taskset pin (compute\u2192cores 8-11, concurrency\u21920-11); 0.25s settle",
-    "warmup": "one discarded startup run per language"
+    "warmup": "one discarded startup run per language",
+    "brood_commit": "8b7e616f"
   }
 }

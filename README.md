@@ -30,6 +30,7 @@ claim to lead the field.
 | startup (wall) | 15.9 ms | Python 10.1, Node 18.0, .NET 21.8, Ruby 39.0, Elixir 180.7, Clojure 342.7 |
 | base RSS | 22.4 MB | Python 9.6, Ruby 19.0, .NET 25.8, Node 42.2, Elixir 73.1, Clojure 103.8 |
 | aggregate single-threaded compute | 2.9× the fastest | .NET 1.0, Node 2.6, Elixir 3.5, Clojure 8.0, Ruby 11.8, Python 29.2 |
+| typical row vs the fastest | 3.1× geometric mean, **1.9× median** | 2 rows at/ahead of the field's best, 6 within 2×, 4 beyond 5× (worst `matmul` 25×) |
 | rank by row | 1st on `strings`, `reduce`; last on `spawn-live` | |
 | `spawn-live` (300k units held alive, each sent a copied message) | 2.13 s, 1.61 GB, 6.24 CPU·s | Elixir 0.74 s / 0.92 GB — the only peer; Node 0.22 s / 0.24 GB, .NET 0.28 s / 0.14 GB, Python 1.29 s / 0.35 GB are coroutines on a shared heap |
 | `supervisor` (20k supervised children, a quarter retired and restarted) | 878 ms, 445 MB | Elixir 449 ms / 153 MB — the only peer; no other runtime here has a supervisor |
