@@ -100,11 +100,18 @@ def rating_avg(brood, values):
 
 
 def langs_of_header(header):
+    """`[(display name, results.json key)]` in the header's current order."""
+    return [(n, LANG_COL[n]) for n, _ in header_cells(header)]
+
+
+def header_cells(header):
+    """`[(display name, exact cell text)]` — the cell text keeps footnote markers like
+    `<sup>p</sup>`, so columns can be reordered without losing them."""
     out = []
     for cell in [c.strip() for c in header.strip().strip("|").split("|")][1:]:
         name = re.sub(r"<sup>.*?</sup>", "", cell).strip()
         if name in LANG_COL:
-            out.append((name, LANG_COL[name]))
+            out.append((name, cell))
     return out
 
 
@@ -468,6 +475,7 @@ def regenerate(text, res, starts, collect=None, fill=None):
 
         if ln.startswith("| benchmark |") and "Brood rank" in ln:
             cols = langs_of_header(ln)
+            cell_of = dict(header_cells(ln))
             body = []                   # the row names this table covers
             for probe in lines[i + 2:]:
                 if probe.startswith("| **score"):
@@ -483,10 +491,17 @@ def regenerate(text, res, starts, collect=None, fill=None):
             # library time, the ratio its own note tells you not to read.
             is_codec = body[:1] == ["json"]
             rated = not is_codec
-            header = ln
-            if not is_codec:
-                header = re.sub(r"\| Brood rank \|.*$", "| Brood rank | vs best | vs avg |",
-                                ln)
+            # Columns run fastest -> slowest, which the prose promises and a hand-kept header
+            # cannot guarantee: Elixir sat left of Node on the like-for-like table while
+            # scoring 1.65 to its 1.62. Ordered by the same score the top row reports.
+            sc = score_map(res, starts, body, cols)
+            cols = sorted(cols, key=lambda c: sc.get(c[0], float("inf")))
+            header = "| benchmark | " + " | ".join(cell_of[n] for n, _ in cols) + " |"
+            if rated:
+                header += " Brood rank | vs best | vs avg |"
+            else:
+                header += " Brood rank |"
+            header = header.replace("| |", "|")
             out.append(header)
             i += 2                      # header + separator
             out.append("|---" * (len(cols) + 2 + (2 if rated else 0)) + "|")
