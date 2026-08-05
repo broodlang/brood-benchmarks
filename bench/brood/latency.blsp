@@ -33,11 +33,10 @@
 ;; Reported as percentiles, because the mean is exactly the statistic that hides this.
 ;; Checksum = the summed work result, identical in every port.
 (def n (let (e (getenv "BENCH_N")) (if e (string->number e) 50000)))
-(def rate 20000)                      ; requests/second, open loop
+(def rate 20000) ; requests/second, open loop
 (def gap-ns (quot 1000000000 rate))
-(def cheap 40)                        ; work units in an ordinary request
-(def fat-ns 500000)                   ; every 20th request occupies ~this long (500us)
-
+(def cheap 40) ; work units in an ordinary request
+(def fat-ns 500000) ; every 20th request occupies ~this long (500us)
 ;; Busy-wait until a given instant. Used twice: to hit each request's scheduled arrival
 ;; (at 20k/s the gap is 50us, far below sleep granularity, and sleeping would add its own
 ;; latency to the measurement) and to hold a fat handler's core for a fixed duration.
@@ -55,7 +54,8 @@
 (defn handle (i sched to)
   (let (r (work cheap 0 0)
         fat? (= 0 (mod i 20))
-        _ (when fat? (work fat-units 0 0)))   ; ~500us of real work, result discarded
+        _ (when fat? (work fat-units 0 0)))
+    ; ~500us of real work, result discarded
     ;; A fat request reports -1: its own latency is >=500us by construction, so including it
     ;; would put fat requests in every high percentile and hide the only thing worth knowing —
     ;; what the fat request did to the ORDINARY requests queued behind it. Percentiles below
@@ -65,17 +65,20 @@
 (defn collector (to left lats sum)
   (if (= left 0)
     (send to [:all lats sum])
-    (receive ([:done lat r] (collector to (- left 1)
-                              (if (< lat 0) lats (cons lat lats))
-                              (+ sum r))))))
+    (receive
+      ([:done lat r] (collector to
+                       (- left 1)
+                       (if (< lat 0) lats (cons lat lats))
+                       (+ sum r))))))
 
 (defn dispatch (i start to)
   (if (>= i n)
     :ok
     (let (sched (+ start (* i gap-ns)))
-      (do (spin-until sched)
-          (spawn (handle i sched to))
-          (dispatch (+ i 1) start to)))))
+      (do
+        (spin-until sched)
+        (spawn (handle i sched to))
+        (dispatch (+ i 1) start to)))))
 
 (defn pct (v p)
   (nth v (min (- (count v) 1) (quot (* p (count v)) 100))))
@@ -122,7 +125,8 @@
 (println (str "#metric ordinary_n=" (count lats)))
 (println (str "#metric p50_us=" (pct lats 50)))
 (println (str "#metric p99_us=" (pct lats 99)))
-(println (str "#metric p999_us=" (nth lats (min (- (count lats) 1) (quot (* 999 (count lats)) 1000)))))
+(println (str "#metric p999_us="
+           (nth lats (min (- (count lats) 1) (quot (* 999 (count lats)) 1000)))))
 (println (str "#metric max_us=" (nth lats (- (count lats) 1))))
 (println (str "#metric sustained_rps=" (quot (* n 1000000000) elapsed-ns)))
 (println (nth res 1))

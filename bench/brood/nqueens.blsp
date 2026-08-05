@@ -19,7 +19,7 @@
               (if (safe? c placed 1)
                 (+ acc (solve (+ row 1) (cons c placed)))
                 acc))
-            0
-            (range n))))
+      0
+      (range n))))
 
 (println (solve 0 nil))

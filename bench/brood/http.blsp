@@ -21,7 +21,8 @@
 (defn fan (i) (if (>= i n) nil (do (spawn (worker)) (fan (+ i 1)))))
 
 (defn collect (got acc)
-  (if (= got n) acc
+  (if (= got n)
+    acc
     (collect (+ got 1) (receive ([:r v] (+ acc v))))))
 
 (fan 0)

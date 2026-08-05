@@ -6,7 +6,8 @@
 (def n (let (e (getenv "BENCH_N")) (if e (string->number e) 2000)))
 
 (defn build (i x acc)
-  (if (>= i n) acc
+  (if (>= i n)
+    acc
     (let (x2 (bit-and (+ (* x 1103515245) 12345) 2147483647))
       (build (+ i 1) x2 (cons {:id i :v x2 :name "item" :ok (= (rem x2 2) 0)} acc)))))
 
