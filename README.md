@@ -1,17 +1,12 @@
 # benchmark — Brood vs Clojure vs Elixir vs Python vs Node vs Ruby vs .NET
 
-A cross-language micro-benchmark suite: **29 small programs** run under one
-identical harness, to see where the Brood runtime is faster or slower than the
-alternatives — on **startup**, **memory**, **raw performance**, and
-**concurrency**. 28 are implemented once per language; `spawn-live` requires a
-real process and only Brood and Elixir can express it. The field spans
-interpreters (Python, Ruby), JITs (Node/V8, Elixir/BeamAsm, .NET/RyuJIT), and a
-fellow **immutable-data Lisp on the JVM** (Clojure/HotSpot) — the closest peer to
-Brood's own immutable, functional design.
+**29 small programs** under one harness, measuring where the Brood runtime stands on startup,
+memory, compute and concurrency. 28 are implemented once per language; `spawn-live` needs a real
+process, which only Brood and Elixir provide. The field spans interpreters (Python, Ruby), JITs
+(Node/V8, Elixir/BeamAsm, .NET/RyuJIT) and a fellow immutable-data Lisp (Clojure/HotSpot).
 
-Brood is a young runtime (a bytecode VM with a tier-1 JIT) measured here against mature,
-production languages — so this is an honest "where does it stand today" snapshot, not a
-claim to lead the field.
+Brood is a young runtime measured against mature ones: this is a "where does it stand today"
+snapshot, not a claim to lead.
 
 ## Results
 
@@ -39,27 +34,19 @@ claim to lead the field.
 
 The aggregate covers the core-compute rows only and varies ±0.3 run-to-run.
 
-**`spawn-live` is Brood's worst row.** Every port holds 300k units alive and hands each
-one a message it must *copy* (a reference hand-off is a cheaper operation, so it would not
-be the same benchmark). Against its only peer Brood is 2.9× slower and 1.75× heavier: ~5.3 KB
-per live process against Elixir's ~3.1 KB. It improved this run — 2.56 → 2.13 s, 8.40 → 6.24
-CPU·s — when it turned out that every spawned process had been *recompiling* the same code:
-compiled code is shared per runtime, but the cache was keyed by the closure instance, and a
-closure that captures no locals is created afresh per spawn. What remains is the process itself
-— mailbox, isolated heap, captured continuation — plus its inline caches, which are still
-per-process and now the largest identified item. A process that will idle for a long time can
-hand most of that back with `(hibernate)`. See [FRONTIER.md](FRONTIER.md).
+**`spawn-live` is Brood's worst row**: 300k units held alive, each handed a message it must
+*copy*. Against its only peer Brood is 2.9× slower and 1.75× heavier (~5.3 KB per live process
+against Elixir's ~3.1 KB). It improved this run when every spawned process turned out to be
+*recompiling* the same code — the shared compiled-code cache was keyed by the closure instance,
+and a no-capture closure is created afresh per spawn. What remains is the process itself plus its
+per-process inline caches, now the largest item. See [FRONTIER.md](FRONTIER.md).
 
-Read the `cores` and `CPU·s` columns alongside wall time on this row. Node and Python
-units are coroutines on a single-threaded event loop, not isolated preemptively-scheduled
-processes; they are cheap because they provide less, not because they are better at the
-same thing. The columns make that visible instead of leaving wall time to imply it.
+Read `cores`/`CPU·s` alongside wall time: Node and Python units are coroutines on one event loop,
+cheap because they provide less.
 
-**A caveat on Clojure:** the JVM cold-starts (~0.35 s) on every one of these single-shot runs, and
-HotSpot never fully JIT-compiles the hot loops in that short a window — a long-running Clojure
-service would be far faster than these numbers. Brood, Python, Node, Ruby, and Clojure run from
-source per run; only Elixir and .NET are precompiled (so per-run compilation never leaks into
-their compute measurement).
+**Caveat on Clojure:** the JVM cold-starts (~0.35 s) each single-shot run and HotSpot never fully
+JITs the hot loops in that window, so a long-running service would be far faster. Brood, Python,
+Node, Ruby and Clojure run from source; only Elixir and .NET are precompiled.
 
 ## The benchmarks (29)
 
@@ -100,15 +87,10 @@ languages (only Brood and Elixir provide isolation + preemption), so it is exclu
 field-wide aggregate and reported on its own — see
 [BENCHMARKS.md](BENCHMARKS.md#spawn-live--300000-units-held-alive-each-sent-a-copied-message).
 
-The five *idiomatic* concurrency rows (`spawn`, `pfib`, `http`, `pingpong`, `ring`) each use
-that language's **idiomatic** concurrency, not identical machinery: green
-processes + messages for Brood/Elixir; async/Promises, `worker_threads`, or an
-async HTTP client for Node; asyncio, forked pools, or thread pools for
-Python/Ruby; `future`s/`pmap` for Clojure; tasks, `Parallel.For`, and channels
-for .NET. `pingpong`/`ring` isolate **message-passing latency** — the axis the
-other three don't — and pit the actor model head-to-head against threads and
-event loops; the comparison is deliberate. (This is where the BEAM's tuned
-mailbox shows: Elixir leads both, Brood's widest remaining gap — FRONTIER.md.)
+The five idiomatic concurrency rows (`spawn`, `pfib`, `http`, `pingpong`, `ring`) each use that
+language's own machinery — green processes for Brood/Elixir, Promises/`worker_threads` for Node,
+asyncio/pools for Python/Ruby, `future`s for Clojure, tasks/channels for .NET. `pingpong`/`ring`
+isolate message-passing latency, where the BEAM's tuned mailbox shows: Elixir leads both.
 
 ## What's measured
 
@@ -121,33 +103,22 @@ provably equivalent. Rankings use **compute** = wall − that language's own
 is visible — e.g. the BEAM's warm compute beats Ruby/Python even though its
 boot buries it in wall time.
 
-Wall is a best-of but RSS a worst-of, so a one-time cold-cache cost would land in
-the memory column alone. Every language therefore gets one **discarded warmup
-run** before anything is measured — applied uniformly, not special-cased
-(`--no-warmup` opts out; the report header records which).
+Wall is a best-of but RSS a worst-of, so every language gets one **discarded warmup run** first —
+otherwise a one-time cold-cache cost lands in the memory column alone (`--no-warmup` opts out).
 
 ## Fairness notes
 
-- **Same algorithm, same inputs, same output.** Where data is generated
-  (`sort`, `wordcount`) every language runs the *identical* LCG
-  (`x = (x*1103515245 + 12345) & 0x7fffffff`, seed `123456789`) — Node uses
-  `BigInt` for it to stay bit-identical past `2^53`. Float rows (`mandelbrot`,
-  `nbody`) rely on IEEE-754 `f64` behaving identically everywhere. The
-  checksum gate confirms all of it.
-- **Idiomatic, not adversarial.** Each version is written the way you'd
-  naturally write it in that language: tail recursion + immutable maps in
-  Brood/Elixir, `for` loops + mutable dicts/hashes in Python/Node/Ruby/.NET.
-  Where idioms differ (e.g. `primes`' trial-division bound: most languages
-  hoist a `sqrt`, Brood/Clojure test `(* d d) > m` each step) the asymmetry,
-  if anything, counts against Brood.
-- **Workload sizes** are picked so even the fastest runtime spends ≥ ~100 ms of
-  compute (below that, `wall − startup` is startup-noise) while the slowest
-  still finishes in seconds. The baked-in sizes also keep every checksum in
-  exact-integer range; scaling `BENCH_N` far past the defaults can push Node
-  past `2^53` or overflow a .NET `int` — the checksum gate will catch it.
-- The `http` benchmark hits a small local server the harness starts on a free
-  loopback port (fixed 20 ms sleep per request, so it measures I/O-concurrency,
-  not the network), verifies it's its own, and tears it down afterwards.
+- **Same algorithm, inputs and output.** Generated data uses one identical LCG
+  (`x = (x*1103515245 + 12345) & 0x7fffffff`, seed `123456789`; Node needs `BigInt` to stay
+  bit-identical past `2^53`), and the checksum gate confirms it.
+- **Idiomatic, not adversarial** — tail recursion + immutable maps in Brood/Elixir, `for` loops +
+  mutable dicts elsewhere. Where idioms differ (`primes`' bound: most hoist a `sqrt`,
+  Brood/Clojure test `(* d d) > m`) the asymmetry counts against Brood.
+- **Sizes** are picked so even the fastest runtime spends ≥ ~100 ms of compute, and keep every
+  checksum in exact-integer range — scaling `BENCH_N` far past the defaults can push Node past
+  `2^53`, which the checksum gate catches.
+- `http` hits a local server the harness starts on a free loopback port (20 ms sleep per request,
+  so it measures I/O-concurrency, not the network).
 
 ## Running it
 

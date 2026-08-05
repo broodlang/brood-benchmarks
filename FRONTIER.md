@@ -1,15 +1,11 @@
 # Optimization frontier — where the gaps are and what would move them
 
-Core-dev notes: the *interpretation* of the [benchmark data](BENCHMARKS.md). The
-[README](README.md) stays a plain "where we stand" for everyone else; the Brood repo's
-`docs/devlog.md` and `docs/compute-frontier.md` hold the working notes and the history of
-how each item got here. **This file states the current position only** — what is fast,
-what is slow, what would close it, and what has already been measured and ruled out.
+Core-dev notes: the interpretation of the [benchmark data](BENCHMARKS.md). **Current position
+only** — what is fast, what is slow, what would close it, what is ruled out. History lives in the
+Brood repo's `docs/devlog.md`.
 
-None of the gaps are architectural; they are implementation headroom. Profiling puts
-~60% of an interpreted row's time in the bytecode dispatch loop (`vm_run_bc`), so the two
-broad levers are **interpreter-dispatch cost** and **widening JIT coverage**. Numbers are
-from the current run in [`results/report.md`](results/report.md).
+No gap here is architectural; they are implementation headroom. ~60% of an interpreted row's time
+is in the bytecode dispatch loop, so the broad levers are **dispatch cost** and **JIT coverage**.
 
 ## What runs native
 
@@ -27,43 +23,26 @@ arm's native code *and* its bytecode — compiled once per runtime, not once per
 
 Ratios are Brood's compute vs the fastest language on that row.
 
-- **`spawn-live` (2.13 s, 1.58 GB — 2.9× slower and 1.75× heavier than the BEAM, its only peer
-  on this row).** ~5.3 KB per live process against the BEAM's ~3.1 KB. **Moved on 2026-08-05
-  for the first time provably** (2.56 → 2.13 s, 8.40 → 6.24 CPU·s, 1.75 → 1.58 GB, corroborated
-  by a fixed-baseline A/B): the previous entry here said "compiled code is no longer the cause",
-  and that was true of the mechanism and false in practice. Sharing was keyed by the closure
-  *handle*, and a closure capturing no locals is promoted afresh per creation, so this row's
-  300k `spawn` thunks and 300k `receive` matchers each compiled their own copy — **100,154
-  compiles per 100,000 units, 8.1 µs each**. Keying by the closure's AST fixed it (brood
-  ADR-215).
-  The next item is now quantified and is *not* the process floor: **the inline caches are still
-  per-process**, so a unit that runs a handful of calls misses ~half of them and its share of the
-  work costs **~16 µs cold against 3.7 µs warm**. The obstacle is known — call-site ids are dense
-  per-process indices baked into shared compiled code, so a site-id scheme is the prerequisite,
-  not the sharing itself. Beyond that, the process floor (mailbox, isolated heap, captured
-  continuation) remains partly unattributed and wants a real allocation profile; whole-program
-  differencing has been taken as far as it goes (per-phase `live_bytes()` deltas are invalid —
-  the counter is process-wide across workers).
-- **`nbody` (~11× Node, ~25× .NET) — was ~23×/~54×; halved on 2026-07-30 and no longer a
-  top gap.** 323 → 172 ms, 6/7 → 4/7, and now within 1.2× of Elixir where it was 2.2×
-  apart. The cause was *not* the immutable rebuild this entry previously blamed: the
-  tier-time type profile snapshots the live **frame**, so it only ever types an arm's
-  *parameters*. `advance-body (b i)` takes a vector and an int while every float it touches
-  arrives from a `def`'d constant (`dt`) or a `nth` read — so the arm read as non-float
-  context, `(* dt nvx)` lowered onto the *integer* path, and `as_int`'s tag-check deopted on
-  **every** activation. Sixteen consecutive deopts then marked the arm `BAILED`, and the
-  hottest function in the row ran interpreted for the whole benchmark. The runtime's own
-  self-healing is what hid it: a deopt storm became silent interpretation, with no error and
-  no failing test. The fix records which read globals held a float at tier time and unboxes
-  those reads behind the existing tag guard.
-
-  What is left *is* the rebuild — a fresh 7-element vector per body per step, plus the
-  intermediate 3-vector `newvel` returns and immediately destructures. Closing that needs
-  escape analysis reusing the per-step vectors, or a native float-array primitive
-  (philosophically fraught — see the immutability invariant). A useful standing check fell
-  out of this: **the JIT-vs-no-JIT ratio per row.** `fib` gets 54× and `collatz` 40×, but
-  nbody was only 3.2× — that gap is what exposed the bail, and `bintree` (3.5×) and
-  `nqueens` (3.4×) still sit in the same band.
+- **`spawn-live` (2.13 s, 1.58 GB — 2.9× slower, 1.75× heavier than the BEAM).** ~5.3 KB per live
+  process against ~3.1 KB. Moved 2026-08-05 (−16% wall, −26% CPU, A/B-corroborated): the previous
+  entry claimed compiled code was no longer the cause, which was true of the mechanism and false in
+  practice — sharing was keyed by the closure *handle*, and a no-capture closure is promoted afresh
+  per creation, so 300k `spawn` thunks and 300k `receive` matchers each compiled their own copy
+  (100,154 compiles per 100,000 units, 8.1 µs each). Keyed by AST now (ADR-215).
+  Next, and quantified: **inline caches are still per-process** — a unit misses ~half its call
+  sites, so its work costs ~16 µs cold against 3.7 µs warm. The obstacle is the call-site-id scheme
+  (dense per-process indices baked into shared code), not the sharing. Beyond that the process floor
+  is partly unattributed and wants a real allocation profile.
+- **`nbody` (~11× Node, ~25× .NET)** — was ~23×/~54× until 2026-07-30; now 4/7, within 1.2× of
+  Elixir. The cause was not the immutable rebuild this entry once blamed: the tier-time profile
+  types an arm's *parameters* only, so a function whose floats arrive from a `def`'d constant read
+  as non-float context, lowered its float multiply onto the integer path, and deopted on every
+  activation until the sixteen-deopt rule bailed it to the interpreter — silent interpretation, no
+  error, no failing test. Fixed by unboxing float-valued global reads behind the existing tag guard.
+  What is left *is* the rebuild (a fresh 7-element vector per body per step), needing escape
+  analysis or a native float array. A standing check fell out of it: **the JIT-vs-no-JIT ratio per
+  row** — `fib` 54×, `collatz` 40×, but nbody 3.2×, which is what exposed the bail; `bintree` (3.5×)
+  and `nqueens` (3.4×) are still in that band.
 - **`bintree` (~103 ms, 6th; the BEAM is unusually fast here at ~12 ms)** — drifts in the
   95–115 ms band, trading places with Python/Ruby. The cost is the call protocol: ~77 ns
   per node over four non-tail calls. That is the X-register/call-convention redesign, not
@@ -77,26 +56,15 @@ Ratios are Brood's compute vs the fastest language on that row.
   captures.
 - **`matmul` (the ~32× ratio is inflated by .NET's 4 ms denominator)** — inner loop is
   native; residual is the one read LICM can't hoist plus boxed `Value` array storage.
-- **Message latency (`pingpong`, `ring` — Elixir leads ~2.7–3.5×)** — the widest honest
-  gap, and the three large levers on it are now taken: direct handoff (worth 1.9×), the
-  HOF matcher fast path (3.0×), and the leading-keyword receive filter, which removed the
-  O(rounds × backlog) rescan that made a *backlogged* selective receive quadratic
-  (backlog 500: ~420 ms → 34 ms). What is left per message is a mailbox mutex, a
-  `wake_parked`, a re-enqueue and one matcher activation, over an irreducible floor of
-  per-message immutable copies and heap-captured migratable continuations — that floor is
-  design, not something traded away. Brood beats every thread/queue language here; Node's
-  `ring` result is cooperative single-thread async.
-
-  **Do not extend this bullet to `latency` — measured 2026-08-02, that row was never
-  per-message.** In Brood a `send` + `receive` costs **1.1 µs** and a full round trip
-  **4.3 µs**; `latency`'s 27 µs p50 was almost entirely the interval between `spawn` and the
-  handler's first instruction (with the handler doing *no work at all* it was still 26 µs).
-  It was spawn placement: a child goes on the spawner's own worker, and a dispatcher that
-  keeps running holds it there for a whole quantum. Fixing that — an idle peer is told
-  immediately rather than re-probing on a 10 ms timer, with a few µs of first refusal for the
-  owner — moved p50 27 → 20 µs and p99 124 → 79 µs without touching the message path. Whatever
-  remains on `pingpong`/`ring` should be re-derived against those absolute per-message
-  numbers rather than inferred from a wall-clock ratio.
+- **Message latency (`pingpong`, `ring` — Elixir leads ~2.7–3.3×)** — the widest honest gap, with
+  its three large levers already taken: direct handoff (1.9×), the HOF matcher fast path (3.0×), and
+  the leading-keyword receive filter that removed an O(rounds × backlog) rescan (backlog 500:
+  ~420 ms → 34 ms). What is left per message is a mailbox mutex, a `wake_parked`, a re-enqueue and
+  one matcher activation, over a floor of per-message copies and heap-captured migratable
+  continuations — that floor is design. Brood beats every thread/queue language here; Node's `ring`
+  is cooperative single-thread async.
+  **Do not extend this to `latency`** — measured 2026-08-02, that row was never per-message cost
+  (a send + receive is 1.1 µs); it was spawn placement.
 - **Text codecs (`json`, `regex`, `base64` — all 6/7, ahead of Clojure)** — pure-Brood
   `std/` libraries against native codecs, by design. The next structural lever is a
   bytes/codepoint fast path shared by all three.
