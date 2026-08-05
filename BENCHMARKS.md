@@ -161,11 +161,11 @@ Against the rest of the field, for context:
 
 | benchmark | .NET <sup>p</sup> | Node | Brood | Clojure <sup>c</sup> | Python | Ruby | Brood rank |
 |---|---|---|---|---|---|---|---|
-| `spawn` | 18ms | 53ms | **35ms** | 205ms | 549ms | 1.6s | 2/6 |
-| `pfib` | 119ms | 310ms | **186ms** | 410ms | 2.5s | 1.9s | 2/6 |
-| `http` | 153ms | 120ms | **157ms** | 806ms | 173ms | 209ms | 3/6 |
-| `pingpong` | 168ms | 652ms | **202ms** | 602ms | 813ms | 589ms | 2/6 |
-| `ring` | 835ms | 116ms | **794ms** | 4.4s | 4.7s | 3.4s | 2/6 |
+| `spawn` | 19ms | 56ms | **35ms** | 185ms | 553ms | 1.6s | 2/6 |
+| `pfib` | 120ms | 305ms | **187ms** | 407ms | 2.5s | 2.0s | 2/6 |
+| `http` | 152ms | 120ms | **152ms** | 833ms | 175ms | 208ms | 2/6 |
+| `pingpong` | 169ms | 648ms | **207ms** | 600ms | 803ms | 594ms | 2/6 |
+| `ring` | 795ms | 117ms | **731ms** | 4.4s | 4.6s | 3.4s | 2/6 |
 
 Across all of the above Brood is never last; it **is** last on `spawn-live`, reported on its
 own below. Run-to-run the field drifts ±10%, so read the ordering rather than the digits — and
@@ -183,25 +183,41 @@ quarter and lets the supervisor restart them — the supervisor's own bookkeepin
 find the right one when its exit signal arrives, replace it), which is separate from raw spawn
 cost (`spawn`) and from holding processes alive (`spawn-live`).
 
-**Moved since the last run: `latency` again, and again it is scheduler placement.** Brood's
-p50 went 27 → **19 µs** and p99 124 → **78 µs**, which at the percentile that row is ranked by
-puts it within 20 µs of the BEAM. The previous run fixed placement when the spawner's queue was
-*backlogged*; this one fixes it when the queue is **empty** and the spawner is merely CPU-bound,
-by telling an idle worker at once that a peer has queued a child instead of leaving it to a
-10 ms re-probe, with a brief first refusal for the owner so a spawn-then-block parent keeps its
-child locally. Full derivation in the `latency` section below.
+**Moved since the last run: `spawn-live`, the row this suite has repeatedly failed to measure —
+and this time the movement is proven.** Brood goes 2.56 s → **2.13 s** (−16%), 8.40 → **6.24
+CPU·s** (−26%), and 1.75 GB → **1.61 GB** (−10%). This document's own standing rule is to treat
+any movement on this row as unproven until a fixed-baseline A/B agrees, because it has wandered
+~20% between whole harness invocations three times. It agrees here: three interleaved runs of
+two binaries built through the same profile give wall −12.5%, CPU −25%, RSS −14%, and the cause
+is a counted mechanism rather than an inference — **every spawned process was recompiling the
+same code**. Compiled code has been shared per runtime since brood's ADR-175, but the cache was
+keyed by the closure *handle*, and a closure that captures no locals is promoted afresh on every
+creation, so a `spawn` thunk and a `receive` matcher missed on every single creation: 100,154
+bytecode compiles for 100,000 spawned units, 8.1 µs each. Keying by the closure's AST instead
+takes that to 163 (brood ADR-215).
 
-Nothing else moved beyond drift: every row is within ±6% of the previous run. `mandelbrot`
-moved 253 → 192 ms, which is a port fix rather than a runtime change — see the like-for-like
-note.
+The same change moved `latency`'s tail and its memory: p99 78 → **68 µs**, p99.9 658 → **461
+µs**, max 6.0 → **1.6 ms**, peak RSS 173 → **118 MB** (−32%) — a process that no longer compiles
+on arrival is a process that does not stall on arrival.
+
+Nothing else moved beyond drift: every other row is within ±8% of the previous run, and the
+±10% field drift covers that. **One thing did go the wrong way and is recorded rather than
+explained away:** Brood's base memory (the `startup` row) is 18.6 → 22.4 MB across the day's
+three brood changes. About 2 MB of that arrived with a batch that included new cryptographic
+dependencies for package signing; the remaining ~1 MB sits in the commit above, and the
+mechanism's own off-switch accounts for only ~40 kB of it, so the cause is not the shared cache
+and is not yet known. It is a fixed cost on a 22 MB base, against per-process savings that
+scale with the process count — but it has not been diagnosed.
 
 **From the run before: the `supervisor` row.** Every other row was
-within ±3% of the run preceding it. Two apparent swings are drift, not results, and the controlled
-A/B against the previously published commit says so: `spawn-live` reads **+20%** in the table
-and **−0.0%** under A/B; `pingpong` reads +6% and **+1.4%**. That is the third time `spawn-live`
-has wandered ~20% between whole harness invocations — treat any movement on it as unproven
-until a fixed-baseline A/B agrees. (`reduce` shows −29%, on a 3 ms row: the startup subtraction,
-not the runtime.)
+within ±3% of the run preceding it. Two apparent swings there were drift, not results, and the
+controlled A/B against that commit said so: `spawn-live` read **+20%** in the table and
+**−0.0%** under A/B; `pingpong` read +6% and **+1.4%**. That was the third time `spawn-live` had
+wandered ~20% between whole harness invocations, which is where this document's rule comes from —
+**treat any movement on it as unproven until a fixed-baseline A/B agrees.** The rule earned its
+keep in both directions: it rejected those two swings, and this run it *confirmed* one (see
+above), which is the difference between a measurement and a hope. (`reduce` showed −29% then, on
+a 3 ms row: the startup subtraction, not the runtime.)
 
 The `supervisor` row is new, so it has no previous number to move from — but it is worth
 recording what it would have published at. Measured on the code this suite ran against
@@ -253,15 +269,15 @@ nothing here is capacity-limited; the tail is scheduling, not saturation.
 
 | | p50 | **p99** | p99.9 | max | cores | CPU·s | peak RSS |
 |---|---|---|---|---|---|---|---|
-| **Elixir** | 8 µs | **58 µs** | 82 µs | 337 µs | 2.0× | 5.53 | 80 MB |
-| **Brood** | 19 µs | **78 µs** | 658 µs | 6,036 µs | 1.8× | 4.77 | 173 MB |
-| **Node** | 6 µs | **461 µs** | 523 µs | 664 µs | 1.0× | 2.55 | 59 MB |
-| **Python** | 33 µs | **485 µs** | 657 µs | 1,190 µs | 1.0× | 2.52 | 11 MB |
-| **.NET** | **4 µs** | **783 µs** | **13,113 µs** | 15,544 µs | 2.4× | 6.14 | 49 MB |
+| **Elixir** | 8 µs | **56 µs** | 80 µs | 191 µs | 2.0× | 5.55 | 80 MB |
+| **Brood** | 14 µs | **68 µs** | 461 µs | 1,606 µs | 1.8× | 4.72 | 118 MB |
+| **Node** | 12 µs | **470 µs** | 565 µs | 1,128 µs | 1.0× | 2.55 | 59 MB |
+| **Python** | 31 µs | **469 µs** | 607 µs | 1,033 µs | 1.0× | 2.52 | 11 MB |
+| **.NET** | **4 µs** | **719 µs** | **12,782 µs** | 15,230 µs | 2.4× | 6.13 | 49 MB |
 
 **.NET posts the best median in the field and the worst tail by 20×.** Its p50 of 4 µs is
 excellent — it is the fastest runtime here on the compute rows, and that shows. Then p99.9 is
-**13.1 ms**: a spread of **3,278× from median to p99.9**, against Elixir's 10×. It is not
+**12.8 ms**: a spread of **3,196× from median to p99.9**, against Elixir's 10×. It is not
 short of resources while doing it — it spends the *most* CPU of any port (6.14 CPU·s, 2.4
 cores) and still tails worst. That combination — excellent median, occasional multi-millisecond
 stall, high CPU — is exactly the profile that reads as "fast in benchmarks, janky in
@@ -273,15 +289,25 @@ runs the handler to completion, so at worst you wait behind exactly one of them,
 there. Simple and bounded beats parallel and unpredictable at the tail. (Their p99 *is* the
 head-of-line blocking the row was built to show — it is just less bad than .NET's queueing.)
 
-**Elixir is what the BEAM claims to be**: 8 µs median, 58 µs at p99, 82 µs at p99.9 — the
+**Elixir is what the BEAM claims to be**: 8 µs median, 56 µs at p99, 80 µs at p99.9 — the
 tail barely moves, because reduction-counted preemption means a 500 µs handler cannot hold a
 scheduler, and per-process heaps mean a collection stalls one process rather than all of them.
 This is the row that earns the BEAM's reputation, and the one that shows why "3.5× slower on
 compute" is the wrong summary of it.
 
-**Brood is second, and moved the most again.** p50 27 → **19 µs** and p99 124 → **78 µs**
-since the previous run — within 20 µs of the BEAM at the percentile this row is ranked by, and
-5.9× ahead of the next runtime. Over two runs that is p50 121 → 19 and p99 439 → 78.
+**Brood is second, and moved again — this time in the tail rather than the median.** p50
+19 → **14 µs**, p99 78 → **68 µs**, and the part that matters most here: p99.9 658 → **461 µs**
+and max 6.0 → **1.6 ms**, with peak RSS 173 → **118 MB**. Over three runs that is p50 121 → 14
+and p99 439 → 68, and it is now within 12 µs of the BEAM at the percentile this row is ranked
+by, 6.9× ahead of the next runtime.
+
+The first two improvements were scheduler placement; this one is not. It comes from a change
+aimed at a different row entirely — compiled code is now keyed by the closure's AST, so a
+freshly spawned process installs the compiled form instead of building its own (brood ADR-215).
+That removes ~8 µs of bytecode compilation from the *arrival* path of every process, which is
+exactly where an open-loop tail is made: work a runtime does before it can answer shows up at
+p99.9, not at the median. Worth noting as a pattern — **a tail can be dominated by one-off setup
+that throughput rows never see**, because they amortise it over a long-lived process.
 
 Both improvements were scheduler placement, and the second is worth stating precisely because
 the first diagnosis was incomplete. Children are spawned onto the spawner's own worker, so a
@@ -324,17 +350,28 @@ first and the rest is context — the same split the concurrency rows use above.
 
 | | compute | peak RSS | cores | CPU·s |
 |---|---|---|---|---|
-| **Elixir** (BEAM process) | 0.92 s | 0.90 GB | 2.2× | 2.05 |
-| **Brood** (green process) | 2.56 s | 1.75 GB | 3.3× | 8.40 |
+| **Elixir** (BEAM process) | 0.74 s | 0.92 GB | 2.3× | 2.10 |
+| **Brood** (green process) | 2.13 s | 1.61 GB | 2.9× | 6.24 |
 
-**This is Brood's worst row: 2.8× slower and 1.9× heavier than the BEAM** — a gap this
-project owns and is working on, not one the row is framed to hide. ~5.9 KB per live process
-against Elixir's ~3.1 KB. Compiled code is shared per runtime rather than duplicated per
-process, so what is left is the process itself — mailbox, isolated heap, captured
-continuation. The `Heap` struct is the biggest single piece and is being cut field by field
-as state that is inline-by-accident but cold-by-use moves off it; the inline-cache tables are
-the largest identified item left. A process that will idle for a long time can return most of
-it explicitly with `(hibernate)`, Brood's `erlang:hibernate/3`. See [FRONTIER.md](FRONTIER.md).
+**This is still Brood's worst row: 2.9× slower and 1.75× heavier than the BEAM** — a gap this
+project owns and is working on, not one the row is framed to hide. It did move this run, for
+the first time provably: 2.56 → 2.13 s, 8.40 → 6.24 CPU·s, 1.75 → 1.61 GB.
+
+**The claim that "compiled code is shared per runtime rather than duplicated per process" was
+true of the mechanism and false in practice, which is what moved.** Sharing has existed since
+brood's ADR-175, but its cache was keyed by the closure *handle* — and a closure capturing no
+locals is promoted afresh on every creation, so the `spawn` thunk and the `receive` matcher
+this row creates 300,000 times each missed the cache every time. Counted: **100,154 bytecode
+compiles for 100,000 units, 8.1 µs apiece**, a third of the per-unit scheduler time, shared
+with nobody. Keying by the closure's AST takes it to 163 (ADR-215).
+
+What is left is the process itself — mailbox, isolated heap, captured continuation — plus one
+newly-quantified item: **the inline caches are still per-process**, so a unit that runs a
+handful of calls misses about half of them, and its share of the work costs ~16 µs cold against
+3.7 µs warm. That is now the largest identified item, and the obstacle is known (call-site ids
+are dense per-process indices baked into shared code, so sharing the caches requires a site-id
+scheme first). A process that will idle for a long time can return most of its memory
+explicitly with `(hibernate)`, Brood's `erlang:hibernate/3`. See [FRONTIER.md](FRONTIER.md).
 
 ### The coroutine runtimes, for context
 
@@ -344,9 +381,9 @@ because they are better at the same thing.
 
 | | compute | peak RSS | cores | CPU·s |
 |---|---|---|---|---|
-| **Node** (promise) | 0.25 s | 0.24 GB | 2.2× | 0.54 |
-| **.NET** (`Task`) | 0.31 s | 0.13 GB | 1.7× | 0.53 |
-| **Python** (`asyncio` task) | 1.39 s | 0.35 GB | 1.0× | 1.37 |
+| **Node** (promise) | 0.22 s | 0.24 GB | 2.2× | 0.54 |
+| **.NET** (`Task`) | 0.28 s | 0.14 GB | 1.6× | 0.48 |
+| **Python** (`asyncio` task) | 1.29 s | 0.35 GB | 1.0× | 1.28 |
 
 **Two defects in these ports were found and fixed on 2026-07-30, and the result was not what
 was expected.** `TaskCompletionSource` resumes its continuation *inline on the setter's
@@ -385,12 +422,18 @@ the messages at all — it is the process floor, 5.9 KB × 300 000.
 
 ## Memory (peak RSS) and startup
 
-- **Base RSS** (the `startup` row): Brood **21.2 MB — 3rd-lightest**, behind Python (9.6 MB) and
-  Ruby (19.0 MB); ahead of .NET (25.9 MB), Node (42.8 MB), Elixir (71.1 MB) and
+- **Base RSS** (the `startup` row): Brood **22.4 MB — 3rd-lightest**, behind Python (9.6 MB) and
+  Ruby (19.0 MB); ahead of .NET (25.8 MB), Node (42.2 MB), Elixir (73.1 MB) and
   Clojure (103.8 MB). That is **the lightest of the compiled-class runtimes**; the gap to
-  Ruby is ~2 MB, so that ordering flips run to run. Brood stays light across the suite — 3rd or
+  Ruby is ~3 MB, so that ordering flips run to run. Brood stays light across the suite — 3rd or
   4th on most compute rows, and *1st of seven* on `strings` — with the allocation-heavy rows
-  (`sort` 188 MB, `latency` 173 MB, `supervisor` 455 MB, `spawn-live` 1.7 GB) the exceptions.
+  (`sort` 194 MB, `supervisor` 445 MB, `spawn-live` 1.6 GB) the exceptions; `latency` was one of
+  them at 173 MB and is now 118 MB.
+  **This figure went the wrong way this run: 18.6 → 22.4 MB** across three brood changes, ~2 MB
+  of it arriving with a batch that added cryptographic dependencies for package signing and ~1 MB
+  in the commit that fixed `spawn-live`. That last megabyte is **not** the shared compiled-code
+  cache — its off-switch accounts for ~40 kB — and is not yet diagnosed. Recorded here rather
+  than left to be noticed later.
 - **Startup**: Brood ~16 ms — 2nd, behind Python (10 ms); ahead of Node (18 ms), .NET
   (22 ms), Ruby (39 ms), Elixir (178 ms), Clojure (340 ms).
 
@@ -401,9 +444,9 @@ is the figure above; the harness's warmup run keeps that populate out of both co
 ## How to read it
 
 - **Aggregate single-threaded compute** (the positioning chart's x-axis — Σ wall−startup over the
-  original core-compute rows, normalised to the fastest): .NET 1.0× · Node 2.7× · **Brood 2.8×** ·
-  Elixir 3.8× · Clojure 8.2× · Ruby 11.7× · Python 28.0×. Brood is **3rd of seven** — behind only
-  .NET and Node (837 vs 784 ms of summed compute), ahead of Elixir (it wobbles ±0.3
+  original core-compute rows, normalised to the fastest): .NET 1.0× · Node 2.6× · **Brood 2.9×** ·
+  Elixir 3.5× · Clojure 8.0× · Ruby 11.8× · Python 29.2×. Brood is **3rd of seven** — behind only
+  .NET and Node, ahead of Elixir (it wobbles ±0.3
   run-to-run; the ordering is what holds). This aggregate is also the number the `latency`
   section exists to qualify: it says nothing about how any of these behave under load. The
   aggregate deliberately excludes the concurrency, error, and wider-range rows — folding them in
