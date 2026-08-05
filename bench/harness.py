@@ -697,6 +697,12 @@ def main():
               "The affected rows are flagged in the report.", file=sys.stderr)
         sys.exit(1)
 
+    # Printed last, because it is the step that gets forgotten: the docs carry ~50 derived
+    # figures, and on 2026-08-05 hand-updating them left six tables, the run date and the
+    # brood commit describing the *previous* run while the prose described this one.
+    print("\nnext: python3 bench/chart.py && python3 bench/docs.py   "
+          "(then write the prose; `bench/docs.py --check` must pass before committing)")
+
 
 def verify_checksums(name, data):
     """Assert the languages that produced a checksum all agree. On disagreement,
