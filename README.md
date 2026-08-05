@@ -31,7 +31,6 @@ claim to lead the field.
 | base RSS | 22.4 MB | Python 9.6, Ruby 19.0, .NET 25.8, Node 42.2, Elixir 73.1, Clojure 103.8 MB |
 | aggregate single-threaded compute | 2.9× the fastest | .NET 1.0 · Node 2.6 · Elixir 3.5 · Clojure 8.0 · Ruby 11.8 · Python 29.2 |
 | aggregate vs the field's average | **0.53×** | ahead of the field average on 6 of 11 core-compute rows |
-| typical row vs the fastest | 3.1× geometric mean, **1.9× median** | 2 rows at/ahead of the field's best, 6 within 2×, 4 beyond 5× (worst `matmul` 25×) |
 | rank by row | 1st on `reduce`, `strings`; last on `spawn-live` | |
 | `spawn-live` (300k units held alive, each sent a copied message) | 2.13 s, 1.58 GB, 6.24 CPU·s | Elixir 744 ms / 916 MB — the only peer; Node 221 ms / 243 MB, .NET 276 ms / 138 MB, Python 1.29 s / 361 MB are coroutines on a shared heap |
 | `supervisor` (20k supervised children, a quarter retired and restarted) | 862 ms, 445 MB | Elixir 258 ms / 155 MB — the only peer; no other runtime here has a supervisor |
