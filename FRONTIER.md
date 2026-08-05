@@ -27,9 +27,9 @@ arm's native code *and* its bytecode — compiled once per runtime, not once per
 
 Ratios are Brood's compute vs the fastest language on that row.
 
-- **`spawn-live` (2.13 s, 1.61 GB — 2.9× slower and 1.75× heavier than the BEAM, its only peer
+- **`spawn-live` (2.13 s, 1.58 GB — 2.9× slower and 1.75× heavier than the BEAM, its only peer
   on this row).** ~5.3 KB per live process against the BEAM's ~3.1 KB. **Moved on 2026-08-05
-  for the first time provably** (2.56 → 2.13 s, 8.40 → 6.24 CPU·s, 1.75 → 1.61 GB, corroborated
+  for the first time provably** (2.56 → 2.13 s, 8.40 → 6.24 CPU·s, 1.75 → 1.58 GB, corroborated
   by a fixed-baseline A/B): the previous entry here said "compiled code is no longer the cause",
   and that was true of the mechanism and false in practice. Sharing was keyed by the closure
   *handle*, and a closure capturing no locals is promoted afresh per creation, so this row's

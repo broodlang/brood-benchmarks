@@ -15,8 +15,7 @@ RESULTS = ROOT / "results"
 
 # The pure single-thread compute benchmarks (exclude startup / concurrency /
 # the materialization-y outliers handled elsewhere) — this is "compute speed".
-COMPUTE = ["fib", "loop", "reduce", "primes", "collatz", "mandelbrot",
-           "matmul", "strings", "wordcount", "bintree", "sort"]
+from common import COMPUTE  # noqa: E402  (one definition, shared with docs.py)
 
 # Brand-ish colours, kept distinct.
 COLOR = {
