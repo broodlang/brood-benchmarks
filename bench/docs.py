@@ -57,25 +57,32 @@ def fmt_ms(v):
     return f"{round(v)}ms" if v < 1000 else f"{v / 1000:.1f}s"
 
 
-def rating(brood, best):
-    """The `vs best` cell: how far Brood is from the fastest column in that table."""
-    if brood is None or best is None or best <= 0:
-        return "—"
-    return "**best**" if brood <= best else f"{brood / best:.1f}×"
+def signed(ratio):
+    """A ratio as a signed factor: `+2.5×` = 2.5× slower, `−3.0×` = 3.0× faster.
 
-
-def rating_avg(brood, others):
-    """The `vs avg` cell: Brood against the **geometric** mean of the other ports.
-
-    Below 1.0× means Brood beats the field's typical runtime on that row, which is a
-    different and often more useful question than the distance to the single fastest — a
-    row can be 9× off the best and still ahead of most of the field. See
-    `common.geomean` for why the mean is geometric.
+    An unsigned ratio makes the reader divide: `0.35×` is "about three times faster" only
+    after arithmetic, and a flat `best` label hides the margin entirely. Signed, both
+    directions read the same way and the sign carries the answer.
     """
-    g = geomean(others)
-    if brood is None or not g:
+    if not ratio:
         return "—"
-    return f"{brood / g:.2f}×" if brood < g else f"{brood / g:.1f}×"
+    return f"+{ratio:.1f}×" if ratio > 1.0 else (f"−{1 / ratio:.1f}×" if ratio < 1.0 else "0×")
+
+
+def rating(brood, values):
+    """`vs best`: against the fastest *other* column when Brood leads (so the margin is
+    visible), against the fastest column otherwise."""
+    others = sorted(v for k, v in values.items() if k != "Brood" and v)
+    if brood is None or not others:
+        return "—"
+    return signed(brood / min(others))
+
+
+def rating_avg(brood, values):
+    """`vs avg`: against the geometric mean of the other ports — see `common.geomean` for
+    why geometric (an arithmetic mean just tracks the slowest language)."""
+    g = geomean([v for k, v in values.items() if k != "Brood"])
+    return signed(brood / g) if brood and g else "—"
 
 
 def langs_of_header(header):
@@ -149,42 +156,53 @@ def overall_numbers(res, starts):
     }
 
 
-SCORE_PREFIX = "> **Score** —"
+SCORE_PREFIX = "> **Score"   # legacy blockquote form, stripped on sight
 
 
-def table_score(res, starts, rows, cols):
-    """One line per table: Brood's typical distance to the best and to the field average
-    over that table's rows, plus its rank.
+def score_row(res, starts, rows, cols):
+    """The table's top row: every language's **normalized score** over that table's rows.
 
-    Rank is by each language's own geometric mean of per-row `x / row_best`, not by summed
-    ms: a sum is dominated by the largest absolute rows, which put Brood 1st here purely
-    because it beats .NET by 600 ms on `errors-deep`.
+    Per language, the geometric mean of `its time / that row's best time`, then divided by
+    the leader's so the fastest column reads exactly `1.00`. Geometric and per-row-relative
+    because a sum of milliseconds is dominated by the largest rows — ranking Brood 1st on
+    the like-for-like table purely because it beats .NET by 600 ms on `errors-deep`.
+
+    The trailing cells carry Brood's rank and its table-level `vs best` / `vs avg`.
     """
     names = [n for n, _ in cols]
     keys = dict(cols)
-    best_r, avg_r, wins = [], [], 0
-    per_lang = {n: [] for n in names}
+    per = {n: [] for n in names}
+    best_r, avg_r, wins, used = [], [], 0, 0
     for row in rows:
         vals = {n: compute(res, starts, row, keys[n]) for n in names}
-        vals = {n: v for n, v in vals.items() if v is not None}
+        vals = {n: v for n, v in vals.items() if v}
         if "Brood" not in vals or len(vals) < 2:
             continue
-        b, lo = vals["Brood"], min(vals.values())
-        best_r.append(b / lo if lo else 1.0)
+        used += 1
+        lo, b = min(vals.values()), vals["Brood"]
+        best_r.append(b / min(v for n, v in vals.items() if n != "Brood"))
         wins += b <= lo
         g = geomean([v for n, v in vals.items() if n != "Brood"])
         if g:
             avg_r.append(b / g)
         for n, v in vals.items():
-            if lo:
-                per_lang[n].append(v / lo)
-    if not best_r:
+            per[n].append(v / lo)
+    if not used:
         return None
-    scored = {n: geomean(r) for n, r in per_lang.items() if r}
-    rank = sorted(scored, key=lambda n: scored[n]).index("Brood") + 1
-    tail = f" · fastest on {wins}" if wins else ""
-    return (f"{SCORE_PREFIX} Brood over these {len(best_r)} rows: {geomean(best_r):.1f}× best · "
-            f"{geomean(avg_r):.2f}× avg · rank {rank}/{len(scored)}{tail}")
+    raw = {n: geomean(v) for n, v in per.items() if v}
+    lead = min(raw.values())
+    scores = {n: raw[n] / lead for n in raw}
+    rank = sorted(scores, key=lambda n: scores[n]).index("Brood") + 1
+    cells = []
+    for n in names:
+        if n not in scores:
+            cells.append("—")
+        else:
+            cells.append(f"**{scores[n]:.2f}**" if n == "Brood" else f"{scores[n]:.2f}")
+    tail = (f" | **{rank}/{len(scores)}** | {signed(geomean(best_r))} | "
+            f"{signed(geomean(avg_r))} |")
+    note = f"score ({used} rows)" + (f", fastest on {wins}" if wins else "")
+    return f"| **{note}** | " + " | ".join(cells) + tail
 
 
 def latency_block(res, starts):
@@ -201,7 +219,8 @@ def latency_block(res, starts):
     for nice, l in langs:
         d = res["latency"]["langs"][l]
         p99 = m(l, "p99_us")
-        rate = "**best**" if p99 <= best else f"{p99 / best:.1f}×"
+        others = sorted(m(x, "p99_us") for _, x in langs if x != l)
+        rate = signed(p99 / others[0]) if others else "—"
         rows.append(
             f"| **{nice}** | {m(l,'p50_us'):,} µs | **{p99:,} µs** | "
             f"{m(l,'p999_us'):,} µs | {m(l,'max_us'):,} µs | {cores(d):.1f}× | {cpu_s(d):.2f} | "
@@ -220,9 +239,10 @@ def spawn_live_table(res, starts, langs, label, name):
     for nice, l in got:
         d = res["spawn-live"]["langs"][l]
         c = compute(res, starts, "spawn-live", l)
+        peers = sorted(compute(res, starts, "spawn-live", x) for _, x in got if x != l)
         rows.append(f"| **{nice}** ({label[l]}) | {fmt_s(c)} | {fmt_gb(d['rss_kb'])} | "
                     f"{cores(d):.1f}× | {cpu_s(d):.2f} | "
-                    f"{'**best**' if c <= best else f'{c / best:.1f}×'} |")
+                    f"{signed(c / peers[0]) if peers else '—'} |")
     rows.append(end(name))
     return rows
 
@@ -359,22 +379,19 @@ def regenerate(text, res, starts):
             cols = langs_of_header(ln)
             body = []                   # the row names this table covers
             for probe in lines[i + 2:]:
+                if probe.startswith("| **score"):
+                    continue
                 mm = re.match(r"\| `([a-z0-9-]+)`", probe)
                 if not mm:
                     break
                 body.append(mm.group(1))
-            # Strip whatever precedes the table (a previous score line, blank lines) and
-            # re-emit exactly one separator + score + separator, so a rewrite is a fixed
-            # point — `--check` compares text, and one stray blank per run would make the
-            # doc permanently "stale".
             while out and (not out[-1].strip() or out[-1].startswith(SCORE_PREFIX)):
-                out.pop()
+                out.pop()               # the old blockquote score line, if present
+            out.append("")
             # The codec table is rated by nothing: its denominators are 2-6 ms of native
             # library time, the ratio its own note tells you not to read.
             is_codec = body[:1] == ["json"]
             rated = not is_codec
-            score = None if is_codec else table_score(res, starts, body, cols)
-            out += ["", score, ""] if score else [""]
             header = ln
             if not is_codec:
                 header = re.sub(r"\| Brood rank \|.*$", "| Brood rank | vs best | vs avg |",
@@ -382,6 +399,16 @@ def regenerate(text, res, starts):
             out.append(header)
             i += 2                      # header + separator
             out.append("|---" * (len(cols) + 2 + (2 if rated else 0)) + "|")
+            if rated:
+                sr = score_row(res, starts, body, cols)
+                if sr:
+                    out.append(sr)
+            # Skip the previous run's score row: it is a `|` line the data-row regex below
+            # does not match, so leaving it would break out of the row loop and copy every
+            # data row through UNREGENERATED — stale numbers, silently. (Caught by the row
+            # counter reading 3 instead of 39.)
+            if i < len(lines) and lines[i].startswith("| **score"):
+                i += 1
             tables += 1
             while i < len(lines) and lines[i].startswith("|"):
                 mm = re.match(r"\| `([a-z0-9-]+)`( <sup>[a-z]</sup>)?( \(wall\))? \|",
@@ -396,9 +423,8 @@ def regenerate(text, res, starts):
                          for n, _ in cols]
                 tail = f" | {rank}/{len(present)} |"
                 if rated:
-                    others = [v for k, v in present.items() if k != "Brood"]
-                    tail += (f" {rating(present.get('Brood'), min(present.values()))} |"
-                             f" {rating_avg(present.get('Brood'), others)} |")
+                    b = present.get("Brood")
+                    tail += (f" {rating(b, present)} | {rating_avg(b, present)} |")
                 out.append(f"| `{row}`{sup}{wall} | " + " | ".join(cells) + tail)
                 rows += 1
                 i += 1
