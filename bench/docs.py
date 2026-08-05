@@ -1,39 +1,18 @@
 #!/usr/bin/env python3
-"""Regenerate every derivable number in the docs from results/results.json.
+"""Regenerate every derivable number in BENCHMARKS.md and README.md from results.json.
 
-    python3 bench/docs.py           # rewrite BENCHMARKS.md + README.md in place
-    python3 bench/docs.py --check   # exit 1 if anything is stale (run before committing)
+    python3 bench/docs.py           # rewrite in place
+    python3 bench/docs.py --check   # exit 1 if stale (run before committing)
 
-One command, so publishing is: run the harness, run `chart.py`, run this, then write the
-*prose*. Nothing numeric is retyped by hand.
+Owns: anything between `<!-- BEGIN NAME -->` / `<!-- END NAME -->` (MACHINE, LATENCY, PEER,
+COROUTINE in BENCHMARKS.md; STANDINGS, ENVIRONMENT in README.md), plus every ordered
+per-row table — its times, `Brood rank`, `vs best`, `vs avg`, and the score line above it.
+Language columns come from each table's own header, so re-ordering one is honoured.
 
-Why this exists: step 2 of the publish order used to be "update BENCHMARKS.md by hand",
-and on 2026-08-05 that left **six per-row tables, the header date and the brood commit**
-carrying the previous run's figures while the prose around them described the new one.
-A number a human retypes per publish is a number that goes stale. So everything
-mechanically derivable from `results.json` is generated here, and the prose — which is
-the part worth writing by hand — is left alone.
-
-What it owns — anything between a `<!-- BEGIN name -->` / `<!-- END name -->` pair, plus
-every ordered per-row table (recognised by its `| benchmark | … | Brood rank |` header,
-with its language columns read from that header, so re-ordering a column in the markdown
-is honoured rather than overwritten):
-
-| block | where | what |
-|---|---|---|
-| `MACHINE` | BENCHMARKS.md | host / cores / OS / date / brood commit / runtime versions |
-| `OVERALL` | BENCHMARKS.md | the Overall rating: aggregate, geometric mean, median, spread |
-| `LATENCY` | BENCHMARKS.md | the open-loop percentile table, rated by p99 |
-| `PEER` | BENCHMARKS.md | `spawn-live` against Elixir, its only peer |
-| `COROUTINE` | BENCHMARKS.md | `spawn-live` against the coroutine runtimes |
-| `STANDINGS` | README.md | the "where Brood stands" summary table |
-| `ENVIRONMENT` | README.md | the environment sentence |
-
-What it does not own: the codec table (`json`/`regex`/`base64`) deliberately keeps no
-`vs best` — see that table's own note — and every paragraph of analysis. **Prose is
-hand-written**, so cite a number in prose only when the argument needs it, and prefer
-pointing at a table over restating one: a figure typed into a sentence is a figure that
-will be stale after the next run, which is the whole reason this file exists.
+Prose is hand-written. Cite a number in prose only where the argument needs it: a figure
+typed into a sentence is stale after the next run, which is why this file exists (on
+2026-08-05 a hand-publish left six tables, the run date and the brood commit describing the
+previous run).
 """
 
 import re
@@ -170,57 +149,42 @@ def overall_numbers(res, starts):
     }
 
 
-def overall_block(res, starts):
-    """Brood's standing in one place: the aggregate, the typical row, and the spread.
+SCORE_PREFIX = "> **Score** —"
 
-    Three ratios, because each answers a different question and any one alone misleads:
-    the **sum** is what the positioning chart plots and is dominated by the largest rows
-    (`matmul` alone is ~a third of Brood's total), the **geometric mean** is the typical
-    row, and the **median** is the typical row with the outliers' pull removed. Publishing
-    only the sum would flatter or damn Brood depending on which way its worst row moved,
-    so all three ship together with the distribution beneath them.
+
+def table_score(res, starts, rows, cols):
+    """One line per table: Brood's typical distance to the best and to the field average
+    over that table's rows, plus its rank.
+
+    Rank is by each language's own geometric mean of per-row `x / row_best`, not by summed
+    ms: a sum is dominated by the largest absolute rows, which put Brood 1st here purely
+    because it beats .NET by 600 ms on `errors-deep`.
     """
-    o = overall_numbers(res, starts)
-    others = " · ".join(f"{PRETTY[l]} {v:.1f}×" for l, v in o["field"])
-    return [
-        begin("OVERALL"),
-        "### Overall rating",
-        "",
-        f"| | Brood | of {o['nlangs']} |",
-        "|---|---|---|",
-        f"| **aggregate compute vs best** (Σ over the {o['nrows']} like-for-like rows) "
-        f"| **{o['agg']:.1f}×** | rank {o['rank']} |",
-        f"| **typical row vs best** (geometric mean) | **{o['geo']:.1f}×** | — |",
-        f"| median row vs best | **{o['med']:.1f}×** | — |",
-        f"| **aggregate vs the field's average** (geometric mean of the other six) "
-        f"| **{o['agg_avg']:.2f}×** | — |",
-        f"| rows ahead of that average | **{o['beats_avg']} of {o['navg']}** | — |",
-        f"| rows at or ahead of the field's best | **{o['wins']}** | — |",
-        f"| rows within 2× of best | **{o['within2']}** | — |",
-        f"| rows 2–5× off | {o['mid']} | — |",
-        f"| rows more than 5× off | {o['far']} | worst: `{o['worst_row']}` "
-        f"{o['worst']:.0f}× |",
-        "",
-        f"The field on the same aggregate: {others}.",
-        "",
-        "**`vs best` and `vs avg` answer different questions.** Distance to the single "
-        "fastest runtime is the harder bar and the one the ratios above use; distance to the "
-        "field's *average* is what \"how do we compare\" usually means, and the two can point "
-        "opposite ways: `loop` is **3.4× the best and 0.33× the average** — three times "
-        "slower than the fastest runtime and three times faster than a typical one. "
-        "(`bintree`, by contrast, is 8.5× the best *and* 2.5× the average: genuinely off the "
-        "pace.) The average is **geometric**, because an "
-        "arithmetic one is dominated by whichever language is slowest — see "
-        "`bench/common.py`.",
-        "",
-        "**Read all three of the best-ratios.** The aggregate is a *sum*, so it is dominated by the largest "
-        "rows — one row can carry it. The geometric mean is the typical row, and the median "
-        "is the typical row with the outliers' pull removed: today they read "
-        f"{o['agg']:.1f}× / {o['geo']:.1f}× / {o['med']:.1f}×, and that spread *is* the "
-        "finding — most rows are close and a few are far. The distribution underneath is "
-        "there so no single number can hide it.",
-        end("OVERALL"),
-    ]
+    names = [n for n, _ in cols]
+    keys = dict(cols)
+    best_r, avg_r, wins = [], [], 0
+    per_lang = {n: [] for n in names}
+    for row in rows:
+        vals = {n: compute(res, starts, row, keys[n]) for n in names}
+        vals = {n: v for n, v in vals.items() if v is not None}
+        if "Brood" not in vals or len(vals) < 2:
+            continue
+        b, lo = vals["Brood"], min(vals.values())
+        best_r.append(b / lo if lo else 1.0)
+        wins += b <= lo
+        g = geomean([v for n, v in vals.items() if n != "Brood"])
+        if g:
+            avg_r.append(b / g)
+        for n, v in vals.items():
+            if lo:
+                per_lang[n].append(v / lo)
+    if not best_r:
+        return None
+    scored = {n: geomean(r) for n, r in per_lang.items() if r}
+    rank = sorted(scored, key=lambda n: scored[n]).index("Brood") + 1
+    tail = f" · fastest on {wins}" if wins else ""
+    return (f"{SCORE_PREFIX} Brood over these {len(best_r)} rows: {geomean(best_r):.1f}× best · "
+            f"{geomean(avg_r):.2f}× avg · rank {rank}/{len(scored)}{tail}")
 
 
 def latency_block(res, starts):
@@ -322,10 +286,6 @@ def standings_block(res, starts):
         + " · ".join(f"{PRETTY[l]} {v:.1f}" for l, v in o["field"]) + " |",
         f"| aggregate vs the field's average | **{o['agg_avg']:.2f}×** | "
         f"ahead of the field average on {o['beats_avg']} of {o['navg']} core-compute rows |",
-        f"| typical row vs the fastest | {o['geo']:.1f}× geometric mean, "
-        f"**{o['med']:.1f}× median** | {o['wins']} rows at/ahead of the field's best, "
-        f"{o['within2']} within 2×, {o['far']} beyond 5× (worst `{o['worst_row']}` "
-        f"{o['worst']:.0f}×) |",
         f"| rank by row | 1st on {', '.join(firsts) or '—'}; "
         f"last on {', '.join(lasts) or '—'} | |",
         f"| `spawn-live` (300k units held alive, each sent a copied message) | "
@@ -369,7 +329,6 @@ def environment_block(res, starts):
 
 BLOCKS = {
     "MACHINE": lambda res, starts: [begin("MACHINE"), machine_line(res), end("MACHINE")],
-    "OVERALL": lambda res, starts: overall_block(res, starts),
     "LATENCY": latency_block,
     "PEER": peer_block,
     "COROUTINE": coroutine_block,
@@ -398,9 +357,24 @@ def regenerate(text, res, starts):
 
         if ln.startswith("| benchmark |") and "Brood rank" in ln:
             cols = langs_of_header(ln)
-            body_start = i + 2
-            is_codec = body_start < len(lines) and lines[body_start].startswith("| `json`")
+            body = []                   # the row names this table covers
+            for probe in lines[i + 2:]:
+                mm = re.match(r"\| `([a-z0-9-]+)`", probe)
+                if not mm:
+                    break
+                body.append(mm.group(1))
+            # Strip whatever precedes the table (a previous score line, blank lines) and
+            # re-emit exactly one separator + score + separator, so a rewrite is a fixed
+            # point — `--check` compares text, and one stray blank per run would make the
+            # doc permanently "stale".
+            while out and (not out[-1].strip() or out[-1].startswith(SCORE_PREFIX)):
+                out.pop()
+            # The codec table is rated by nothing: its denominators are 2-6 ms of native
+            # library time, the ratio its own note tells you not to read.
+            is_codec = body[:1] == ["json"]
             rated = not is_codec
+            score = None if is_codec else table_score(res, starts, body, cols)
+            out += ["", score, ""] if score else [""]
             header = ln
             if not is_codec:
                 header = re.sub(r"\| Brood rank \|.*$", "| Brood rank | vs best | vs avg |",
