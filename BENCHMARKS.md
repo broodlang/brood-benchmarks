@@ -30,31 +30,32 @@ native library read as a runtime result.
 
 Every language expresses these the same way, so the ordering is a runtime comparison.
 
-`vs best` is Brood's distance to the fastest column, `vs avg` to the geometric mean of the
-others (arithmetic would just track the slowest language). Rank and distance often disagree:
-`nqueens` is 5/7 but 11.5× off; `ackermann` is 3/7 and 1.4×.
+**Each table's top row is a normalized score per language**: the geometric mean of its time ÷
+that row's best time, divided by the leader's so the fastest column reads `1.00`. Per-row and
+geometric, because a sum of milliseconds is dominated by the largest rows.
 
-> **Score — Brood over these 15 rows: **3.4× best** · **0.54× avg** · rank 1/7 · fastest on 2**
-
-> **Score** — Brood over these 15 rows: 3.4× best · 0.54× avg · rank 4/7 · fastest on 2
+In `vs best` / `vs avg`, **`+` is slower and `−` is faster** — `+3.4×` means 3.4× the best,
+`−2.9×` means 2.9× faster than the field average (the geometric mean of the other ports).
+Rank and distance often disagree: `nqueens` is 5/7 but +11.5×; `ackermann` is 3/7 at +1.4×.
 
 | benchmark | .NET <sup>p</sup> | Elixir <sup>p</sup> | Node | Brood | Ruby | Python | Clojure <sup>c</sup> | Brood rank | vs best | vs avg |
 |---|---|---|---|---|---|---|---|---|---|---|
-| `fib` | 39ms | 82ms | 75ms | **60ms** | 657ms | 802ms | 209ms | 2/7 | 1.5× | 0.35× |
-| `loop` | 13ms | 57ms | 30ms | **43ms** | 591ms | 2.4s | 155ms | 3/7 | 3.4× | 0.33× |
-| `reduce` | 12ms | 37ms | 235ms | **4ms** | 235ms | 116ms | 177ms | 1/7 | **best** | 0.04× |
-| `primes` <sup>a</sup> | 9ms | 20ms | 10ms | **47ms** | 123ms | 123ms | 151ms | 4/7 | 5.3× | 1.2× |
-| `collatz` | 46ms | 104ms | 175ms | **87ms** | 849ms | 2.8s | 442ms | 2/7 | 1.9× | 0.28× |
-| `mandelbrot` | 20ms | 266ms | 21ms | **187ms** | 410ms | 1.4s | 167ms | 4/7 | 9.4× | 1.3× |
-| `matmul` | 5ms | 69ms | 17ms | **131ms** | 307ms | 531ms | 205ms | 4/7 | 25.2× | 1.7× |
-| `strings` <sup>a</sup> | 32ms | 115ms | 65ms | **14ms** | 91ms | 44ms | 162ms | 1/7 | **best** | 0.19× |
-| `bintree` | 16ms | 13ms | 22ms | **114ms** | 98ms | 100ms | 173ms | 6/7 | 8.5× | 2.5× |
-| `nqueens` | 20ms | 12ms | 8ms | **86ms** | 135ms | 55ms | 266ms | 5/7 | 11.5× | 2.2× |
-| `errors` | 287ms | 27ms | 565ms | **42ms** | 112ms | 52ms | 1.1s | 2/7 | 1.6× | 0.24× |
-| `errors-deep` | 676ms | 13ms | 220ms | **44ms** | 121ms | 237ms | 1.4s | 2/7 | 3.3× | 0.21× |
-| `pipeline` | 8ms | 16ms | 9ms | **34ms** | 9ms | 4ms | 142ms | 6/7 | 8.0× | 2.6× |
-| `ackermann` | 252ms | 285ms | 401ms | **354ms** | 1.7s | 3.9s | 562ms | 3/7 | 1.4× | 0.51× |
-| `startup` (wall) | 22ms | 181ms | 18ms | **16ms** | 39ms | 10ms | 343ms | 2/7 | 1.6× | 0.35× |
+| **score (15 rows), fastest on 2** | 1.00 | 1.65 | 1.62 | **1.68** | 6.06 | 6.45 | 8.98 | **4/7** | +3.0× | −1.9× |
+| `fib` | 39ms | 82ms | 75ms | **60ms** | 657ms | 802ms | 209ms | 2/7 | +1.5× | −2.9× |
+| `loop` | 13ms | 57ms | 30ms | **43ms** | 591ms | 2.4s | 155ms | 3/7 | +3.4× | −3.0× |
+| `reduce` | 12ms | 37ms | 235ms | **4ms** | 235ms | 116ms | 177ms | 1/7 | −3.2× | −23.0× |
+| `primes` <sup>a</sup> | 9ms | 20ms | 10ms | **47ms** | 123ms | 123ms | 151ms | 4/7 | +5.3× | +1.2× |
+| `collatz` | 46ms | 104ms | 175ms | **87ms** | 849ms | 2.8s | 442ms | 2/7 | +1.9× | −3.6× |
+| `mandelbrot` | 20ms | 266ms | 21ms | **187ms** | 410ms | 1.4s | 167ms | 4/7 | +9.4× | +1.3× |
+| `matmul` | 5ms | 69ms | 17ms | **131ms** | 307ms | 531ms | 205ms | 4/7 | +25.2× | +1.7× |
+| `strings` <sup>a</sup> | 32ms | 115ms | 65ms | **14ms** | 91ms | 44ms | 162ms | 1/7 | −2.3× | −5.2× |
+| `bintree` | 16ms | 13ms | 22ms | **114ms** | 98ms | 100ms | 173ms | 6/7 | +8.5× | +2.5× |
+| `nqueens` | 20ms | 12ms | 8ms | **86ms** | 135ms | 55ms | 266ms | 5/7 | +11.5× | +2.2× |
+| `errors` | 287ms | 27ms | 565ms | **42ms** | 112ms | 52ms | 1.1s | 2/7 | +1.6× | −4.1× |
+| `errors-deep` | 676ms | 13ms | 220ms | **44ms** | 121ms | 237ms | 1.4s | 2/7 | +3.3× | −4.7× |
+| `pipeline` | 8ms | 16ms | 9ms | **34ms** | 9ms | 4ms | 142ms | 6/7 | +8.0× | +2.6× |
+| `ackermann` | 252ms | 285ms | 401ms | **354ms** | 1.7s | 3.9s | 562ms | 3/7 | +1.4× | −1.9× |
+| `startup` (wall) | 22ms | 181ms | 18ms | **16ms** | 39ms | 10ms | 343ms | 2/7 | +1.6× | −2.9× |
 
 **<sup>a</sup> Algorithmic asymmetry, against Brood.** `primes`: most languages hoist a `sqrt`
 bound where Brood/Clojure re-test `(* d d) > m` each step. `strings`: Brood/Elixir join the
@@ -108,34 +109,28 @@ capacity growth.
 
 **Brood against its actual peers** — the three languages that make the same guarantee:
 
-> **Score — Brood over these 5 rows: **1.1× best** · **0.43× avg** · rank 1/3 · fastest on 3**
-
-> **Score** — Brood over these 5 rows: 1.1× best · 0.43× avg · rank 1/3 · fastest on 3
-
 | benchmark | Brood | Elixir <sup>p</sup> | Clojure <sup>c</sup> | Brood rank | vs best | vs avg |
 |---|---|---|---|---|---|---|
-| `wordcount` | **36ms** | 173ms | 282ms | 1/3 | **best** | 0.16× |
-| `persistent-map` | **63ms** | 123ms | 306ms | 1/3 | **best** | 0.32× |
-| `sieve` | **37ms** | 63ms | 160ms | 1/3 | **best** | 0.37× |
-| `sort` | **131ms** | 110ms | 267ms | 2/3 | 1.2× | 0.77× |
-| `nbody` | **175ms** | 142ms | 211ms | 2/3 | 1.2× | 1.0× |
+| **score (5 rows), fastest on 3** | **1.00** | 1.61 | 3.33 | **1/3** | −1.6× | −2.3× |
+| `wordcount` | **36ms** | 173ms | 282ms | 1/3 | −4.8× | −6.2× |
+| `persistent-map` | **63ms** | 123ms | 306ms | 1/3 | −2.0× | −3.1× |
+| `sieve` | **37ms** | 63ms | 160ms | 1/3 | −1.7× | −2.7× |
+| `sort` | **131ms** | 110ms | 267ms | 2/3 | +1.2× | −1.3× |
+| `nbody` | **175ms** | 142ms | 211ms | 2/3 | +1.2× | +1.0× |
 
 **Brood against the in-place-mutation languages.** Brood is the *subject* of this table, not
 a member of that group — it is the only column here that never mutates anything. The
 comparison measures what the immutability guarantee costs, and is included so that price is
 visible rather than hidden:
 
-> **Score — Brood over these 5 rows: **4.3× best** · **1.37× avg** · rank 3/5**
-
-> **Score** — Brood over these 5 rows: 4.3× best · 1.37× avg · rank 3/5
-
 | benchmark | .NET <sup>p</sup> | Node | Brood | Ruby | Python | Brood rank | vs best | vs avg |
 |---|---|---|---|---|---|---|---|---|
-| `wordcount` | 38ms | 31ms | **36ms** | 70ms | 179ms | 2/5 | 1.2× | 0.58× |
-| `persistent-map` | 23ms | 25ms | **63ms** | 45ms | 90ms | 4/5 | 2.7× | 1.6× |
-| `sieve` | 3ms | 7ms | **37ms** | 94ms | 118ms | 3/5 | 11.9× | 1.7× |
-| `sort` | 69ms | 105ms | **131ms** | 76ms | 193ms | 4/5 | 1.9× | 1.3× |
-| `nbody` | 8ms | 14ms | **175ms** | 324ms | 813ms | 3/5 | 21.0× | 2.4× |
+| **score (5 rows)** | 1.00 | 1.36 | **4.16** | 5.44 | 11.44 | **3/5** | +4.3× | +1.4× |
+| `wordcount` | 38ms | 31ms | **36ms** | 70ms | 179ms | 2/5 | +1.2× | −1.7× |
+| `persistent-map` | 23ms | 25ms | **63ms** | 45ms | 90ms | 4/5 | +2.7× | +1.6× |
+| `sieve` | 3ms | 7ms | **37ms** | 94ms | 118ms | 3/5 | +11.9× | +1.7× |
+| `sort` | 69ms | 105ms | **131ms** | 76ms | 193ms | 4/5 | +1.9× | +1.3× |
+| `nbody` | 8ms | 14ms | **175ms** | 324ms | 813ms | 3/5 | +21.0× | +2.4× |
 
 ### In-language codecs vs native libraries
 
@@ -143,8 +138,6 @@ Here Brood has no peer group, and that *is* the result: it runs its own `std/` c
 in Brood, while every other column calls a C, JVM or .NET native implementation. The row
 measures the library, not the VM. Sizes are small precisely because Brood is slow here, so the
 native columns finish in single-digit ms and the ordering *among them* is meaningless.
-
-> **Score — Brood over these 3 rows: **28.0× best** · **7.03× avg** · rank 6/7**
 
 | benchmark | Node | Ruby | Python | .NET <sup>p</sup> | Elixir <sup>p</sup> | Brood | Clojure <sup>c</sup> | Brood rank |
 |---|---|---|---|---|---|---|---|---|
@@ -170,32 +163,26 @@ provide less, not because they are better at the same thing.
 
 Against its actual peer:
 
-> **Score — Brood over these 6 rows: **1.9× best** · **1.40× avg** · rank 2/2 · fastest on 2**
-
-> **Score** — Brood over these 6 rows: 1.9× best · 1.40× avg · rank 2/2 · fastest on 2
-
 | benchmark | Elixir <sup>p</sup> | Brood | Brood rank | vs best | vs avg |
 |---|---|---|---|---|---|
-| `spawn` | 24ms | **35ms** | 2/2 | 1.5× | 1.5× |
-| `pfib` | 297ms | **187ms** | 1/2 | **best** | 0.63× |
-| `http` | 568ms | **152ms** | 1/2 | **best** | 0.27× |
-| `pingpong` | 62ms | **207ms** | 2/2 | 3.3× | 3.3× |
-| `ring` | 268ms | **731ms** | 2/2 | 2.7× | 2.7× |
-| `supervisor` | 258ms | **862ms** | 2/2 | 3.3× | 3.3× |
+| **score (6 rows), fastest on 2** | 1.00 | **1.40** | **2/2** | +1.4× | +1.4× |
+| `spawn` | 24ms | **35ms** | 2/2 | +1.5× | +1.5× |
+| `pfib` | 297ms | **187ms** | 1/2 | −1.6× | −1.6× |
+| `http` | 568ms | **152ms** | 1/2 | −3.7× | −3.7× |
+| `pingpong` | 62ms | **207ms** | 2/2 | +3.3× | +3.3× |
+| `ring` | 268ms | **731ms** | 2/2 | +2.7× | +2.7× |
+| `supervisor` | 258ms | **862ms** | 2/2 | +3.3× | +3.3× |
 
 Against the rest of the field, for context:
 
-> **Score — Brood over these 5 rows: **2.0× best** · **0.39× avg** · rank 3/6**
-
-> **Score** — Brood over these 5 rows: 2.0× best · 0.39× avg · rank 2/6
-
 | benchmark | .NET <sup>p</sup> | Node | Brood | Clojure <sup>c</sup> | Python | Ruby | Brood rank | vs best | vs avg |
 |---|---|---|---|---|---|---|---|---|---|
-| `spawn` | 19ms | 56ms | **35ms** | 185ms | 553ms | 1.6s | 2/6 | 1.9× | 0.20× |
-| `pfib` | 120ms | 305ms | **187ms** | 407ms | 2.5s | 2.0s | 2/6 | 1.6× | 0.31× |
-| `http` | 152ms | 120ms | **152ms** | 833ms | 175ms | 208ms | 3/6 | 1.3× | 0.68× |
-| `pingpong` | 169ms | 648ms | **207ms** | 600ms | 803ms | 594ms | 2/6 | 1.2× | 0.41× |
-| `ring` | 794ms | 117ms | **731ms** | 4.4s | 4.6s | 3.4s | 2/6 | 6.3× | 0.50× |
+| **score (5 rows)** | 1.00 | 1.28 | **1.27** | 5.15 | 7.23 | 7.79 | **2/6** | +2.0× | −2.6× |
+| `spawn` | 19ms | 56ms | **35ms** | 185ms | 553ms | 1.6s | 2/6 | +1.9× | −5.0× |
+| `pfib` | 120ms | 305ms | **187ms** | 407ms | 2.5s | 2.0s | 2/6 | +1.6× | −3.2× |
+| `http` | 152ms | 120ms | **152ms** | 833ms | 175ms | 208ms | 3/6 | +1.3× | −1.5× |
+| `pingpong` | 169ms | 648ms | **207ms** | 600ms | 803ms | 594ms | 2/6 | +1.2× | −2.4× |
+| `ring` | 794ms | 117ms | **731ms** | 4.4s | 4.6s | 3.4s | 2/6 | +6.3× | −2.0× |
 
 Across all of the above Brood is never last; it **is** last on `spawn-live`, reported on its
 own below. Run-to-run the field drifts ±10%, so read the ordering rather than the digits — and
@@ -290,11 +277,11 @@ nothing here is capacity-limited; the tail is scheduling, not saturation.
 <!-- BEGIN LATENCY (generated by bench/docs.py) -->
 | | p50 | **p99** | p99.9 | max | cores | CPU·s | peak RSS | vs best (p99) |
 |---|---|---|---|---|---|---|---|---|
-| **Elixir** | 8 µs | **56 µs** | 80 µs | 191 µs | 2.0× | 5.49 | 79 MB | **best** |
-| **Brood** | 14 µs | **68 µs** | 461 µs | 1,606 µs | 1.8× | 4.64 | 118 MB | 1.2× |
-| **Python** | 31 µs | **469 µs** | 607 µs | 1,033 µs | 1.0× | 2.52 | 11 MB | 8.4× |
-| **Node** | 12 µs | **470 µs** | 565 µs | 1,128 µs | 1.0× | 2.55 | 58 MB | 8.4× |
-| **.NET** | 4 µs | **719 µs** | 12,782 µs | 15,230 µs | 2.5× | 6.29 | 49 MB | 12.8× |
+| **Elixir** | 8 µs | **56 µs** | 80 µs | 191 µs | 2.0× | 5.49 | 79 MB | −1.2× |
+| **Brood** | 14 µs | **68 µs** | 461 µs | 1,606 µs | 1.8× | 4.64 | 118 MB | +1.2× |
+| **Python** | 31 µs | **469 µs** | 607 µs | 1,033 µs | 1.0× | 2.52 | 11 MB | +8.4× |
+| **Node** | 12 µs | **470 µs** | 565 µs | 1,128 µs | 1.0× | 2.55 | 58 MB | +8.4× |
+| **.NET** | 4 µs | **719 µs** | 12,782 µs | 15,230 µs | 2.5× | 6.29 | 49 MB | +12.8× |
 <!-- END LATENCY -->
 
 **.NET posts the best median in the field and the worst tail by 20×.** Its p50 of 4 µs is
@@ -368,8 +355,8 @@ first and the rest is context — the same split the concurrency rows use above.
 <!-- BEGIN PEER (generated by bench/docs.py) -->
 | | compute | peak RSS | cores | CPU·s | vs best |
 |---|---|---|---|---|---|
-| **Elixir** (BEAM process) | 744 ms | 916 MB | 2.3× | 2.10 | **best** |
-| **Brood** (green process) | 2.13 s | 1.58 GB | 2.9× | 6.24 | 2.9× |
+| **Elixir** (BEAM process) | 744 ms | 916 MB | 2.3× | 2.10 | −2.9× |
+| **Brood** (green process) | 2.13 s | 1.58 GB | 2.9× | 6.24 | +2.9× |
 <!-- END PEER -->
 
 **This is still Brood's worst row: 2.9× slower and 1.75× heavier than the BEAM** — a gap this
@@ -394,9 +381,9 @@ because they are better at the same thing.
 <!-- BEGIN COROUTINE (generated by bench/docs.py) -->
 | | compute | peak RSS | cores | CPU·s | vs best |
 |---|---|---|---|---|---|
-| **Node** (promise) | 221 ms | 243 MB | 2.2× | 0.54 | **best** |
-| **.NET** (`Task`) | 276 ms | 138 MB | 1.6× | 0.48 | 1.2× |
-| **Python** (`asyncio` task) | 1.29 s | 361 MB | 1.0× | 1.28 | 5.8× |
+| **Node** (promise) | 221 ms | 243 MB | 2.2× | 0.54 | −1.2× |
+| **.NET** (`Task`) | 276 ms | 138 MB | 1.6× | 0.48 | +1.2× |
+| **Python** (`asyncio` task) | 1.29 s | 361 MB | 1.0× | 1.28 | +5.8× |
 <!-- END COROUTINE -->
 
 **Two defects in these ports were found and fixed on 2026-07-30, and the result was not what
