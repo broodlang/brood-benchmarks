@@ -57,6 +57,26 @@ def fmt_ms(v):
     return f"{round(v)}ms" if v < 1000 else f"{v / 1000:.1f}s"
 
 
+def dot(ratio):
+    """Band for a Brood-vs-other *ratio*: 🟢 at least as fast, 🟠 up to 3× slower, 🔴 beyond.
+
+    Emoji rather than CSS because GitHub strips `style` attributes, so a `<span>` renders as
+    plain text.
+    """
+    if not ratio:
+        return ""
+    return "🟢" if ratio <= 1.0 else ("🟠" if ratio <= 3.0 else "🔴")
+
+
+def dot_score(score):
+    """Band for a normalized *score*, where 1.00 is the table leader rather than parity:
+    🟢 within 2× of it, 🟠 within 5×, 🔴 beyond. A ratio band would paint everything but
+    the leader orange, which says nothing."""
+    if not score:
+        return ""
+    return "🟢" if score <= 2.0 else ("🟠" if score <= 5.0 else "🔴")
+
+
 def signed(ratio):
     """A ratio as a signed factor: `+2.5×` = 2.5× slower, `−3.0×` = 3.0× faster.
 
@@ -75,14 +95,17 @@ def rating(brood, values):
     others = sorted(v for k, v in values.items() if k != "Brood" and v)
     if brood is None or not others:
         return "—"
-    return signed(brood / min(others))
+    r = brood / min(others)
+    return f"{dot(r)} {signed(r)}"
 
 
 def rating_avg(brood, values):
     """`vs avg`: against the geometric mean of the other ports — see `common.geomean` for
     why geometric (an arithmetic mean just tracks the slowest language)."""
     g = geomean([v for k, v in values.items() if k != "Brood"])
-    return signed(brood / g) if brood and g else "—"
+    if not (brood and g):
+        return "—"
+    return f"{dot(brood / g)} {signed(brood / g)}"
 
 
 def langs_of_header(header):
@@ -159,6 +182,25 @@ def overall_numbers(res, starts):
 SCORE_PREFIX = "> **Score"   # legacy blockquote form, stripped on sight
 
 
+def score_map(res, starts, rows, cols):
+    """`{language: normalized score}` for `rows` — the leader is exactly 1.00."""
+    keys = dict(cols)
+    per = {n: [] for n, _ in cols}
+    for row in rows:
+        vals = {n: compute(res, starts, row, keys[n]) for n, _ in cols}
+        vals = {n: v for n, v in vals.items() if v}
+        if len(vals) < 2:
+            continue
+        lo = min(vals.values())
+        for n, v in vals.items():
+            per[n].append(v / lo)
+    raw = {n: geomean(v) for n, v in per.items() if v}
+    if not raw:
+        return {}
+    lead = min(raw.values())
+    return {n: r / lead for n, r in raw.items()}
+
+
 def score_row(res, starts, rows, cols):
     """The table's top row: every language's **normalized score** over that table's rows.
 
@@ -197,10 +239,12 @@ def score_row(res, starts, rows, cols):
     for n in names:
         if n not in scores:
             cells.append("—")
-        else:
-            cells.append(f"**{scores[n]:.2f}**" if n == "Brood" else f"{scores[n]:.2f}")
-    tail = (f" | **{rank}/{len(scores)}** | {signed(geomean(best_r))} | "
-            f"{signed(geomean(avg_r))} |")
+            continue
+        v = f"{scores[n]:.2f}"
+        cells.append(f"{dot_score(scores[n])} " + (f"**{v}**" if n == "Brood" else v))
+    gb, ga = geomean(best_r), geomean(avg_r)
+    tail = (f" | **{rank}/{len(scores)}** | {dot(gb)} {signed(gb)} | "
+            f"{dot(ga)} {signed(ga)} |")
     note = f"score ({used} rows)" + (f", fastest on {wins}" if wins else "")
     return f"| **{note}** | " + " | ".join(cells) + tail
 
@@ -357,15 +401,71 @@ BLOCKS = {
 }
 
 
-def regenerate(text, res, starts):
-    """Rewrite every generated block and ordered table in one document."""
+def scoreboard_block(res, starts, specs):
+    """The top-of-document scoreboard: every table's normalized score, per language.
+
+    Each table's own top row says the same thing for that table; this is the one place that
+    shows all of them together, which is what "how are we doing" actually asks.
+    """
+    names = [n for n, _ in LANG_COL.items()]
+    head = ["| table | " + " | ".join(names) + " |", "|---" * (len(names) + 1) + "|"]
+    body = []
+    for label, cols, rows in specs:
+        row = score_map(res, starts, rows, cols)
+        if not row:
+            continue
+        cells = []
+        for n in names:
+            v = row.get(n)
+            if v is None:
+                cells.append("·")
+            else:
+                txt = f"{dot_score(v)} {v:.2f}"
+                cells.append(f"**{txt}**" if n == "Brood" else txt)
+        body.append(f"| {label} ({len(rows)}) | " + " | ".join(cells) + " |")
+    return [begin("SCOREBOARD"), *head, *body, "",
+            "`1.00` = that table's fastest column; each score is the geometric mean of a "
+            "language's time ÷ that row's best. **Scores:** 🟢 within 2× of the leader · "
+            "🟠 within 5× · 🔴 beyond. **`vs best`/`vs avg` in the tables:** 🟢 at least as "
+            "fast · 🟠 up to 3× slower · 🔴 beyond. `·` = no port.",
+            end("SCOREBOARD")]
+
+
+def regenerate(text, res, starts, collect=None, fill=None):
+    """Rewrite every generated block and ordered table in one document.
+
+    Two passes, because the SCOREBOARD sits *above* the tables it summarises: pass 1 passes
+    `collect=[]` to learn each table's `(label, columns, rows)`, pass 2 passes `fill=specs`
+    to emit the board.
+    """
     lines = text.split("\n")
     out, i = [], 0
     tables = rows = blocks = 0
+    heading = ""
+    seen = set()
     while i < len(lines):
         ln = lines[i]
 
+        if ln.startswith("### ") or ln.startswith("**Brood against"):
+            heading = re.sub(r"^#+ |\*\*", "", ln).split(" —")[0].split(".")[0].strip()
+            heading = re.sub(r"^Brood against (the |its )?", "", heading)
+
         m = BEGIN_RE.match(ln)
+        if m and m.group(1) == "SCOREBOARD":
+            if not fill:                           # pass 1: leave it untouched
+                out.append(ln)
+                i += 1
+                while i < len(lines) and not lines[i].startswith(end("SCOREBOARD")):
+                    out.append(lines[i])
+                    i += 1
+                continue
+            out += scoreboard_block(res, starts, fill)
+            blocks += 1
+            while i < len(lines) and not lines[i].startswith(end("SCOREBOARD")):
+                i += 1
+            i += 1
+            continue
+
         if m and m.group(1) in BLOCKS:
             name = m.group(1)
             out += BLOCKS[name](res, starts)
@@ -399,6 +499,11 @@ def regenerate(text, res, starts):
             out.append(header)
             i += 2                      # header + separator
             out.append("|---" * (len(cols) + 2 + (2 if rated else 0)) + "|")
+            if rated:
+                label = heading if heading not in seen else f"{heading} (context)"
+                seen.add(label)
+                if collect is not None:
+                    collect.append((label, cols, body))
             if rated:
                 sr = score_row(res, starts, body, cols)
                 if sr:
@@ -441,8 +546,10 @@ def main():
     stale, totals = [], [0, 0, 0]
     for doc in DOCS:
         before = doc.read_text()
-        after, t, r, b = regenerate(before, res, starts)
-        totals = [totals[0] + t, totals[1] + r, totals[2] + b]
+        specs = []
+        regenerate(before, res, starts, collect=specs)       # pass 1: learn the tables
+        after, t, r, b = regenerate(before, res, starts, fill=specs)   # pass 2: emit
+        totals = [totals[i] + v for i, v in enumerate((t, r, b))]
         if before != after:
             stale.append(doc.name)
             if not check:
