@@ -7,10 +7,10 @@
 (def me (self))
 
 (defn node-loop (nxt)
-  (receive (v
-    (if (>= v total)
-      (send me [:done v])
-      (do (send nxt (+ v 1)) (node-loop nxt))))))
+  (receive
+    (v (if (>= v total)
+         (send me [:done v])
+         (do (send nxt (+ v 1)) (node-loop nxt))))))
 
 (defn node ()
   (receive ([:next nxt] (node-loop nxt))))

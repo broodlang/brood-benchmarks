@@ -37,8 +37,8 @@
     ([:up p] (collector (cons p pids) (+ k 1)))
     ([:take want from] (do (send from [:pids (take want pids) k]) (collector pids k)))
     ([:count-at-least want from] (if (>= k want)
-                                  (do (send from [:reached k]) (collector pids k))
-                                  (do (send (self) [:count-at-least want from]) (collector pids k))))))
+                                   (do (send from [:reached k]) (collector pids k))
+                                   (do (send (self) [:count-at-least want from]) (collector pids k))))))
 
 (register :bench-collector (spawn (collector () 0)))
 
@@ -46,26 +46,33 @@
 ;; during teardown from sending to a deregistered name.
 (defn child ()
   (let (c (whereis :bench-collector))
-    (do (when c (send c [:up (self)]))
-        (receive (:retire :ok)))))
+    (do
+      (when c (send c [:up (self)]))
+      (receive (:retire :ok)))))
 
 (defn start-child-proc () (spawn-link (child)))
 
-(def sup (start-supervisor [] {:strategy :one-for-one
-                               :max-restarts 100000000
-                               :max-seconds 60}))
+(def sup
+  (start-supervisor []
+    {:strategy :one-for-one
+     :max-restarts 100000000
+     :max-seconds 60}))
 
-(defn fill (i) (if (>= i n) nil (do (start-child sup {:id i :start start-child-proc}) (fill (+ i 1)))))
-(defn retire-each (ps k) (if (= k 0) nil (do (send (first ps) :retire) (retire-each (rest ps) (- k 1)))))
+(defn fill (i)
+  (if (>= i n) nil (do (start-child sup {:id i :start start-child-proc}) (fill (+ i 1)))))
+(defn retire-each (ps k)
+  (if (= k 0) nil (do (send (first ps) :retire) (retire-each (rest ps) (- k 1)))))
 
 ;; Block until the collector has seen at least `want` announcements.
 (defn await-count (want)
-  (do (send (whereis :bench-collector) [:count-at-least want (self)])
-      (receive ([:reached k] k))))
+  (do
+    (send (whereis :bench-collector) [:count-at-least want (self)])
+    (receive ([:reached k] k))))
 
 (defn victims (want)
-  (do (send (whereis :bench-collector) [:take want (self)])
-      (receive ([:pids ps _] ps))))
+  (do
+    (send (whereis :bench-collector) [:take want (self)])
+    (receive ([:pids ps _] ps))))
 
 (fill 0)
 (await-count n)

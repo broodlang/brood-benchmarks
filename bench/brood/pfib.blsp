@@ -12,7 +12,8 @@
 (defn fan (i) (if (>= i tasks) nil (do (spawn (send me [:r (fib n)])) (fan (+ i 1)))))
 
 (defn collect (got acc)
-  (if (= got tasks) acc
+  (if (= got tasks)
+    acc
     (collect (+ got 1) (receive ([:r v] (+ acc v))))))
 
 (fan 0)

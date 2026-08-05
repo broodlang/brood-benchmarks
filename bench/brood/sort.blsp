@@ -10,9 +10,10 @@
 (def data (sort (gen 123456789 0 nil)))
 
 ;; order-sensitive polynomial hash over the sorted sequence
-(defn hash--acc (lst h)
+(defn- hash-acc
+  (lst h)
   (if (empty? lst)
     h
-    (hash--acc (rest lst) (rem (+ (* h 31) (first lst)) md))))
+    (hash-acc (rest lst) (rem (+ (* h 31) (first lst)) md))))
 
-(println (hash--acc data 0))
+(println (hash-acc data 0))
