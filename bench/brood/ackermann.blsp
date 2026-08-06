@@ -7,7 +7,7 @@
   (cond
     (= m 0) (+ k 1)
     (= k 0) (ack (- m 1) 1)
-    else   (ack (- m 1) (ack m (- k 1)))))
+    else (ack (- m 1) (ack m (- k 1)))))
 
 (defn run (i acc) (if (>= i n) acc (run (+ i 1) (+ acc (ack 3 9)))))
 

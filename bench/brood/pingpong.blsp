@@ -11,7 +11,8 @@
 (def pong (spawn (responder)))
 
 (defn ping (k)
-  (if (>= k n) k
+  (if (>= k n)
+    k
     (do (send pong [:ping me]) (receive (:pong (ping (+ k 1)))))))
 
 (def done (ping 0))

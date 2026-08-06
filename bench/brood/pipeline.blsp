@@ -12,8 +12,7 @@
 ;; (reduce …))` is still idiomatic Brood and would build a cons list per stage.
 (defn mult35? (i) (or (= 0 (rem i 3)) (= 0 (rem i 5))))
 
-(println
-  (->> (range n)
-       (lfilter mult35?)
-       (lmap (fn (i) (* i i)))
-       (reduce + 0)))
+(println (->> (range n)
+           (lfilter mult35?)
+           (lmap (fn (i) (* i i)))
+           (reduce + 0)))

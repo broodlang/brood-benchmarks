@@ -10,8 +10,9 @@
 (def m 50000)
 
 (defn go (i x acc)
-  (if (>= i n) acc
-    (let (x2  (bit-and (+ (* x 1103515245) 12345) 2147483647)
+  (if (>= i n)
+    acc
+    (let (x2 (bit-and (+ (* x 1103515245) 12345) 2147483647)
           key (rem x2 m))
       (go (+ i 1) x2 (map-int-add acc key (+ 1 (rem key 7)))))))
 

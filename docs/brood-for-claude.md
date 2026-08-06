@@ -17,13 +17,21 @@ A small, dynamic Lisp implemented in Rust.
   tail calls are guaranteed (including calls to *other* functions), so it's O(1)
   stack — or the combinators `fold` / `reduce` / `map` / `filter`. A *local*,
   self-contained loop is a `letrec`-bound closure called by name.
-- **Truthy / falsy**: only `nil` and `false` are falsy. `0`, `""`, `()` are
-  *truthy*.
+- **Truthy / falsy**: only `nil` and `false` are falsy. `0`, `""`, `[]`, `{}`,
+  `#{}` are *truthy*. **The one trap: an empty *list* is falsy**, because `()` ≡
+  `nil` — so `(if [] …)`/`(if "" …)`/`(if {} …)` take the `then` branch but
+  `(if () …)` takes `else`. A function returning a list-or-`nil` that you branch
+  on directly will treat an empty-list result as false. **Test emptiness with
+  `(empty? x)`** (uniform across every collection), never a bare `(if x …)`.
 - **Late binding**: globals can be re-defined; a redefinition is visible to
   every running process on its next lookup.
 
 Files end `.blsp`. Run a file with `brood file.blsp`; REPL with bare `brood`;
-project tooling via `nest test` / `nest run` / `nest new <name>`.
+project tooling via `nest test` / `nest run` / `nest new <name>`. At the REPL:
+`*1`/`*2`/`*3` are the last results and `*e` the last error; `,help` lists the
+meta-commands (`,doc name`, `,apropos pat`, `,search words`, `,expand form`,
+`,time expr`); Ctrl-C interrupts the running evaluation without losing the
+session; huge results elide with `…` (see `pr-str-bounded`).
 
 ## Syntax
 
@@ -37,7 +45,8 @@ true  false  nil        ; booleans, nil
 name  foo-bar?  +       ; symbol (kebab-case is idiomatic)
 (f a b)                 ; call / list
 [1 2 3]                 ; vector — O(1) indexing
-{:a 1 :b 2}             ; map — immutable, insertion-ordered (no commas)
+{:a 1 :b 2}             ; map — immutable (no commas); key order is hash-derived,
+                        ;   NOT insertion order — sort keys if order matters
 'x   `(a ~b ~@xs)       ; quote / quasiquote / unquote / splice
 ```
 
@@ -71,12 +80,12 @@ Common macros (expanded once at the compile pass — runtime-free): `defmacro`
 (defdyn *log-level* :info)                          ; dynamic variable
 (binding (*log-level* :debug) (do-thing))           ; scoped rebind
 
-(defrecord point (x y))                             ; a record IS a map: sugar, no new type
-(point 3 4)                                         ; => {:x 3 :y 4}  (positional constructor)
+(defrecord point (x y))                             ; a record: a map + a nominal identity
+(point 3 4)                                         ; => {:__id__ :<ns>/point, :x 3, :y 4}
 (point-x (point 3 4))                               ; => 3  (accessor per field; a typo is a
                                                     ;        checker-caught undefined-fn, not silent nil)
-;; update with plain assoc/merge; no `point?` predicate (records are structural).
-;; Typed fields emit sigs: (defrecord point ((x int) (y int)))
+;; update with plain assoc/merge; `(record? r)`/`(record-id r)`/`(fields r)` are the id
+;; API; a record is NOT `=` to a bare map (nominal). Typed fields: (defrecord point ((x int) (y int)))
 ```
 
 A `fn`/`defn` body of several forms is an **implicit `do`**: each is evaluated
@@ -186,6 +195,16 @@ name is the thing readers look up later. Confining the rule there preserves
 the ergonomic `(map (fn ([k v]) …) …)` idiom, which reads locally and never
 gets looked up by name.
 
+**Reserved names: you cannot redefine what Brood ships.** `(def get …)`,
+`(defn map …)`, `(defmacro when …)`, `(def set/union …)` are all errors (ADR-166) —
+the prelude, the builtins and the embedded std modules are reserved. Your own globals
+and your packages stay fully redefinable, which is what hot reload is for. If a name
+you want is taken: pick another, shadow it locally (`(let (get …) …)` is fine), or
+define it in a `(defmodule your/mod …)` — that makes `your/mod/get`, which is yours.
+The prelude's data registries (`*load-path*`, `*features*`) are still rebindable — the
+rule reserves shipped **functions** — and a `defdyn` name is never reserved whatever it
+holds, so `(def *out* my-port)` still redirects output permanently.
+
 ## Naming & docstrings
 
 These conventions are followed without exception across `std/` — match them and
@@ -196,34 +215,53 @@ your code will read like the standard library.
 ```
 foo?         ; predicate — returns a boolean (int? empty? starts-with?)
 *foo*         ; dynamic var or module-level config/state (defdyn *log-level*)
-foo--bar      ; PRIVATE helper — the double-dash infix marks "implementation
-              ;   detail, not public API" (append--onto, cmp--gt, reload--loop)
 foo->bar      ; conversion (number->string, vec->list)
 ```
 
-A trailing `!` is **rare and not a mutation warning** — nothing mutates. It shows
-up in three unrelated senses (a wart, on the ROADMAP): `sig!` = a signature that is
-*enforced* at runtime, `set-load-path!` / `clipboard-set!` = the few root/OS-state
-setters, and `(! pid payload)` = the Erlang-style cast in `proc/gen`. Don't add a
-`!` to a name of your own.
+**Privacy is a def form, not a spelling** (ADR-146): `(defn- helper …)` and
+`(def- x …)` define a MODULE-PRIVATE name — a *clean* name, no marker in it. A
+hand-written cross-module qualified reference to a private is a compile error
+without `(:use-internals mod)`; call it bare (same module) or `mod/name` (granted).
+The name never carries a sigil, at the definition or any call site.
+
+A trailing `!` is **rare and not a mutation warning** — nothing mutates, so the
+Scheme/Clojure reading is vacuous here and `!` is per-context by decision (ADR-163):
+`sig!` = a signature *enforced* at runtime, `set-load-path!` / `clipboard-set!` = the
+few root/OS-state setters, `(! pid payload)` = the Erlang-style cast in `proc/gen`.
+**Don't add a `!` to a name of your own.**
+
+**Names come from whichever language named the thing best** — `partition` (Clojure)
+next to `chunk-every` (Elixir), `enumerate` (Python), `scan` (Haskell), `&optional`
+(CL), `letrec` (Scheme). So a name can't always be guessed: reach for `(apropos
+"part")` or `(doc-search "chunk")` instead of assuming (ADR-163).
+
+**Three or more optional parameters → take an options map**, not a pile of
+`&optional`s: `(defn make-window (title opts) (let ({:keys [width height] :or {width
+80}} opts) …))`. Brood has no `&key` and won't (ADR-163) — the map plus `:keys`
+destructuring is the convention, and it composes with `merge` for defaults.
+
+**Failure: `throw` for bugs, a tagged vector for expected alternatives** (ADR-163).
+Throw when the caller almost certainly cannot continue (type error, missing file,
+protocol violation); return `[:ok v]` / `[:error e]` when failing is an ordinary
+outcome to branch on (parsing user input, a lookup that may miss, a timeout).
 Symbols are kebab-case (`out-of-range?`, not `outOfRange`/`out_of_range`).
 
 **Tail-recursive helpers get a suffix naming what they accumulate or do** —
-`--acc`, `--at`, `--loop`, `--onto`, `--scan`. The public function is a thin
-shell; the `--`-suffixed helper does the real recursion with an accumulator:
+`-acc`, `-at`, `-loop`, `-onto`, `-scan` — and are defined **private** with
+`defn-`. The public function is a thin shell; the private helper does the real
+recursion with an accumulator:
 
 ```lisp
 (defn reverse (coll) "The items of `coll` in reverse order." (fold flip-cons nil coll))
 
-;; longer recursions split into a public shell + a private --acc helper
-(defn count-newlines--at (s i acc) …)              ; private worker
-(defn count-newlines (s) "Number of \\n in `s`." (count-newlines--at s 0 0))
+;; longer recursions split into a public shell + a private helper
+(defn- count-newlines-at (s i acc) …)              ; private worker (defn-)
+(defn count-newlines (s) "Number of \\n in `s`." (count-newlines-at s 0 0))
 ```
 
 **Docstrings** go on every public `defn` / `defmacro`. First line is a complete
 one-sentence summary (it's what `(doc 'name)` and the LSP show on hover);
-backtick code, **bold**, and `-` bullet lists are rendered, so use them. Private
-`--` helpers usually skip the docstring and use a `;;` comment instead.
+backtick code, **bold**, and `-` bullet lists are rendered, so use them. Private (`defn-`) helpers usually skip the docstring and use a `;;` comment instead.
 
 ```lisp
 (defn format-source (src)
@@ -241,6 +279,136 @@ offending value appended via `str`-style trailing args:
 (error "reload-on-change: no such path: " path)
 ```
 
+## Polymorphism — abilities (core)
+
+When a `cond` on `type-of` would have to be *edited* for a caller to add a case, use
+an **ability**: an open generic function whose ops dispatch on the **first argument's
+identity**. `defability`/`impl`/`defrecord` are **core** (in the prelude) — always
+available, no import, no `(:use ability)`.
+
+An identity is either a built-in `type-of` **kind** (`:int`, `:string`, `:map`, …) or
+a **`defrecord`** value's **nominal id** — a `:module/name` keyword baked in at
+definition, so two record shapes in one module dispatch apart.
+
+```lisp
+(defmodule geometry)
+
+(defrecord circle (r))                 ; a record WITH a dispatch identity
+(defrecord rect (w h))
+
+(defability Shape (area [self] :-> float))
+
+(impl Shape geometry/circle (area [c] (* 3.0 (get c :r) (get c :r))))
+(impl Shape geometry/rect   (area [r] (* (get r :w) (get r :h))))
+
+(area (circle 2))       ;=> 12.0
+(area (rect 3 4))       ;=> 12
+```
+
+**Impl ids qualify like `defrecord` does.** A bare id (`circle`) qualifies to the
+CURRENT module (`:your-module/circle`), matching a record defined in the same module;
+implementing for ANOTHER module's record needs the qualified spelling
+(`geometry/circle`). `impl` and `:sealed` resolve ids identically (the old
+silently-never-matches asymmetry was KI-15, fixed 2026-07-27).
+
+Built-in kinds take `:default` as a fallback; without one, a missing impl is a loud
+named error, never `nil`:
+
+```lisp
+(defability Size (size [self] :-> int))
+(impl Size :int     (size [n] n))
+(impl Size :string  (size [s] (count s)))
+(impl Size :default (size [_] -1))
+```
+
+**Provided ops — implement the required ones, inherit the rest.** An op spec with a
+**body** — `(op [args] :-> ret? body…)` — is *provided*: its body becomes the op's
+`:default` impl. An `impl` supplies only the bodyless **required** ops and inherits the
+provided ones; to override a provided op, add its method to that type's `impl` (same form).
+This is Rust/Haskell provided methods / Elixir's derived defaults:
+
+```lisp
+(defability Ord
+  (compare-to [self other] :-> int)                          ; required
+  (lt [self other] :-> bool (< (compare-to self other) 0)))  ; provided
+(impl Ord money/amount (compare-to [a b] (- (cents a) (cents b))))
+(lt (amount 1) (amount 2))     ;=> true   — free, via the provided default
+```
+
+**Deriving — `:derives` auto-generates an impl.** An ability declares a `:derive-record`
+recipe (field names → `impl` method forms); a record opts in with `:derives [A]` (Elixir
+`@derive` / Rust `#[derive]`). The recipe runs at load, so the `defability` must precede the
+record's use; deriving an ability with no recipe is a clean error.
+
+```lisp
+(defability Columns
+  (columns [self] :-> vector)
+  :derive-record (fn (fs) (list `(columns [r] [~@(map (fn (f) `(get r ~(keyword (name f)))) fs)]))))
+(defrecord point (x y) :derives [Columns])
+(columns (point 3 4))          ;=> [3 4]   — synthesized, no impl written
+```
+
+Other things worth knowing:
+
+- **Every `defrecord` value carries a nominal identity** — so it dispatches on its own
+  `:module/name` id, and two record shapes dispatch apart even with identical fields. A
+  plain map (even one carrying a `:type` field) is *never* rerouted — it dispatches as
+  `:map`; identity comes only from `defrecord`, never sniffed.
+- **A record is still a map underneath.** `(type-of r)` is `:map`, and `get`/`assoc`
+  behave as on a map — `(get r :__id__)` even reaches the id. But a record is **NOT `=`**
+  to a bare map with the same fields (nominal, Elixir-struct semantics), and its
+  **collection view is the fields, id-free**: `seq`/`count`/`keys`/`vals`/`map`/`fold`
+  over a record see its fields, never `:__id__` (via the `Seqable` ability). Use
+  `record?`/`record-id`/`fields` to test/read the identity explicitly.
+- **Match a record by id + fields** with `(record name {:k p …})` — the `name` fixes the
+  nominal id (bare = current ns, or `mod/name`) and the optional `{…}` is a map pattern over
+  its fields (`{:k p}` / `:keys` / `:or` compose); a plain map or a different record fails.
+  Over a *sealed* ability's members, `nest check` flags a non-exhaustive `match`.
+- **A driver is just a value.** `(fetch db k)` picks its impl from `db`, so swapping
+  the backend means passing a different record — no config indirection.
+- **`:sealed [id …]`** declares a closed member set and makes `nest check` demand an
+  impl of every **required** op for every member (a provided op is covered by its
+  default, so it is not demanded; a derived record counts as implementing every op).
+- **Ability bounds — a sealed ability name in a `sig` is a bound.** `(sig area (Shape -> float))`
+  reads "any `T` implementing `Shape`"; `(and Shape Size)` demands both (`T: Shape + Size`).
+  Sealed only — an *open* ability can't be a sound bound (late binding could add a member
+  later), so the checker ignores an open-ability name in a sig rather than under-warning
+  (ADR-192). This is what gives occurrence typing its nominal domains too.
+- **Super-abilities — `(defability B (:requires A) …)`.** A conformance contract: every
+  implementor of `B` must also satisfy `A`, and `nest check` demands it (ADR-193). Checker-only,
+  no runtime dispatch change; `:requires [A C]` chains several.
+- `(satisfies? 'Shape x)` to branch instead of letting a missing op raise.
+- **Register at load time.** Top-level `impl` forms are safe; two *processes* calling
+  `impl` concurrently can lose an update (it is a `def` under the hood).
+- `defbehaviour` (`(require 'protocol)`) is the *other* seam — a contract a **module**
+  satisfies by defining plain functions, claimed with `(:implements Name)` in the
+  header. No value dispatch. Use it when the implementor is a namespace, not a value.
+- **`defprotocol`/`defimpl` no longer exist** (retired, ADR-168). If you were about to
+  write one, write an ability.
+
+### The abilities `std/` already ships (ADR-177)
+
+`impl` one of these for your own record and that library accepts your type — you don't
+edit the library. Beyond the core `Display` (`to-str`, what `println` shows) and `Inspect`
+(`inspect`, the debug form):
+
+| `impl` this | to get |
+|---|---|
+| `JsonEncode` — `(to-json x)`, from `json` | `json-encode` handles your type (a record's wire shape; a pid/fn/datetime at all). **No `:default`** — an unimpl'd kind still errors loudly. |
+| `Port` — `(io-write p s)`, from `io` | your value is an output port (`with-out`, logger sinks). A bare 1-arg fn already is one. |
+| `LogBackend` — `(backend-emit b rec)`, from `log` | a backend that batches / emits JSON lines / samples. `backend-passes?` is the stock level+filter gate. |
+| `Response` — `(send-response r sock)`, from `net/http` | a response kind with its own wire behaviour, including who closes the socket. |
+| `Dependency` (**sealed**), from `package` · `Temporal` — `(to-iso x)` (**sealed**), from `datetime` | a new manifest dep kind / calendar type. Sealed ⇒ `nest check` demands every op. |
+
+Also: `std/`'s value types are **records**, not plain maps — `buffer`, `queue`, `pq`,
+`multimap`, `datetime`/`date`/`time-of-day`, and the four dependency kinds. So
+`(buffer? x)` / `(queue? x)` / `(date? x)` are identity checks a look-alike map fails, each
+prints as itself (`#<buffer *scratch* 11 chars>`, `2026-07-29T…Z`) rather than dumping its
+internals, and **none of them is `=` to a map with the same fields** — build them with
+their constructors, and don't compare one against a map literal in a test. Where a library
+renders a *user* value to text (`template/render`, `csv-emit`, `url/query-encode`) it calls
+`to-str`, so your `Display` impl governs that output too.
+
 ## Patterns (`let`, `fn`, `match`, `receive`)
 
 The trap: a bare symbol *binds*, it doesn't match. To match a known value,
@@ -256,15 +424,21 @@ x                bind x; a repeated x is an equality constraint (non-linear)
 (p1 p2 ...)      list of exact length
 (p1 & rest)      head(s) + tail
 [p1 p2 ...]      vector of exact length (the tuple / tagged-data idiom)
-{:keys [a b]}    map — bind a,b to (:a m),(:b m); {:keys [a] :or {a 0}} defaults absent keys
-                 ONLY :keys/:or — any other key ({:a v}, :as) is an ERROR, not
-                 ignored; {} matches any map. Reach nested values with get/get-in.
+{:keys [a b]}    map DESTRUCTURING — bind a,b to (:a m),(:b m); absent key binds nil
+                 (or its :or default) and never fails. {} matches any map.
+{:k pat}         map PATTERN — key must be PRESENT and its value match pat; nests
+                 ({:user {:id id}}). Mixes with :keys in one pattern. `:as` is an
+                 ERROR here (it would test for an :as KEY) — use (and m {…}).
 (bytes seg ...)  bytes value, bit-syntax style: byte/#b"…" literals; x = one byte;
                  (x n) = n bytes as sub-bytes (n may be an earlier binding);
                  (x :u16) (x :i32-le) ... = typed int, big-endian default; & rest
 
-(or p q)         NOT a pattern — an ERROR. Brood has no alternative/boolean
-(and …) (not …)  patterns: write one clause per alternative, or use a :when guard.
+(or p q …)       any alternative — first match wins. Every alternative must bind
+                 the SAME names (else a compile error).
+(and p q …)      every pattern, same value, left to right — this is Brood's `:as`:
+                 (and whole {:keys [a]}) captures the map AND destructures it.
+(not …)          NOT a pattern — an ERROR (it binds nothing, so it's a guard):
+                 write (x :when (not …) body…).
 ```
 
 ```lisp
@@ -326,6 +500,14 @@ is an error, because in `match` a bare symbol silently *binds* instead of compar
 ```lisp
 (case status :ok :fine :missing :gone (handle-other status))
 ```
+
+**A keyword is callable — `(:name p)` ≡ `(get p :name)`** (ADR-165), and it is a
+first-class value, so `(map :name people)` / `(sort-by :id rows)` / `(filter :cursor
+zones)` all work. That is the point: no throwaway `(fn (p) (get p :name))`. Receivers
+mirror `get` (map by key, set by membership, `nil` empty); anything else — notably a
+*list of maps* — is a type error naming the keyword. Use `(get m k)` when the key is
+computed; `(:k m)` can only mean the literal `:k`. **Nothing else data-like is
+callable**: `({:a 1} :a)`, `([10 20] 1)`, `(#{1} 1)` are all errors with hints.
 
 **`assoc` / `update` / `get` work on a vector by integer index, not just maps.**
 `(assoc v i x)` returns a fresh vector with index `i` replaced (in range only —
@@ -461,15 +643,36 @@ and registers the new pid. The name is auto-reaped on death.
 (spawn (worker))                                   ; fire-and-forget; crashes exit the process
 (spawn :ticker (ticker 0))                         ; named + idempotent
 
-;; Userland supervisor — re-spawn on crash:
+;; Userland supervisor — re-spawn on crash. `^ref` PINS the ref (match the value
+;; in `ref`, don't rebind); `~` is quasiquote-only and is a compile error here.
 (defn supervise (worker-fn)
   (let (pid (spawn (worker-fn)) ref (monitor pid))
     (receive
-      ([:down ~ref _ :normal] :ok)
-      ([:down ~ref _ reason]
+      ([:down ^ref _ :normal] :ok)
+      ([:down ^ref _ reason]
         (println "child died: " (pr-str reason) " — restarting")
         (supervise worker-fn)))))
 ```
+
+**`(spawn-link expr)` when you need the child's death to reach you** — it spawns
+and `link`s **atomically**, which a hand-rolled `(let (p (spawn expr)) (link p) p)`
+does *not*: a child that exits inside that gap is linked dead and reports
+`:noproc`, silently **replacing** its real reason, so a fast `:normal` return
+reads as a crash. Links are symmetric (either side's abnormal death takes the
+other down, or arrives as a trappable `[:EXIT pid reason]` after
+`(trap-exit true)`), and `spawn-link` takes one expression like `spawn` — no
+named form.
+
+```lisp
+(trap-exit true)
+(let (p (spawn-link (worker)))                     ; linked before the child runs
+  (receive ([:EXIT ^p :normal] :done)              ; true reason, never :noproc
+           ([:EXIT ^p reason]  (restart reason))))
+```
+
+Use it for anything supervised — `std/proc/supervisor.blsp`'s `:start` thunks are
+`(fn () (spawn-link (worker …)))`, and `proc/gen`'s `spawn-server-link` is the
+same idea for a `defprocess` server.
 
 ## Distributed nodes — named processes & cross-node addressing
 
@@ -732,24 +935,35 @@ in the REPL. (`nest doc <module>` does the same for an opt-in module like
   `[k v]` pairs; lists, vectors, strings, nil pass through). **Maps are seqable**:
   `(map f m)` / `(filter f m)` / `(fold f acc m)` / `(reduce f acc m)` /
   `(count m)` / `(into [] m)` all walk the map as its `[k v]` pairs — no need
-  for `(zip (keys m) (vals m))`. Iteration order is hash-driven (ADR-040), so
-  compare via `frequencies` when order would otherwise matter.
-- **set** (`(:use set)` in your `defmodule` header — `(require 'set)` alone
-  leaves the names qualified, `set/union`): a set is a **map of `element →
-  true`**, so
-  membership is `(contains? s x)`, elements `(keys s)`, size `(count s)`, and it's
-  seqable like any map. The module adds `(set coll)` (dedups), `conj`/`disj`,
-  `union`/`intersection`/`difference`/`subset?`. `(set [[0 0] [1 2]])` is the
-  natural live-cell model (structural vector keys). No `#{…}` literal or `set?`
-  yet (deferred) — test a set with `map?`.
+  for `(zip (keys m) (vals m))`. Iteration order (`keys`/`vals`/print/`seq`) is
+  **hash-derived (ADR-040), NOT insertion order and NOT sorted** — don't rely on
+  it; `(sort (keys m))` for a defined order, or compare via `frequencies`.
+- **set**: a **first-class kernel value** (`Value::Set`, ADR-060), written with a
+  `#{1 2 3}` literal (evaluates its elements and dedups). It is its *own* kind:
+  `(set? s)` is true, `(map? s)` is **false**, `(type-of s)` is `:set`, it prints
+  `#{…}`, and a set is **never** `=` to a map. It's a full member of the collection
+  protocol with no import: `(contains? s x)` tests membership, `(conj s x)`/`(disj s
+  x)` add/remove, `(get s x)` returns the *element* (not an index) or nil, `(count
+  s)`/`(first s)`/`map`/`fold`/`into`/`vec`/`seq` treat it as its elements, and
+  `(into #{} coll)` pours-and-dedups. `#{[0 0] [1 2]}` is the natural live-cell model
+  (structural vector keys). The **`set` library** (`(:use set)` — `(require 'set)`
+  alone leaves names qualified, `set/union`) adds only the set-specific extras:
+  `(set coll)` (build from a collection, dedups) and the algebra
+  `union`/`intersection`/`difference`/`subset?`.
 - **types**: `type-of` plus the `?` predicates — `int?` `float?` `string?`
-  `symbol?` `keyword?` `bool?` `nil?` `pair?` `vector?` `map?` `fn?` `ref?`
+  `symbol?` `keyword?` `bool?` `nil?` `pair?` `vector?` `map?` `set?` `fn?` `ref?`
   `pid?`
 - **arithmetic**: variadic `+ - * /`; comparison variadic chains
   `< > <= >= =`; `inc` `dec` `abs` `min` `max`; integer division `quot`
   (truncating) / `rem` (truncated remainder) / `mod` (Euclidean);
   `floor` `ceil` `round` `round-to` (round to N decimals, stays a number)
   `pow` `sqrt`. Integer `+ - *` **error on overflow** (they don't wrap).
+  **`/` is exact** (ADR-196): `(/ 1 2)` → `1/2` (a **ratio**, not a float),
+  `(/ 6 3)` → `2` (divides evenly → int). `1/2` is a literal; ratios do the full
+  tower (ratio+decimal is exact, ratio+float contagion). Reach for `->float`
+  (or `->decimal`) for an inexact result; `numerator`/`denominator` read the parts.
+  Number types: `int` (bignum on overflow) · `float` · `decimal` (`1.50M`, exact
+  base-10) · `ratio` (`1/2`, exact rational). `number?`/`ratio?`/`decimal?` test them.
 - **bitwise**: `bit-and` `bit-or` `bit-xor` `bit-not` `bit-shift-left`
   `bit-shift-right` (64-bit, arithmetic right shift; shift amount in `[0,64)`).
 - **randomness** (pure & seedable — there is *no* global RNG; thread the seed):
@@ -769,6 +983,11 @@ in the REPL. (`nest doc <module>` does the same for an opt-in module like
 - **timing**: `now` (ms since epoch) `now-ns` (ns since epoch) `bench`
   (macro: `(bench "label" expr)` prints `label: N ms`, returns `expr`)
 - **I/O**: `print` `println` `slurp` `spit` `load` `eval-string` `read-string`.
+  `print`/`println` **space-join** their args (Python-style, via `%render`) —
+  distinct from `str`, which concatenates. A **record** defines how it prints on screen
+  (Elixir's `String.Chars`) via the core, always-on `Display` ability: just
+  `(impl Display my/rec (to-str [r] …))` and the screen printers honor it — no require,
+  no activation step; built-ins unchanged (ADR-171/172).
   `print`/`println` **flush stdout every call** — there's no separate flush, so
   an animation frame paints immediately. For raw terminal control without the
   full display protocol, `(:use editor/ansi)` in your `defmodule` header (a bare
@@ -780,8 +999,9 @@ in the REPL. (`nest doc <module>` does the same for an opt-in module like
   ESC byte is the `\e` string escape. (For a render-op frame buffer, use
   `std/display`.)
 - **Filesystem (stat-class)**: `file-exists?` `dir?` `list-dir` `file-mtime` `file-stat`
-- **processes**: `spawn` (incl. named-spawn `(spawn :name expr)`)
-  `send` `receive` `self` `ref` `monitor` `demonitor` `register` `whereis`
+- **processes**: `spawn` (incl. named-spawn `(spawn :name expr)`) `spawn-link`
+  `send` `receive` `self` `ref` `monitor` `demonitor` `link` `unlink` `trap-exit`
+  `register` `whereis`
   — plus the **`proc/gen`** framework below
 - **lazy fusing views**: `lmap` `lfilter` `lkeep` `lremove` (thread with `->>`;
   realise with `seq`/`into`) plus `comp` for function composition

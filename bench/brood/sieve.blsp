@@ -10,7 +10,8 @@
 (defn mark (p j) (if (> j n) nil (do (table-put composites j true) (mark p (+ j p)))))
 
 (defn sieve (p)
-  (if (> (* p p) n) nil
+  (if (> (* p p) n)
+    nil
     (do (if (table-has? composites p) nil (mark p (* p p))) (sieve (+ p 1)))))
 
 (defn count-primes (k acc)
