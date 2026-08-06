@@ -23,16 +23,17 @@ arm's native code *and* its bytecode — compiled once per runtime, not once per
 
 Ratios are Brood's compute vs the fastest language on that row.
 
-- **`spawn-live` (2.13 s, 1.58 GB — 2.9× slower, 1.75× heavier than the BEAM).** ~5.3 KB per live
-  process against ~3.1 KB. Moved 2026-08-05 (−16% wall, −26% CPU, A/B-corroborated): the previous
+- **`spawn-live` (1.93 s, 1.57 GB — 2.8× slower, 1.75× heavier than the BEAM).** ~5.4 KB per live
+  process against ~2.9 KB. Moved 2026-08-05 (−16% wall, −26% CPU, A/B-corroborated): the previous
   entry claimed compiled code was no longer the cause, which was true of the mechanism and false in
   practice — sharing was keyed by the closure *handle*, and a no-capture closure is promoted afresh
   per creation, so 300k `spawn` thunks and 300k `receive` matchers each compiled their own copy
   (100,154 compiles per 100,000 units, 8.1 µs each). Keyed by AST now (ADR-215).
-  Next, and quantified: **inline caches are still per-process** — a unit misses ~half its call
-  sites, so its work costs ~16 µs cold against 3.7 µs warm. The obstacle is the call-site-id scheme
-  (dense per-process indices baked into shared code), not the sharing. Beyond that the process floor
-  is partly unattributed and wants a real allocation profile.
+  Moved again 2026-08-06 (−9% wall, −11% CPU): `fold` now walks a vector by index, where coercing
+  through `seq` and `first`/`rest` made `(rest v)` materialise the tail as a list — 27.7 → 15.0
+  allocations per unit. Next, and newly quantified: **the receive machinery**, the largest step in a
+  rung-by-rung decomposition of this row (+8.7 µs/unit). See the lever below. Beyond that the
+  process floor is partly unattributed and wants a real allocation profile.
 - **`nbody` (~11× Node, ~25× .NET)** — was ~23×/~54× until 2026-07-30; now 4/7, within 1.2× of
   Elixir. The cause was not the immutable rebuild this entry once blamed: the tier-time profile
   types an arm's *parameters* only, so a function whose floats arrive from a `def`'d constant read
@@ -77,14 +78,18 @@ lightest of the compiled-class runtimes.
 
 ## Levers (rough priority)
 
-1. **Per-process inline caches — the top lever, newly measured.** A fresh unit resolves every call
-   site cold (~4 call-IC + 1 global-IC miss for a unit doing almost nothing), so a 16-element fold
-   costs ~16 µs there against 3.7 µs warm. Sharing them needs a **call-site id scheme first**: ids
-   are dense per-process indices baked into shared `Node::Call`s, so naive sharing forces every
-   process's IC vectors to the global maximum (21 sites for a unit vs 251 for the root) and costs
-   more than it saves. Options: sparse per-process storage, per-arm numbering with a block table, or
-   sharing the block with a race design.
-2. **The green-process floor (~5.3 KB live vs the BEAM's ~3.1 KB)** — the rest of `spawn-live`.
+1. **The receive machinery — the top lever, newly measured (2026-08-06).** A rung-by-rung
+   decomposition of `spawn-live` puts +8.7 µs/unit here, the largest single step, and it is not the
+   mailbox: a `receive` whose pattern **compares a literal** — `[:go v]`, `[:reply ^r v]`, i.e.
+   essentially every real one — generates a matcher closure that lowers to native, deopts on every
+   activation, and is then blacklisted, so each candidate message pays the interpreter's call
+   trampoline instead of the JIT's fast frame. The control is exact: the structurally identical
+   bind-only pattern `[a v]` does the same `vector?`, `vector-length` and two `vector-ref`s, reaches
+   the fast frame, and runs **28% faster** on a receive loop. Reach is every message-passing row
+   (`latency`, `pingpong`, `supervisor`), not just this one. What is not yet known is *which* guard
+   in the lowering deopts — the equality itself has been excluded. See the brood repo's
+   `docs/handoff.md` §1.
+2. **The green-process floor (~5.4 KB live vs the BEAM's ~2.9 KB)** — the rest of `spawn-live`.
    Attributed: IC tables ~536 B, `Box<Process>` (the inline `Heap` is 1376 B), `Arc<Mailbox>` 184 B,
    `Suspended` 128 B. **Working state, not slack** — three tunings were measured and reverted (see
    ruled-out). Closing needs it *smaller*, not dropped: shrink `CallIcEntry`, or share IC entries
@@ -119,6 +124,14 @@ lightest of the compiled-class runtimes.
   restricting it to the first park barely helped (+11.5% / +16.9%) — the cost is a process
   losing caches it built at startup and rebuilding them entering its hot loop, not the
   frequency of dropping.
+- **Per-process inline caches — withdrawn as a lever (2026-08-05).** This list's top item for two
+  revisions, on the strength of a counter: a fresh unit misses ~half its call sites. The counter was
+  true and the inference wrong. Sized against the `ns_*` timers it is ~2 µs of a 33 µs unit, and a
+  purpose-built A/B found a *cached* callee no faster than re-resolving one on the VM — the computed
+  head measured slightly **faster**, because the global path pays an IC probe and validation while
+  the computed path reads a slot. On a short-lived process the IC arm is worse still, since it pays
+  install and tiering cost it never amortises. A high miss *rate* is unavoidable on a process that
+  makes five calls; it is not the same as a high cost.
 - **Splitting shared compiled code from per-process JIT-tier state.** The `collatz`/
   `nqueens` regression that motivated it is an artifact of `make ab`'s single-core pin —
   the background JIT compiler competes with the benchmark for that core. Unpinned, and
