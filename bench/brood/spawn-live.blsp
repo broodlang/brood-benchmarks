@@ -21,7 +21,7 @@
 ;;
 ;; Checksum = N * (sum of the payload + 1).
 (def n (let (e (getenv "BENCH_N")) (if e (string->number e) 300000)))
-(def payload (into [] (range 16)))   ; 0..15, sum 120 — contiguous, like every other port
+(def payload (into [] (range 16))) ; 0..15, sum 120 — contiguous, like every other port
 (def me (self))
 
 ;; Each unit parks holding its own id, then folds the payload it receives.

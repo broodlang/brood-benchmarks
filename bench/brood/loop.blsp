@@ -4,6 +4,6 @@
 ;; Accumulate the index (not a constant), so the checksum = sum 0..n-1 is
 ;; path-dependent — it catches an off-by-one in the loop bound, which `+ 1`
 ;; (checksum = n, just echoing the input) would not.
-(defn loop--acc (i acc) (if (>= i n) acc (loop--acc (+ i 1) (+ acc i))))
+(defn- loop-acc (i acc) (if (>= i n) acc (loop-acc (+ i 1) (+ acc i))))
 
-(println (loop--acc 0 0))
+(println (loop-acc 0 0))
