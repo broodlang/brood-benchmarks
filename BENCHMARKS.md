@@ -338,7 +338,9 @@ the VM a cached callee resolves no faster than an uncached one, so the IC is wor
 unit, not the top item. What the decomposition found instead: a `receive` whose pattern compares a
 literal — `[:go v]`, i.e. essentially every real one — generates a matcher that never reaches the
 JIT's native fast frame, so each candidate message pays the interpreter's call trampoline. The
-structurally identical bind-only pattern `[a v]` does reach it and runs 28% faster.
+structurally identical bind-only pattern `[a v]` does reach it and runs ~17% faster — though the
+deopt that looked like the cause was measured and is worth ~0–5%, so what actually costs the gap is
+still open.
 `(hibernate)` returns most of a process's memory explicitly. See [FRONTIER.md](FRONTIER.md).
 
 ### The coroutine runtimes, for context

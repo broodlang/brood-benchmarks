@@ -85,9 +85,17 @@ lightest of the compiled-class runtimes.
    activation, and is then blacklisted, so each candidate message pays the interpreter's call
    trampoline instead of the JIT's fast frame. The control is exact: the structurally identical
    bind-only pattern `[a v]` does the same `vector?`, `vector-length` and two `vector-ref`s, reaches
-   the fast frame, and runs **28% faster** on a receive loop. Reach is every message-passing row
-   (`latency`, `pingpong`, `supervisor`), not just this one. What is not yet known is *which* guard
-   in the lowering deopts — the equality itself has been excluded. See the brood repo's
+   the fast frame, and runs **~17% faster** on a receive loop (clean `--release` medians, N=300k;
+   an earlier 28% here came from a perf-stats build measured against a weaker control, and part of
+   even 17% is the bind-only arm doing *different* work rather than less overhead). Reach is every
+   message-passing row (`latency`, `pingpong`, `supervisor`), not just this one.
+
+   **Sized before you build: the obvious fix is not the fix.** The deopting guard is now known —
+   `eq_dispatch`'s non-interned fallthrough — and routing it away from the deopt takes the arm from
+   ~282k deopts to **0** while still lowering, yet buys **~0–5%, inside the noise**, and leaves
+   `jit_link_done` at 0. So the deopt is *not* why the matcher misses the fast frame, and a
+   non-deopting `=` fallback was designed and deliberately not built. The open question is why an
+   arm that lowers and no longer deopts still fails to link. See the brood repo's
    `docs/handoff.md` §1.
 2. **The green-process floor (~5.4 KB live vs the BEAM's ~2.9 KB)** — the rest of `spawn-live`.
    Attributed: IC tables ~536 B, `Box<Process>` (the inline `Heap` is 1376 B), `Arc<Mailbox>` 184 B,
