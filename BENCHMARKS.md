@@ -211,11 +211,30 @@ process. Testing it first with the one-call `vector?` predicate is pure reorderi
 are disjoint — and nothing regresses: on 300k small folds, vector 533 → 410 ns, **range 230 → 183**
 (it improves despite paying an extra check first), list 3595 → 3248.
 
-**Base RSS moved the wrong way: 22.1 → 23.2 MB.** Some of that is the run-to-run spread this
-figure has shown all along (22.4 → 22.1 across the previous two runs), but 1.1 MB is larger than
-that, and it lands on a figure already flagged as up from 18.6 MB and undiagnosed. Not attributed
-to this run's changes — a native reduce and a reordered `if` do not plausibly cost a megabyte of
-base image — but recorded rather than smoothed over.
+**Base RSS reads 23.2 MB against the previous run's 22.1 — and that is NOT a regression;
+the figure's noise floor is far larger than the movement.** Chased on 2026-08-10 rather than
+carried forward as "undiagnosed" a fourth time. Three lean builds of the relevant commits,
+built identically and measured warm:
+
+| commit | binary | warm base RSS |
+|---|---|---|
+| `4f49a38f` (before brotli) | 39.20 MB | 21.5 MB |
+| `877ccec5` (brotli added) | 40.41 MB | 21.3 MB |
+| `853afe6f` (this run) | 40.43 MB | 21.8 MB |
+
+**+0.3 MB across the whole window.** Two things fall out. Brotli added **1.2 MB of binary and
+zero RSS** — code that never executes at boot is never paged in, so "the binary grew" does not
+imply "the footprint grew", and the reflex to attribute base RSS to new dependencies is wrong
+here. And the metric is **bimodal**: a cold expanded-prelude boot costs **~42 MB** against
+**~22 MB** warm, an 18.9 MB swing that depends only on whether the boot cache is populated.
+That is what the historical spread tracks — published base RSS has ranged 12.8–27.9 MB across
+runs, including 27.9 on 2026-07-24 and 19.2 two days later, and no code change explains
+movements of that size.
+
+So: report base RSS as ~22–23 MB with a noise floor of at least a megabyte, and treat a
+sub-2 MB movement as drift unless a controlled build says otherwise. The earlier 18.6 → 22.4
+step is a different question, predates this window, and remains attributed to the crypto
+dependencies plus ADR-215.
 
 **`startup` improved 17.6 → 16.1 ms** and the compute aggregate 2.9× → 2.8× the fastest. Neither
 is attributed to anything in this window; both are inside the drift these rows show.
@@ -414,8 +433,9 @@ this run, the ~2% the native vector fold was A/B'd as costing).
   across the suite; the exceptions are the allocation-heavy rows (`sort` 194 MB, `supervisor`
   464 MB, `spawn-live` 1.6 GB). **It went the wrong way three runs ago — 18.6 → 22.4 MB** across
   three brood changes (~2 MB with new crypto dependencies, ~1 MB in the ADR-215 commit — not its
-  shared cache, whose off-switch accounts for ~40 kB) — and has now moved again, 22.1 → 23.2.
-  Undiagnosed, and no longer flat.
+  shared cache, whose off-switch accounts for ~40 kB). The 22.1 → 23.2 movement in this run is
+  **not** a further regression — see the base-RSS note above: controlled builds put the whole
+  window at +0.3 MB, and this metric swings ~19 MB on boot-cache state alone.
 - **Startup**: Brood ~18 ms, 2nd behind Python (10 ms); Node 18, .NET 22, Ruby 39, Elixir 187,
   Clojure 340. Brood and Node are within a millisecond of each other and trade places run to run.
 
