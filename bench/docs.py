@@ -18,7 +18,8 @@ previous run).
 import re
 import sys
 
-from common import COMPUTE, LANG_COL, PRETTY, ROOT, compute, geomean, load
+from common import (CHART_ROWS, COMPUTE, LANG_COL, PRETTY, ROOT, compute, geomean,
+                    load)
 
 DOCS = [ROOT / "BENCHMARKS.md", ROOT / "README.md"]
 
@@ -161,7 +162,24 @@ def overall_numbers(res, starts):
         g = geomean([compute(res, starts, r, l) for l in langs if l != "brood"])
         if b and g:
             avg_ratios.append(b / g)
+    # The OVERALL figure the positioning chart plots: a geomean of per-row ratios across
+    # every row all seven languages implement, not just the eleven single-threaded ones.
+    # Kept here so the chart and the standings table cannot drift apart — they were two
+    # different aggregates over two different row sets until 2026-08-10, which is exactly
+    # the kind of quiet disagreement `docs.py` exists to prevent.
+    all_langs = [l for l in res["startup"]["langs"]
+                 if all(compute(res, starts, r, l) is not None for r in CHART_ROWS)]
+    all_best = {r: min(compute(res, starts, r, l) for l in all_langs) for r in CHART_ROWS}
+    all_geo = {l: geomean([compute(res, starts, r, l) / all_best[r]
+                           for r in CHART_ROWS if all_best[r]]) for l in all_langs}
+    all_order = sorted(all_geo, key=lambda l: all_geo[l])
+
     return {
+        "agg_all": all_geo.get("brood"),
+        "agg_all_rank": all_order.index("brood") + 1 if "brood" in all_order else None,
+        "agg_all_rows": len(CHART_ROWS),
+        "agg_all_field": " · ".join(f"{PRETTY[l]} {all_geo[l]:.1f}"
+                                    for l in all_order if l != "brood"),
         "agg_avg": sums["brood"] / field_geo if field_geo else None,
         "beats_avg": sum(1 for x in avg_ratios if x < 1.0),
         "navg": len(avg_ratios),
@@ -344,6 +362,8 @@ def standings_block(res, starts):
         f"{field('startup', 'wall_ms', ' ms')} |",
         f"| base RSS | {res['startup']['langs']['brood']['rss_kb']/1024:.1f} MB | "
         f"{field('startup', 'rss_kb', ' MB', 1/1024)} |",
+        f"| overall speed — geomean of all {o['agg_all_rows']} rows every port implements "
+        f"| {o['agg_all']:.1f}× the fastest ({o['agg_all_rank']}/7) | {o['agg_all_field']} |",
         f"| aggregate single-threaded compute | {o['agg']:.1f}× the fastest | "
         + " · ".join(f"{PRETTY[l]} {v:.1f}" for l, v in o["field"]) + " |",
         f"| aggregate vs the field's average | **{o['agg_avg']:.2f}×** | "

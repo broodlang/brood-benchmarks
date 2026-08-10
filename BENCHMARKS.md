@@ -177,7 +177,9 @@ Against the rest of the field, for context:
 | `pingpong` | 176ms | **202ms** | 650ms | 602ms | 830ms | 595ms | 2/6 | 🟠 +1.2× | 🟢 −2.5× |
 | `ring` | 862ms | **726ms** | 119ms | 4.5s | 4.7s | 3.5s | 2/6 | 🔴 +6.1× | 🟢 −2.1× |
 
-Brood is never last above; it **is** last on `spawn-live`, below. The field drifts ±10%
+Brood is never last above; it **is** last on `spawn-live`, below. Note the tables above are the
+eleven single-threaded compute rows — the positioning map in the README aggregates all 27 rows
+every port implements, where Brood sits 4th of seven rather than 3rd. The field drifts ±10%
 run-to-run, so read orderings, not digits. (`spawn-live`, `supervisor` and `latency` are outside
 the field-wide aggregate: subset of languages, and `latency` is percentiles.)
 
