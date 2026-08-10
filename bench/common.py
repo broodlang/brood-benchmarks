@@ -23,6 +23,30 @@ RESULTS = ROOT / "results" / "results.json"
 COMPUTE = ["fib", "loop", "reduce", "primes", "collatz", "mandelbrot",
            "matmul", "strings", "wordcount", "bintree", "sort"]
 
+# Rows the POSITIONING CHART aggregates. `COMPUTE` is the eleven pure single-threaded
+# rows and stays that, because "aggregate single-threaded compute" in the standings is a
+# claim about exactly those. The chart is a different claim — "where does this runtime
+# land overall" — and it was quietly answering it with 11 of the 27 rows every language
+# implements, so fifteen fully-comparable rows (nqueens, nbody, json, regex, base64,
+# pipeline, sieve, ackermann, errors, errors-deep, persistent-map, spawn, pfib, http,
+# pingpong, ring) never reached the picture at all.
+#
+# Excluded here and why: `startup` is subtracted from every other row rather than being
+# one; `latency` is percentiles, so it has no wall time to aggregate; `_meta` is not a
+# benchmark. `supervisor` runs in two languages, which is too few to place anyone.
+# `spawn-live` runs in five and is handled as the overlay below rather than dropped.
+CHART_ROWS = ["fib", "loop", "reduce", "primes", "collatz", "mandelbrot", "matmul",
+              "strings", "wordcount", "bintree", "sort", "nqueens", "errors",
+              "errors-deep", "pipeline", "ackermann", "sieve", "persistent-map",
+              "nbody", "json", "regex", "base64", "spawn", "pfib", "http",
+              "pingpong", "ring"]
+
+# The process-model row. Only five ports have it (Clojure and Ruby have none), so it
+# cannot go in an aggregate compared across all seven without comparing different work.
+# The chart therefore plots it as a second marker for those five, which is the only
+# honest way to show a row that a third of the field does not implement.
+CHART_OVERLAY_ROW = "spawn-live"
+
 # Markdown column heading -> results.json key.
 LANG_COL = {".NET": "dotnet", "Elixir": "elixir", "Node": "node", "Brood": "brood",
             "Ruby": "ruby", "Python": "python", "Clojure": "clojure"}
