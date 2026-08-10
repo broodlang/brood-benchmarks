@@ -23,17 +23,20 @@ arm's native code *and* its bytecode — compiled once per runtime, not once per
 
 Ratios are Brood's compute vs the fastest language on that row.
 
-- **`spawn-live` (1.93 s, 1.57 GB — 2.8× slower, 1.75× heavier than the BEAM).** ~5.4 KB per live
-  process against ~2.9 KB. Moved 2026-08-05 (−16% wall, −26% CPU, A/B-corroborated): the previous
+- **`spawn-live` (1.75 s, 1.60 GB — 2.5× slower, 1.8× heavier than the BEAM).** ~5.5 KB per live
+  process against ~3.1 KB. Moved 2026-08-05 (−16% wall, −26% CPU, A/B-corroborated): the previous
   entry claimed compiled code was no longer the cause, which was true of the mechanism and false in
   practice — sharing was keyed by the closure *handle*, and a no-capture closure is promoted afresh
   per creation, so 300k `spawn` thunks and 300k `receive` matchers each compiled their own copy
   (100,154 compiles per 100,000 units, 8.1 µs each). Keyed by AST now (ADR-215).
   Moved again 2026-08-06 (−9% wall, −11% CPU): `fold` now walks a vector by index, where coercing
   through `seq` and `first`/`rest` made `(rest v)` materialise the tail as a list — 27.7 → 15.0
-  allocations per unit. Next, and newly quantified: **the receive machinery**, the largest step in a
-  rung-by-rung decomposition of this row (+8.7 µs/unit). See the lever below. Beyond that the
-  process floor is partly unattributed and wants a real allocation profile.
+  allocations per unit. And again 2026-08-10 (−8% wall, **−16% CPU**): the vector fold moved into a
+  native counted loop that resolves a passthrough reducer like `+` once instead of per element, and
+  `fold` now tests a vector first in its type dispatch instead of last. **The receive machinery was
+  named here as what came next and has since been measured and retired** — worth ~1.8% of this row,
+  inside the noise (see ruled-out). What is left is the process floor, which none of the four wins
+  touched, and which wants a real allocation profile.
 - **`nbody` (~11× Node, ~25× .NET)** — was ~23×/~54× until 2026-07-30; now 4/7, within 1.2× of
   Elixir. The cause was not the immutable rebuild this entry once blamed: the tier-time profile
   types an arm's *parameters* only, so a function whose floats arrive from a `def`'d constant read
@@ -78,30 +81,22 @@ lightest of the compiled-class runtimes.
 
 ## Levers (rough priority)
 
-1. **The receive machinery — the top lever, newly measured (2026-08-06).** A rung-by-rung
-   decomposition of `spawn-live` puts +8.7 µs/unit here, the largest single step, and it is not the
-   mailbox: a `receive` whose pattern **compares a literal** — `[:go v]`, `[:reply ^r v]`, i.e.
-   essentially every real one — generates a matcher closure that lowers to native, deopts on every
-   activation, and is then blacklisted, so each candidate message pays the interpreter's call
-   trampoline instead of the JIT's fast frame. The control is exact: the structurally identical
-   bind-only pattern `[a v]` does the same `vector?`, `vector-length` and two `vector-ref`s, reaches
-   the fast frame, and runs **~17% faster** on a receive loop (clean `--release` medians, N=300k;
-   an earlier 28% here came from a perf-stats build measured against a weaker control, and part of
-   even 17% is the bind-only arm doing *different* work rather than less overhead). Reach is every
-   message-passing row (`latency`, `pingpong`, `supervisor`), not just this one.
+1. **The green-process floor (~5.5 KB live vs the BEAM's ~3.1 KB)** — now the top lever on
+   `spawn-live`, by elimination. Attributed: IC tables ~536 B, `Box<Process>` (the inline `Heap` is
+   1376 B), `Arc<Mailbox>` 184 B, `Suspended` 128 B. **Working state, not slack** — three tunings
+   were measured and reverted (see ruled-out). Closing needs it *smaller*, not dropped: shrink
+   `CallIcEntry`, or share IC entries for frozen callees (sound — a sealed binding resolves
+   process-independently). It is also the piece none of the last four wins touched: the row's peak
+   RSS has sat near 1.6 GB throughout.
 
-   **Sized before you build: the obvious fix is not the fix.** The deopting guard is now known —
-   `eq_dispatch`'s non-interned fallthrough — and routing it away from the deopt takes the arm from
-   ~282k deopts to **0** while still lowering, yet buys **~0–5%, inside the noise**, and leaves
-   `jit_link_done` at 0. So the deopt is *not* why the matcher misses the fast frame, and a
-   non-deopting `=` fallback was designed and deliberately not built. The open question is why an
-   arm that lowers and no longer deopts still fails to link. See the brood repo's
-   `docs/handoff.md` §1.
-2. **The green-process floor (~5.4 KB live vs the BEAM's ~2.9 KB)** — the rest of `spawn-live`.
-   Attributed: IC tables ~536 B, `Box<Process>` (the inline `Heap` is 1376 B), `Arc<Mailbox>` 184 B,
-   `Suspended` 128 B. **Working state, not slack** — three tunings were measured and reverted (see
-   ruled-out). Closing needs it *smaller*, not dropped: shrink `CallIcEntry`, or share IC entries
-   for frozen callees (sound — a sealed binding resolves process-independently).
+2. **The cold call into `fold` itself** — the largest remaining piece of the payload work, and
+   already sized. After moving the vector fold into a native counted loop (`%vector-reduce`) and
+   testing vectors first in the dispatch, `(fold + 0 p)` costs **27.1 µs/unit** against
+   **23.9 µs** for calling `%vector-reduce` directly — so ~3.2 µs/unit is the cold call into the
+   Brood-level `fold` wrapper, more than the reduce it performs (2.3 µs). Making `fold` native is
+   the lever; it is a real change, not a reorder, because it must keep map-as-pairs, seq-view
+   fusion (which calls a Brood transducer back), and the exact error/promotion behaviour.
+
 3. **Heap-walking / allocation-heavy code** (`nqueens`, `pipeline`) — structure-walkers
    don't tier and some heap reads go through per-op FFI callbacks. Extending the proven
    inline small-vector read template to variable-index reads and in-arm alloc (blocked by
@@ -115,6 +110,27 @@ lightest of the compiled-class runtimes.
    `long`/`double`; any design must not violate the immutability invariant.
 
 ## Measured and ruled out — don't re-attempt
+
+- **The receive machinery / the matcher's missing native fast frame — was lever 1, retired
+  2026-08-10.** The finding itself stands: a `receive` whose pattern **compares a literal** —
+  `[:go v]`, `[:reply ^r v]`, i.e. essentially every real one — generates a matcher that lowers to
+  native, deopts, is latched off, and thereafter pays the interpreter's call trampoline instead of
+  the JIT's fast frame. What was wrong was its *size* on this row. Measured directly, by running
+  the `spawn-live` unit with three receive patterns doing identical work, interleaved, three
+  rounds: `[:go p]` (bails) **28.0 µs/unit**, `[t p] :when (%eq t :go)` (also bails) **27.8**,
+  `[_t p]` (stays native) **27.5**. That is ~1.8% with overlapping spreads. The guard row is the
+  control that makes it readable — it bails like the tag row, so the small gap is the native frame
+  and not the skipped comparison. The compiled arm is shared process-wide, so 16 deopts bail it
+  for all 300k units, and it *still* buys nothing.
+
+  Two corrections worth keeping. The matcher does **not** deopt per activation: it deopts exactly
+  **16** times, `jit_deopt_feedback` latches it `BAILED`, and the remaining ~284k calls are
+  declined before running — the old "~282k deopts" came from `jit_deopt`, which counts `jit_tier`'s
+  outcome-1 only and is blind to the HOF fast frame the matcher uses. That also dissolves the
+  standing puzzle "an arm that no longer deopts still fails to link": `BAILED` is sticky, so
+  removing the deopt source does not un-bail an arm that already bailed. It may still be worth
+  something on a long-lived message row (`latency`, `pingpong`, `supervisor`) — untested, and the
+  only remaining reason to look.
 
 - **GC tuning for `bintree` / `nbody`.** Neither is GC-bound (45k and 798 objects copied
   per run; ~4% and ~2% of the row) and neither bails to the VM. Nursery sizing does

@@ -5,41 +5,41 @@
 <line x1="70" y1="50" x2="70" y2="420" stroke="#888" stroke-width="1"/>
 <line x1="70.0" y1="50" x2="70.0" y2="420" stroke="#eee" stroke-width="1"/>
 <text x="70.0" y="438" text-anchor="middle" font-size="12" fill="#555">1×</text>
-<line x1="196.9" y1="50" x2="196.9" y2="420" stroke="#eee" stroke-width="1"/>
-<text x="196.9" y="438" text-anchor="middle" font-size="12" fill="#555">2×</text>
-<line x1="364.7" y1="50" x2="364.7" y2="420" stroke="#eee" stroke-width="1"/>
-<text x="364.7" y="438" text-anchor="middle" font-size="12" fill="#555">5×</text>
-<line x1="491.6" y1="50" x2="491.6" y2="420" stroke="#eee" stroke-width="1"/>
-<text x="491.6" y="438" text-anchor="middle" font-size="12" fill="#555">10×</text>
-<line x1="618.5" y1="50" x2="618.5" y2="420" stroke="#eee" stroke-width="1"/>
-<text x="618.5" y="438" text-anchor="middle" font-size="12" fill="#555">20×</text>
+<line x1="197.7" y1="50" x2="197.7" y2="420" stroke="#eee" stroke-width="1"/>
+<text x="197.7" y="438" text-anchor="middle" font-size="12" fill="#555">2×</text>
+<line x1="366.4" y1="50" x2="366.4" y2="420" stroke="#eee" stroke-width="1"/>
+<text x="366.4" y="438" text-anchor="middle" font-size="12" fill="#555">5×</text>
+<line x1="494.1" y1="50" x2="494.1" y2="420" stroke="#eee" stroke-width="1"/>
+<text x="494.1" y="438" text-anchor="middle" font-size="12" fill="#555">10×</text>
+<line x1="621.8" y1="50" x2="621.8" y2="420" stroke="#eee" stroke-width="1"/>
+<text x="621.8" y="438" text-anchor="middle" font-size="12" fill="#555">20×</text>
 <line x1="70" y1="420.0" x2="730" y2="420.0" stroke="#eee" stroke-width="1"/>
 <text x="60" y="424.0" text-anchor="end" font-size="12" fill="#555">0</text>
-<line x1="70" y1="357.2" x2="730" y2="357.2" stroke="#eee" stroke-width="1"/>
-<text x="60" y="361.2" text-anchor="end" font-size="12" fill="#555">20</text>
-<line x1="70" y1="294.5" x2="730" y2="294.5" stroke="#eee" stroke-width="1"/>
-<text x="60" y="298.5" text-anchor="end" font-size="12" fill="#555">40</text>
-<line x1="70" y1="231.7" x2="730" y2="231.7" stroke="#eee" stroke-width="1"/>
-<text x="60" y="235.7" text-anchor="end" font-size="12" fill="#555">60</text>
-<line x1="70" y1="168.9" x2="730" y2="168.9" stroke="#eee" stroke-width="1"/>
-<text x="60" y="172.9" text-anchor="end" font-size="12" fill="#555">80</text>
-<line x1="70" y1="106.2" x2="730" y2="106.2" stroke="#eee" stroke-width="1"/>
-<text x="60" y="110.2" text-anchor="end" font-size="12" fill="#555">100</text>
+<line x1="70" y1="357.5" x2="730" y2="357.5" stroke="#eee" stroke-width="1"/>
+<text x="60" y="361.5" text-anchor="end" font-size="12" fill="#555">20</text>
+<line x1="70" y1="295.1" x2="730" y2="295.1" stroke="#eee" stroke-width="1"/>
+<text x="60" y="299.1" text-anchor="end" font-size="12" fill="#555">40</text>
+<line x1="70" y1="232.6" x2="730" y2="232.6" stroke="#eee" stroke-width="1"/>
+<text x="60" y="236.6" text-anchor="end" font-size="12" fill="#555">60</text>
+<line x1="70" y1="170.1" x2="730" y2="170.1" stroke="#eee" stroke-width="1"/>
+<text x="60" y="174.1" text-anchor="end" font-size="12" fill="#555">80</text>
+<line x1="70" y1="107.7" x2="730" y2="107.7" stroke="#eee" stroke-width="1"/>
+<text x="60" y="111.7" text-anchor="end" font-size="12" fill="#555">100</text>
 <text x="400.0" y="464" text-anchor="middle" font-size="13" fill="#333">compute slowdown vs the fastest — startup excluded, log scale — left is faster</text>
 <text x="18" y="235.0" text-anchor="middle" font-size="13" fill="#333" transform="rotate(-90 18 235.0)">base memory (MB) — lower is lighter</text>
 <text x="78" y="412" font-size="11" fill="#aaa">↙ fast &amp; light</text>
-<circle cx="689.1" cy="389.1" r="7" fill="#2980b9" fill-opacity="0.85" stroke="#fff" stroke-width="1.5"/>
-<text x="678.1" y="393.1" text-anchor="end" font-size="13" font-weight="600" fill="#2980b9">Python <tspan font-weight="400" fill="#777">(29× · 10MB)</tspan></text>
-<circle cx="525.0" cy="359.5" r="7" fill="#d35400" fill-opacity="0.85" stroke="#fff" stroke-width="1.5"/>
-<text x="536.0" y="363.5" text-anchor="start" font-size="13" font-weight="600" fill="#d35400">Ruby <tspan font-weight="400" fill="#777">(12× · 19MB)</tspan></text>
-<circle cx="262.6" cy="350.7" r="7" fill="#c0392b" fill-opacity="0.85" stroke="#fff" stroke-width="1.5"/>
-<text x="273.6" y="354.7" text-anchor="start" font-size="13" font-weight="600" fill="#c0392b">Brood <tspan font-weight="400" fill="#777">(3× · 22MB)</tspan></text>
-<circle cx="70.0" cy="338.1" r="7" fill="#16a085" fill-opacity="0.85" stroke="#fff" stroke-width="1.5"/>
-<text x="81.0" y="342.1" text-anchor="start" font-size="13" font-weight="600" fill="#16a085">.NET <tspan font-weight="400" fill="#777">(1× · 26MB)</tspan></text>
-<circle cx="255.5" cy="279.7" r="7" fill="#27ae60" fill-opacity="0.85" stroke="#fff" stroke-width="1.5"/>
-<text x="266.5" y="283.7" text-anchor="start" font-size="13" font-weight="600" fill="#27ae60">Node <tspan font-weight="400" fill="#777">(3× · 45MB)</tspan></text>
-<circle cx="301.7" cy="195.8" r="7" fill="#8e44ad" fill-opacity="0.85" stroke="#fff" stroke-width="1.5"/>
-<text x="312.7" y="199.8" text-anchor="start" font-size="13" font-weight="600" fill="#8e44ad">Elixir <tspan font-weight="400" fill="#777">(4× · 71MB)</tspan></text>
-<circle cx="454.8" cy="98.3" r="7" fill="#e67e22" fill-opacity="0.85" stroke="#fff" stroke-width="1.5"/>
-<text x="465.8" y="102.3" text-anchor="start" font-size="13" font-weight="600" fill="#e67e22">Clojure <tspan font-weight="400" fill="#777">(8× · 103MB)</tspan></text>
+<circle cx="688.9" cy="389.6" r="7" fill="#2980b9" fill-opacity="0.85" stroke="#fff" stroke-width="1.5"/>
+<text x="677.9" y="393.6" text-anchor="end" font-size="13" font-weight="600" fill="#2980b9">Python <tspan font-weight="400" fill="#777">(29× · 10MB)</tspan></text>
+<circle cx="530.9" cy="360.6" r="7" fill="#d35400" fill-opacity="0.85" stroke="#fff" stroke-width="1.5"/>
+<text x="541.9" y="364.6" text-anchor="start" font-size="13" font-weight="600" fill="#d35400">Ruby <tspan font-weight="400" fill="#777">(12× · 19MB)</tspan></text>
+<circle cx="262.9" cy="347.5" r="7" fill="#c0392b" fill-opacity="0.85" stroke="#fff" stroke-width="1.5"/>
+<text x="273.9" y="351.5" text-anchor="start" font-size="13" font-weight="600" fill="#c0392b">Brood <tspan font-weight="400" fill="#777">(3× · 23MB)</tspan></text>
+<circle cx="70.0" cy="339.5" r="7" fill="#16a085" fill-opacity="0.85" stroke="#fff" stroke-width="1.5"/>
+<text x="81.0" y="343.5" text-anchor="start" font-size="13" font-weight="600" fill="#16a085">.NET <tspan font-weight="400" fill="#777">(1× · 26MB)</tspan></text>
+<circle cx="252.7" cy="287.9" r="7" fill="#27ae60" fill-opacity="0.85" stroke="#fff" stroke-width="1.5"/>
+<text x="263.7" y="291.9" text-anchor="start" font-size="13" font-weight="600" fill="#27ae60">Node <tspan font-weight="400" fill="#777">(3× · 42MB)</tspan></text>
+<circle cx="295.2" cy="193.8" r="7" fill="#8e44ad" fill-opacity="0.85" stroke="#fff" stroke-width="1.5"/>
+<text x="306.2" y="197.8" text-anchor="start" font-size="13" font-weight="600" fill="#8e44ad">Elixir <tspan font-weight="400" fill="#777">(3× · 72MB)</tspan></text>
+<circle cx="461.7" cy="98.3" r="7" fill="#e67e22" fill-opacity="0.85" stroke="#fff" stroke-width="1.5"/>
+<text x="472.7" y="102.3" text-anchor="start" font-size="13" font-weight="600" fill="#e67e22">Clojure <tspan font-weight="400" fill="#777">(8× · 103MB)</tspan></text>
 </svg>
