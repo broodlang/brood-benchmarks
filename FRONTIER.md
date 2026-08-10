@@ -89,13 +89,32 @@ lightest of the compiled-class runtimes.
    process-independently). It is also the piece none of the last four wins touched: the row's peak
    RSS has sat near 1.6 GB throughout.
 
-2. **The cold call into `fold` itself** — the largest remaining piece of the payload work, and
-   already sized. After moving the vector fold into a native counted loop (`%vector-reduce`) and
-   testing vectors first in the dispatch, `(fold + 0 p)` costs **27.1 µs/unit** against
-   **23.9 µs** for calling `%vector-reduce` directly — so ~3.2 µs/unit is the cold call into the
-   Brood-level `fold` wrapper, more than the reduce it performs (2.3 µs). Making `fold` native is
-   the lever; it is a real change, not a reorder, because it must keep map-as-pairs, seq-view
-   fusion (which calls a Brood transducer back), and the exact error/promotion behaviour.
+2. **The cold call into `fold` — worth ~11% of `spawn-live`, and the number is now
+   decomposed.** After the native vector reduce and the dispatch reorder, `(fold + 0 p)` costs
+   **26.6 µs/unit** against **23.7 µs** for calling `%vector-reduce` straight from the unit
+   body. Measured 2026-08-10 by inserting trivial forwarders to separate "fold" from "a call":
+
+   | unit body | µs/unit |
+   |---|---|
+   | `(%vector-reduce + 0 p)` | 23.7 |
+   | one trivial Brood fn forwarding to it | 24.3 |
+   | two nested forwarders | 25.4 |
+   | `(fold + 0 p)` | 26.6 |
+
+   So **a bare Brood-level call in a freshly spawned process costs ~0.85 µs**, and `fold`'s
+   2.9 µs is that call *plus* its own `vector?` predicate call plus argument handling. Making
+   `fold` native removes all of it, which is ~11% of this row — worth doing, and worth knowing
+   it is 11% and not more before starting.
+
+   **It is a real change, not a reorder.** `fold` must keep map-as-pairs, seq-view fusion
+   (which applies a Brood transducer and recurses), and exact error/promotion behaviour — and
+   note `seq` is *not* a Rust builtin, so the generic path has to call back into Brood. It is
+   also the most-used function in the prelude, so the regression surface is the whole library.
+
+   **The per-call tax generalises and may be the bigger lever.** ~0.85 µs for one call in a
+   cold process is a tax every prelude call in this row pays, not just `fold`'s. Whatever makes
+   a first-call-in-a-process cheap would pay out across `spawn-live` far more broadly than
+   nativising one function. That is unmeasured and is the thing to look at first.
 
 3. **Heap-walking / allocation-heavy code** (`nqueens`, `pipeline`) — structure-walkers
    don't tier and some heap reads go through per-op FFI callbacks. Extending the proven
