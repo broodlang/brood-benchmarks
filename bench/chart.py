@@ -83,6 +83,18 @@ def collect(results):
         return out
 
     overall = geo_over(common, list(ran))
+    # Normalise so the leader reads 1.0x. A geomean of per-row ratios is scored against the
+    # best time on EACH row, so a language only reaches 1.0 by winning EVERY row — .NET wins
+    # 13 of 27 and scored 2.06 raw, which left an axis labelled "vs the fastest" with nobody
+    # at 1x. Dividing through by the leader restores what the label promises and what the
+    # old sum-of-times aggregate gave by construction; the ordering and every ratio between
+    # languages are unchanged.
+    lead = min(overall.values())
+    raw = dict(overall)
+    overall = {l: v / lead for l, v in overall.items()}
+    leader = min(raw, key=lambda l: raw[l])
+    print(f"  leader {leader} raw {raw[leader]:.2f}x vs the per-row best "
+          f"(nobody wins every row) -> normalised to 1.00x")
 
     # Overlay: re-aggregate over the languages that have the process-model row, on their
     # own shared row set plus that row. Computed within that subset — a ratio against a
@@ -92,6 +104,8 @@ def collect(results):
     if len(over_langs) >= 2:
         sub = sorted(set.intersection(*(ran[l] for l in over_langs)) | {CHART_OVERLAY_ROW})
         overlay = geo_over(sub, over_langs)
+        olead = min(overlay.values())
+        overlay = {l: v / olead for l, v in overlay.items()}
         print(f"  overlay: {len(sub)} rows incl. {CHART_OVERLAY_ROW} across {', '.join(sorted(over_langs))}")
 
     out = {}

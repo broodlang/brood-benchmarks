@@ -172,6 +172,10 @@ def overall_numbers(res, starts):
     all_best = {r: min(compute(res, starts, r, l) for l in all_langs) for r in CHART_ROWS}
     all_geo = {l: geomean([compute(res, starts, r, l) / all_best[r]
                            for r in CHART_ROWS if all_best[r]]) for l in all_langs}
+    # Normalised to the leader, matching the chart — see bench/chart.py for why a raw
+    # geomean of per-row ratios leaves nobody at 1.0x.
+    _lead = min(all_geo.values())
+    all_geo = {l: v / _lead for l, v in all_geo.items()}
     all_order = sorted(all_geo, key=lambda l: all_geo[l])
 
     return {

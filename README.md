@@ -18,11 +18,18 @@ snapshot, not a claim to lead.
 ![Where the languages land — overall speed (startup excluded) vs memory](results/positioning.svg)
 
 The map aggregates **all 27 rows every port implements**, as a geometric mean of per-row ratios
-so each benchmark counts once regardless of its absolute size. It used to plot eleven
-single-threaded rows summed by wall time, which left two thirds of the suite out of the picture
-*and* let whichever row was largest in milliseconds decide everyone's position. Brood reads
-slower here than it did under that method — 4.8× against roughly 3× — and the earlier picture
-was the flattering one.
+so each benchmark counts once regardless of its absolute size, normalised so the leading runtime
+reads 1×. It used to plot eleven single-threaded rows summed by wall time, which left two thirds
+of the suite out of the picture *and* let whichever row was largest in milliseconds decide
+everyone's position.
+
+Brood reads **2.3×** the leader over the wider set against 2.8× over the eleven compute rows —
+so the broader picture is not the harsher one for Brood in absolute terms. It does drop from 3rd
+to **4th**, because Elixir gains more than Brood does when the concurrency rows are counted.
+
+Worth knowing how to read a per-row geomean: a language scores 1× only by being fastest on
+*every* row, which nothing is — .NET leads and still wins just 13 of 27. So these are ratios to
+the leader, not to some perfect runtime.
 
 The three rows not in it are the ones no cross-field scalar can hold: `spawn-live` and `latency`
 have five ports each, `supervisor` two, so aggregating them would compare different work. They
@@ -51,7 +58,7 @@ runs at the same `N` (`fib` went 30 → 35 and `bintree` 40 → 200 early on, wh
 |---|---|---|
 | startup (wall) | 16.1 ms | Python 10.3, Node 18.0, .NET 21.7, Ruby 38.9, Elixir 185.8, Clojure 339.1 ms |
 | base RSS | 23.2 MB | Python 9.7, Ruby 19.0, .NET 25.8, Node 42.3, Elixir 72.4, Clojure 103.0 MB |
-| overall speed — geomean of all 27 rows every port implements | 4.8× the fastest (4/7) | .NET 2.1 · Node 2.6 · Elixir 2.9 · Ruby 10.2 · Python 13.3 · Clojure 19.3 |
+| overall speed — geomean of all 27 rows every port implements | 2.3× the fastest (4/7) | .NET 1.0 · Node 1.3 · Elixir 1.4 · Ruby 4.9 · Python 6.4 · Clojure 9.4 |
 | aggregate single-threaded compute | 2.8× the fastest | .NET 1.0 · Node 2.7 · Elixir 3.4 · Clojure 8.4 · Ruby 12.2 · Python 28.8 |
 | aggregate vs the field's average | **0.52×** | ahead of the field average on 6 of 11 core-compute rows |
 | rank by row | 1st on `reduce`, `strings`; last on `spawn-live` | |
