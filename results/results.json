@@ -4,44 +4,44 @@
     "what": "interpreter/VM startup + base memory",
     "langs": {
       "brood": {
-        "wall_ms": 16.1,
-        "rss_kb": 23780,
-        "cpu_pct": 92,
+        "wall_ms": 16.3,
+        "rss_kb": 24072,
+        "cpu_pct": 100,
         "checksum": "0"
       },
       "clojure": {
-        "wall_ms": 339.1,
-        "rss_kb": 105488,
-        "cpu_pct": 231,
+        "wall_ms": 335.0,
+        "rss_kb": 105364,
+        "cpu_pct": 228,
         "checksum": "0"
       },
       "elixir": {
-        "wall_ms": 185.8,
-        "rss_kb": 74152,
-        "cpu_pct": 178,
+        "wall_ms": 182.0,
+        "rss_kb": 72516,
+        "cpu_pct": 184,
         "checksum": "0"
       },
       "python": {
-        "wall_ms": 10.3,
-        "rss_kb": 9968,
-        "cpu_pct": 100,
+        "wall_ms": 10.0,
+        "rss_kb": 9984,
+        "cpu_pct": 87,
         "checksum": "0"
       },
       "node": {
-        "wall_ms": 18.0,
-        "rss_kb": 43324,
-        "cpu_pct": 100,
+        "wall_ms": 18.1,
+        "rss_kb": 43248,
+        "cpu_pct": 93,
         "checksum": "0"
       },
       "ruby": {
-        "wall_ms": 38.9,
-        "rss_kb": 19480,
+        "wall_ms": 38.8,
+        "rss_kb": 19472,
         "cpu_pct": 100,
         "checksum": "0"
       },
       "dotnet": {
         "wall_ms": 21.7,
-        "rss_kb": 26380,
+        "rss_kb": 26428,
         "cpu_pct": 100,
         "checksum": "0"
       }
@@ -52,44 +52,44 @@
     "what": "naive recursion / function-call overhead",
     "langs": {
       "brood": {
-        "wall_ms": 76.2,
-        "rss_kb": 27164,
-        "cpu_pct": 102,
+        "wall_ms": 77.1,
+        "rss_kb": 27752,
+        "cpu_pct": 101,
         "checksum": "9227465"
       },
       "clojure": {
-        "wall_ms": 542.8,
-        "rss_kb": 111648,
-        "cpu_pct": 236,
+        "wall_ms": 558.1,
+        "rss_kb": 111628,
+        "cpu_pct": 239,
         "checksum": "9227465"
       },
       "elixir": {
-        "wall_ms": 259.5,
-        "rss_kb": 72336,
-        "cpu_pct": 161,
+        "wall_ms": 260.5,
+        "rss_kb": 71784,
+        "cpu_pct": 158,
         "checksum": "9227465"
       },
       "python": {
-        "wall_ms": 754.1,
-        "rss_kb": 9932,
-        "cpu_pct": 100,
+        "wall_ms": 772.2,
+        "rss_kb": 9984,
+        "cpu_pct": 99,
         "checksum": "9227465"
       },
       "node": {
-        "wall_ms": 93.1,
-        "rss_kb": 48784,
+        "wall_ms": 93.4,
+        "rss_kb": 48788,
         "cpu_pct": 100,
         "checksum": "9227465"
       },
       "ruby": {
-        "wall_ms": 650.6,
-        "rss_kb": 19480,
-        "cpu_pct": 99,
+        "wall_ms": 646.0,
+        "rss_kb": 19472,
+        "cpu_pct": 100,
         "checksum": "9227465"
       },
       "dotnet": {
-        "wall_ms": 60.9,
-        "rss_kb": 26452,
+        "wall_ms": 60.2,
+        "rss_kb": 26484,
         "cpu_pct": 100,
         "checksum": "9227465"
       }
@@ -100,44 +100,44 @@
     "what": "raw iteration (tail recursion vs for-loop)",
     "langs": {
       "brood": {
-        "wall_ms": 58.5,
-        "rss_kb": 27376,
+        "wall_ms": 59.1,
+        "rss_kb": 27964,
         "cpu_pct": 100,
         "checksum": "449999985000000"
       },
       "clojure": {
-        "wall_ms": 485.0,
-        "rss_kb": 111708,
-        "cpu_pct": 247,
+        "wall_ms": 497.5,
+        "rss_kb": 110392,
+        "cpu_pct": 254,
         "checksum": "449999985000000"
       },
       "elixir": {
-        "wall_ms": 234.1,
-        "rss_kb": 73760,
-        "cpu_pct": 162,
+        "wall_ms": 235.3,
+        "rss_kb": 74136,
+        "cpu_pct": 165,
         "checksum": "449999985000000"
       },
       "python": {
-        "wall_ms": 2344.3,
-        "rss_kb": 9960,
+        "wall_ms": 2383.8,
+        "rss_kb": 9984,
         "cpu_pct": 99,
         "checksum": "449999985000000"
       },
       "node": {
         "wall_ms": 47.8,
-        "rss_kb": 50696,
+        "rss_kb": 50700,
         "cpu_pct": 102,
         "checksum": "449999985000000"
       },
       "ruby": {
-        "wall_ms": 602.5,
-        "rss_kb": 19464,
+        "wall_ms": 589.7,
+        "rss_kb": 19472,
         "cpu_pct": 100,
         "checksum": "449999985000000"
       },
       "dotnet": {
-        "wall_ms": 34.5,
-        "rss_kb": 26780,
+        "wall_ms": 34.0,
+        "rss_kb": 26868,
         "cpu_pct": 100,
         "checksum": "449999985000000"
       }
@@ -149,44 +149,44 @@
     "langs": {
       "brood": {
         "wall_ms": 20.0,
-        "rss_kb": 23528,
+        "rss_kb": 24080,
         "cpu_pct": 100,
         "checksum": "12499997500000"
       },
       "clojure": {
-        "wall_ms": 513.6,
-        "rss_kb": 224904,
-        "cpu_pct": 237,
+        "wall_ms": 518.8,
+        "rss_kb": 229000,
+        "cpu_pct": 235,
         "checksum": "12499997500000"
       },
       "elixir": {
-        "wall_ms": 221.3,
-        "rss_kb": 74356,
-        "cpu_pct": 167,
+        "wall_ms": 215.8,
+        "rss_kb": 71652,
+        "cpu_pct": 166,
         "checksum": "12499997500000"
       },
       "python": {
-        "wall_ms": 118.9,
-        "rss_kb": 10728,
-        "cpu_pct": 98,
+        "wall_ms": 114.5,
+        "rss_kb": 10784,
+        "cpu_pct": 99,
         "checksum": "12499997500000"
       },
       "node": {
-        "wall_ms": 244.9,
-        "rss_kb": 91908,
+        "wall_ms": 256.2,
+        "rss_kb": 91660,
         "cpu_pct": 100,
         "checksum": "12499997500000"
       },
       "ruby": {
-        "wall_ms": 263.3,
-        "rss_kb": 19480,
+        "wall_ms": 259.2,
+        "rss_kb": 19472,
         "cpu_pct": 100,
         "checksum": "12499997500000"
       },
       "dotnet": {
-        "wall_ms": 34.0,
-        "rss_kb": 28152,
-        "cpu_pct": 96,
+        "wall_ms": 33.6,
+        "rss_kb": 28236,
+        "cpu_pct": 100,
         "checksum": "12499997500000"
       }
     }
@@ -196,44 +196,44 @@
     "what": "integer arithmetic (trial division)",
     "langs": {
       "brood": {
-        "wall_ms": 62.7,
-        "rss_kb": 28196,
-        "cpu_pct": 101,
+        "wall_ms": 66.0,
+        "rss_kb": 28716,
+        "cpu_pct": 103,
         "checksum": "13848"
       },
       "clojure": {
-        "wall_ms": 501.2,
-        "rss_kb": 111852,
-        "cpu_pct": 249,
+        "wall_ms": 485.4,
+        "rss_kb": 111024,
+        "cpu_pct": 250,
         "checksum": "13848"
       },
       "elixir": {
-        "wall_ms": 205.8,
-        "rss_kb": 72684,
-        "cpu_pct": 173,
+        "wall_ms": 202.4,
+        "rss_kb": 71884,
+        "cpu_pct": 179,
         "checksum": "13848"
       },
       "python": {
-        "wall_ms": 140.9,
-        "rss_kb": 10116,
-        "cpu_pct": 100,
+        "wall_ms": 130.7,
+        "rss_kb": 10176,
+        "cpu_pct": 98,
         "checksum": "13848"
       },
       "node": {
-        "wall_ms": 27.3,
-        "rss_kb": 49500,
-        "cpu_pct": 108,
+        "wall_ms": 26.6,
+        "rss_kb": 49516,
+        "cpu_pct": 104,
         "checksum": "13848"
       },
       "ruby": {
-        "wall_ms": 158.5,
-        "rss_kb": 19480,
-        "cpu_pct": 99,
+        "wall_ms": 155.7,
+        "rss_kb": 19472,
+        "cpu_pct": 100,
         "checksum": "13848"
       },
       "dotnet": {
-        "wall_ms": 31.0,
-        "rss_kb": 26792,
+        "wall_ms": 30.8,
+        "rss_kb": 26884,
         "cpu_pct": 100,
         "checksum": "13848"
       }
@@ -244,44 +244,44 @@
     "what": "integer arithmetic + tight inner loop",
     "langs": {
       "brood": {
-        "wall_ms": 101.5,
-        "rss_kb": 28848,
+        "wall_ms": 100.3,
+        "rss_kb": 28800,
         "cpu_pct": 105,
         "checksum": "442"
       },
       "clojure": {
-        "wall_ms": 792.8,
-        "rss_kb": 379292,
-        "cpu_pct": 201,
+        "wall_ms": 792.1,
+        "rss_kb": 380296,
+        "cpu_pct": 200,
         "checksum": "442"
       },
       "elixir": {
-        "wall_ms": 288.4,
-        "rss_kb": 71812,
+        "wall_ms": 287.1,
+        "rss_kb": 71932,
         "cpu_pct": 151,
         "checksum": "442"
       },
       "python": {
-        "wall_ms": 2822.5,
-        "rss_kb": 9940,
+        "wall_ms": 2408.0,
+        "rss_kb": 9988,
         "cpu_pct": 99,
         "checksum": "442"
       },
       "node": {
-        "wall_ms": 198.3,
-        "rss_kb": 49004,
+        "wall_ms": 193.0,
+        "rss_kb": 49036,
         "cpu_pct": 101,
         "checksum": "442"
       },
       "ruby": {
-        "wall_ms": 1009.4,
-        "rss_kb": 19476,
-        "cpu_pct": 100,
+        "wall_ms": 889.9,
+        "rss_kb": 19472,
+        "cpu_pct": 99,
         "checksum": "442"
       },
       "dotnet": {
-        "wall_ms": 68.4,
-        "rss_kb": 26780,
+        "wall_ms": 67.3,
+        "rss_kb": 26856,
         "cpu_pct": 98,
         "checksum": "442"
       }
@@ -292,45 +292,45 @@
     "what": "floating-point math (escape iterations)",
     "langs": {
       "brood": {
-        "wall_ms": 196.3,
-        "rss_kb": 28772,
-        "cpu_pct": 104,
+        "wall_ms": 197.5,
+        "rss_kb": 28872,
+        "cpu_pct": 103,
         "checksum": "6129302"
       },
       "clojure": {
-        "wall_ms": 513.1,
-        "rss_kb": 118124,
-        "cpu_pct": 254,
+        "wall_ms": 502.0,
+        "rss_kb": 117904,
+        "cpu_pct": 250,
         "checksum": "6129302"
       },
       "elixir": {
-        "wall_ms": 438.1,
-        "rss_kb": 74588,
-        "cpu_pct": 134,
+        "wall_ms": 434.1,
+        "rss_kb": 72892,
+        "cpu_pct": 133,
         "checksum": "6129302"
       },
       "python": {
-        "wall_ms": 1314.3,
-        "rss_kb": 10120,
-        "cpu_pct": 100,
+        "wall_ms": 1328.0,
+        "rss_kb": 10096,
+        "cpu_pct": 99,
         "checksum": "6129302"
       },
       "node": {
-        "wall_ms": 40.0,
-        "rss_kb": 50696,
+        "wall_ms": 38.7,
+        "rss_kb": 50636,
         "cpu_pct": 102,
         "checksum": "6129302"
       },
       "ruby": {
-        "wall_ms": 518.7,
+        "wall_ms": 457.4,
         "rss_kb": 19604,
         "cpu_pct": 99,
         "checksum": "6129302"
       },
       "dotnet": {
-        "wall_ms": 40.3,
-        "rss_kb": 26916,
-        "cpu_pct": 102,
+        "wall_ms": 40.6,
+        "rss_kb": 26876,
+        "cpu_pct": 100,
         "checksum": "6129302"
       }
     }
@@ -340,45 +340,45 @@
     "what": "nested loops + indexing (integer NxN)",
     "langs": {
       "brood": {
-        "wall_ms": 144.9,
-        "rss_kb": 53372,
+        "wall_ms": 145.8,
+        "rss_kb": 53168,
         "cpu_pct": 107,
         "checksum": "654353666"
       },
       "clojure": {
-        "wall_ms": 542.8,
-        "rss_kb": 121472,
-        "cpu_pct": 253,
+        "wall_ms": 547.0,
+        "rss_kb": 121428,
+        "cpu_pct": 257,
         "checksum": "654353666"
       },
       "elixir": {
-        "wall_ms": 245.6,
-        "rss_kb": 77160,
-        "cpu_pct": 164,
+        "wall_ms": 247.4,
+        "rss_kb": 76500,
+        "cpu_pct": 162,
         "checksum": "654353666"
       },
       "python": {
-        "wall_ms": 527.1,
-        "rss_kb": 10472,
+        "wall_ms": 485.8,
+        "rss_kb": 10500,
         "cpu_pct": 100,
         "checksum": "654353666"
       },
       "node": {
-        "wall_ms": 35.3,
-        "rss_kb": 53056,
+        "wall_ms": 35.2,
+        "rss_kb": 52644,
         "cpu_pct": 115,
         "checksum": "654353666"
       },
       "ruby": {
-        "wall_ms": 315.9,
-        "rss_kb": 19724,
-        "cpu_pct": 99,
+        "wall_ms": 352.2,
+        "rss_kb": 19728,
+        "cpu_pct": 100,
         "checksum": "654353666"
       },
       "dotnet": {
         "wall_ms": 26.6,
-        "rss_kb": 27272,
-        "cpu_pct": 100,
+        "rss_kb": 27388,
+        "cpu_pct": 104,
         "checksum": "654353666"
       }
     }
@@ -388,45 +388,45 @@
     "what": "string building (join) + length",
     "langs": {
       "brood": {
-        "wall_ms": 29.0,
-        "rss_kb": 32972,
+        "wall_ms": 29.1,
+        "rss_kb": 33692,
         "cpu_pct": 100,
         "checksum": "3388889"
       },
       "clojure": {
-        "wall_ms": 516.1,
-        "rss_kb": 174252,
+        "wall_ms": 514.5,
+        "rss_kb": 172940,
         "cpu_pct": 250,
         "checksum": "3388889"
       },
       "elixir": {
-        "wall_ms": 300.8,
-        "rss_kb": 205072,
-        "cpu_pct": 150,
+        "wall_ms": 303.7,
+        "rss_kb": 204044,
+        "cpu_pct": 152,
         "checksum": "3388889"
       },
       "python": {
-        "wall_ms": 53.0,
-        "rss_kb": 40756,
-        "cpu_pct": 100,
+        "wall_ms": 53.7,
+        "rss_kb": 40740,
+        "cpu_pct": 98,
         "checksum": "3388889"
       },
       "node": {
         "wall_ms": 83.8,
-        "rss_kb": 97204,
-        "cpu_pct": 137,
+        "rss_kb": 97052,
+        "cpu_pct": 139,
         "checksum": "3388889"
       },
       "ruby": {
-        "wall_ms": 125.0,
-        "rss_kb": 48792,
+        "wall_ms": 127.6,
+        "rss_kb": 48784,
         "cpu_pct": 100,
         "checksum": "3388889"
       },
       "dotnet": {
-        "wall_ms": 54.0,
-        "rss_kb": 57904,
-        "cpu_pct": 98,
+        "wall_ms": 52.8,
+        "rss_kb": 58052,
+        "cpu_pct": 100,
         "checksum": "3388889"
       }
     }
@@ -436,45 +436,45 @@
     "what": "hash-map build (immutable vs mutable)",
     "langs": {
       "brood": {
-        "wall_ms": 51.4,
-        "rss_kb": 28604,
-        "cpu_pct": 106,
+        "wall_ms": 50.9,
+        "rss_kb": 29332,
+        "cpu_pct": 104,
         "checksum": "374854840"
       },
       "clojure": {
-        "wall_ms": 649.1,
-        "rss_kb": 309916,
-        "cpu_pct": 225,
+        "wall_ms": 615.2,
+        "rss_kb": 309864,
+        "cpu_pct": 231,
         "checksum": "374854840"
       },
       "elixir": {
-        "wall_ms": 359.9,
-        "rss_kb": 72600,
-        "cpu_pct": 141,
+        "wall_ms": 334.0,
+        "rss_kb": 73488,
+        "cpu_pct": 144,
         "checksum": "374854840"
       },
       "python": {
-        "wall_ms": 184.1,
-        "rss_kb": 10100,
-        "cpu_pct": 99,
+        "wall_ms": 179.7,
+        "rss_kb": 10092,
+        "cpu_pct": 98,
         "checksum": "374854840"
       },
       "node": {
-        "wall_ms": 49.5,
+        "wall_ms": 48.1,
         "rss_kb": 50908,
-        "cpu_pct": 106,
+        "cpu_pct": 104,
         "checksum": "374854840"
       },
       "ruby": {
-        "wall_ms": 114.7,
+        "wall_ms": 108.8,
         "rss_kb": 19472,
-        "cpu_pct": 99,
+        "cpu_pct": 100,
         "checksum": "374854840"
       },
       "dotnet": {
-        "wall_ms": 58.1,
-        "rss_kb": 27800,
-        "cpu_pct": 98,
+        "wall_ms": 57.6,
+        "rss_kb": 27888,
+        "cpu_pct": 100,
         "checksum": "374854840"
       }
     }
@@ -484,44 +484,44 @@
     "what": "allocation / GC pressure (build+walk trees)",
     "langs": {
       "brood": {
-        "wall_ms": 126.1,
-        "rss_kb": 53412,
+        "wall_ms": 124.1,
+        "rss_kb": 53988,
         "cpu_pct": 103,
         "checksum": "1638200"
       },
       "clojure": {
-        "wall_ms": 521.8,
-        "rss_kb": 153720,
-        "cpu_pct": 249,
+        "wall_ms": 507.1,
+        "rss_kb": 153900,
+        "cpu_pct": 258,
         "checksum": "1638200"
       },
       "elixir": {
-        "wall_ms": 196.0,
-        "rss_kb": 71240,
-        "cpu_pct": 175,
+        "wall_ms": 190.5,
+        "rss_kb": 74268,
+        "cpu_pct": 179,
         "checksum": "1638200"
       },
       "python": {
-        "wall_ms": 108.1,
-        "rss_kb": 10224,
-        "cpu_pct": 100,
+        "wall_ms": 115.6,
+        "rss_kb": 10240,
+        "cpu_pct": 99,
         "checksum": "1638200"
       },
       "node": {
-        "wall_ms": 39.7,
+        "wall_ms": 39.2,
         "rss_kb": 56904,
-        "cpu_pct": 105,
+        "cpu_pct": 108,
         "checksum": "1638200"
       },
       "ruby": {
-        "wall_ms": 146.8,
-        "rss_kb": 19844,
-        "cpu_pct": 93,
+        "wall_ms": 148.8,
+        "rss_kb": 19728,
+        "cpu_pct": 100,
         "checksum": "1638200"
       },
       "dotnet": {
-        "wall_ms": 35.7,
-        "rss_kb": 33032,
+        "wall_ms": 36.6,
+        "rss_kb": 33120,
         "cpu_pct": 100,
         "checksum": "1638200"
       }
@@ -532,44 +532,44 @@
     "what": "sort a list of ints + checksum walk",
     "langs": {
       "brood": {
-        "wall_ms": 147.9,
-        "rss_kb": 188528,
+        "wall_ms": 144.8,
+        "rss_kb": 189200,
         "cpu_pct": 101,
         "checksum": "46468819"
       },
       "clojure": {
-        "wall_ms": 616.1,
-        "rss_kb": 126328,
-        "cpu_pct": 247,
+        "wall_ms": 589.3,
+        "rss_kb": 126088,
+        "cpu_pct": 248,
         "checksum": "46468819"
       },
       "elixir": {
-        "wall_ms": 292.4,
-        "rss_kb": 163180,
+        "wall_ms": 288.9,
+        "rss_kb": 163584,
         "cpu_pct": 156,
         "checksum": "46468819"
       },
       "python": {
-        "wall_ms": 209.3,
-        "rss_kb": 26536,
-        "cpu_pct": 100,
+        "wall_ms": 192.6,
+        "rss_kb": 26500,
+        "cpu_pct": 99,
         "checksum": "46468819"
       },
       "node": {
-        "wall_ms": 130.7,
-        "rss_kb": 66364,
-        "cpu_pct": 104,
+        "wall_ms": 126.4,
+        "rss_kb": 66216,
+        "cpu_pct": 105,
         "checksum": "46468819"
       },
       "ruby": {
-        "wall_ms": 111.7,
-        "rss_kb": 25364,
-        "cpu_pct": 100,
+        "wall_ms": 117.5,
+        "rss_kb": 25332,
+        "cpu_pct": 99,
         "checksum": "46468819"
       },
       "dotnet": {
-        "wall_ms": 89.1,
-        "rss_kb": 30276,
+        "wall_ms": 86.3,
+        "rss_kb": 30344,
         "cpu_pct": 100,
         "checksum": "46468819"
       }
@@ -580,44 +580,44 @@
     "what": "backtracking recursion \u2014 count N-queens solutions",
     "langs": {
       "brood": {
-        "wall_ms": 104.3,
-        "rss_kb": 48276,
+        "wall_ms": 106.1,
+        "rss_kb": 48432,
         "cpu_pct": 109,
         "checksum": "724"
       },
       "clojure": {
-        "wall_ms": 606.8,
-        "rss_kb": 135524,
-        "cpu_pct": 254,
+        "wall_ms": 547.9,
+        "rss_kb": 135308,
+        "cpu_pct": 264,
         "checksum": "724"
       },
       "elixir": {
-        "wall_ms": 195.2,
-        "rss_kb": 71572,
-        "cpu_pct": 169,
+        "wall_ms": 193.5,
+        "rss_kb": 72396,
+        "cpu_pct": 175,
         "checksum": "724"
       },
       "python": {
-        "wall_ms": 68.6,
-        "rss_kb": 9948,
-        "cpu_pct": 97,
-        "checksum": "724"
-      },
-      "node": {
-        "wall_ms": 25.6,
-        "rss_kb": 51452,
-        "cpu_pct": 117,
-        "checksum": "724"
-      },
-      "ruby": {
-        "wall_ms": 161.2,
-        "rss_kb": 19732,
+        "wall_ms": 64.6,
+        "rss_kb": 9988,
         "cpu_pct": 100,
         "checksum": "724"
       },
+      "node": {
+        "wall_ms": 25.3,
+        "rss_kb": 51472,
+        "cpu_pct": 113,
+        "checksum": "724"
+      },
+      "ruby": {
+        "wall_ms": 164.6,
+        "rss_kb": 19728,
+        "cpu_pct": 95,
+        "checksum": "724"
+      },
       "dotnet": {
-        "wall_ms": 41.6,
-        "rss_kb": 29924,
+        "wall_ms": 42.3,
+        "rss_kb": 30028,
         "cpu_pct": 100,
         "checksum": "724"
       }
@@ -628,44 +628,44 @@
     "what": "error handling \u2014 raise + recover a value N times",
     "langs": {
       "brood": {
-        "wall_ms": 58.8,
-        "rss_kb": 27252,
-        "cpu_pct": 101,
+        "wall_ms": 58.3,
+        "rss_kb": 27756,
+        "cpu_pct": 103,
         "checksum": "9900000"
       },
       "clojure": {
-        "wall_ms": 1460.7,
-        "rss_kb": 379132,
-        "cpu_pct": 155,
+        "wall_ms": 1442.8,
+        "rss_kb": 380064,
+        "cpu_pct": 156,
         "checksum": "9900000"
       },
       "elixir": {
-        "wall_ms": 203.9,
-        "rss_kb": 71800,
-        "cpu_pct": 175,
+        "wall_ms": 203.2,
+        "rss_kb": 73244,
+        "cpu_pct": 172,
         "checksum": "9900000"
       },
       "python": {
-        "wall_ms": 62.1,
-        "rss_kb": 9968,
+        "wall_ms": 60.1,
+        "rss_kb": 9992,
         "cpu_pct": 100,
         "checksum": "9900000"
       },
       "node": {
-        "wall_ms": 582.8,
-        "rss_kb": 51024,
+        "wall_ms": 627.5,
+        "rss_kb": 51036,
         "cpu_pct": 100,
         "checksum": "9900000"
       },
       "ruby": {
-        "wall_ms": 148.5,
-        "rss_kb": 22168,
-        "cpu_pct": 99,
+        "wall_ms": 154.7,
+        "rss_kb": 22156,
+        "cpu_pct": 100,
         "checksum": "9900000"
       },
       "dotnet": {
-        "wall_ms": 308.0,
-        "rss_kb": 33600,
+        "wall_ms": 313.4,
+        "rss_kb": 33680,
         "cpu_pct": 101,
         "checksum": "9900000"
       }
@@ -676,44 +676,44 @@
     "what": "error propagation \u2014 throw 50 frames deep, catch at top",
     "langs": {
       "brood": {
-        "wall_ms": 61.5,
-        "rss_kb": 28316,
-        "cpu_pct": 108,
+        "wall_ms": 60.6,
+        "rss_kb": 28760,
+        "cpu_pct": 106,
         "checksum": "2475000"
       },
       "clojure": {
-        "wall_ms": 1723.3,
-        "rss_kb": 383824,
-        "cpu_pct": 148,
+        "wall_ms": 1719.4,
+        "rss_kb": 382500,
+        "cpu_pct": 150,
         "checksum": "2475000"
       },
       "elixir": {
-        "wall_ms": 197.3,
-        "rss_kb": 73580,
-        "cpu_pct": 175,
+        "wall_ms": 190.9,
+        "rss_kb": 71840,
+        "cpu_pct": 179,
         "checksum": "2475000"
       },
       "python": {
-        "wall_ms": 246.9,
-        "rss_kb": 10100,
-        "cpu_pct": 97,
+        "wall_ms": 242.0,
+        "rss_kb": 10116,
+        "cpu_pct": 100,
         "checksum": "2475000"
       },
       "node": {
-        "wall_ms": 226.3,
-        "rss_kb": 51016,
+        "wall_ms": 228.2,
+        "rss_kb": 50908,
         "cpu_pct": 100,
         "checksum": "2475000"
       },
       "ruby": {
-        "wall_ms": 156.2,
-        "rss_kb": 26388,
-        "cpu_pct": 96,
+        "wall_ms": 147.7,
+        "rss_kb": 26384,
+        "cpu_pct": 99,
         "checksum": "2475000"
       },
       "dotnet": {
-        "wall_ms": 729.2,
-        "rss_kb": 33592,
+        "wall_ms": 691.6,
+        "rss_kb": 33672,
         "cpu_pct": 100,
         "checksum": "2475000"
       }
@@ -724,45 +724,45 @@
     "what": "filter/map/reduce pipeline over a range",
     "langs": {
       "brood": {
-        "wall_ms": 51.1,
-        "rss_kb": 28172,
-        "cpu_pct": 112,
+        "wall_ms": 54.8,
+        "rss_kb": 28748,
+        "cpu_pct": 109,
         "checksum": "155553889038886"
       },
       "clojure": {
-        "wall_ms": 488.8,
-        "rss_kb": 111284,
-        "cpu_pct": 258,
+        "wall_ms": 473.5,
+        "rss_kb": 110264,
+        "cpu_pct": 253,
         "checksum": "155553889038886"
       },
       "elixir": {
-        "wall_ms": 188.0,
-        "rss_kb": 73788,
-        "cpu_pct": 179,
+        "wall_ms": 193.7,
+        "rss_kb": 71708,
+        "cpu_pct": 181,
         "checksum": "155553889038886"
       },
       "python": {
-        "wall_ms": 14.6,
-        "rss_kb": 10088,
-        "cpu_pct": 84,
+        "wall_ms": 14.3,
+        "rss_kb": 9988,
+        "cpu_pct": 91,
         "checksum": "155553889038886"
       },
       "node": {
-        "wall_ms": 27.8,
-        "rss_kb": 52936,
+        "wall_ms": 25.9,
+        "rss_kb": 52868,
         "cpu_pct": 108,
         "checksum": "155553889038886"
       },
       "ruby": {
-        "wall_ms": 46.3,
-        "rss_kb": 20112,
-        "cpu_pct": 97,
+        "wall_ms": 46.5,
+        "rss_kb": 20108,
+        "cpu_pct": 100,
         "checksum": "155553889038886"
       },
       "dotnet": {
-        "wall_ms": 29.8,
-        "rss_kb": 28576,
-        "cpu_pct": 100,
+        "wall_ms": 29.2,
+        "rss_kb": 28704,
+        "cpu_pct": 96,
         "checksum": "155553889038886"
       }
     }
@@ -772,44 +772,44 @@
     "what": "deep double-recursion (Ackermann ack(3,9))",
     "langs": {
       "brood": {
-        "wall_ms": 374.9,
-        "rss_kb": 28920,
+        "wall_ms": 366.6,
+        "rss_kb": 28956,
         "cpu_pct": 102,
         "checksum": "24558"
       },
       "clojure": {
-        "wall_ms": 913.2,
-        "rss_kb": 383240,
-        "cpu_pct": 184,
+        "wall_ms": 897.8,
+        "rss_kb": 385584,
+        "cpu_pct": 191,
         "checksum": "24558"
       },
       "elixir": {
-        "wall_ms": 477.0,
-        "rss_kb": 73860,
-        "cpu_pct": 134,
+        "wall_ms": 467.7,
+        "rss_kb": 74156,
+        "cpu_pct": 133,
         "checksum": "24558"
       },
       "python": {
-        "wall_ms": 3933.4,
-        "rss_kb": 11212,
+        "wall_ms": 3867.0,
+        "rss_kb": 11224,
         "cpu_pct": 99,
         "checksum": "24558"
       },
       "node": {
-        "wall_ms": 424.1,
-        "rss_kb": 49252,
+        "wall_ms": 413.4,
+        "rss_kb": 49264,
         "cpu_pct": 100,
         "checksum": "24558"
       },
       "ruby": {
-        "wall_ms": 1949.6,
-        "rss_kb": 19988,
+        "wall_ms": 1893.4,
+        "rss_kb": 19984,
         "cpu_pct": 100,
         "checksum": "24558"
       },
       "dotnet": {
-        "wall_ms": 269.9,
-        "rss_kb": 26652,
+        "wall_ms": 269.2,
+        "rss_kb": 26688,
         "cpu_pct": 100,
         "checksum": "24558"
       }
@@ -820,44 +820,44 @@
     "what": "Sieve of Eratosthenes (mutable array vs Table)",
     "langs": {
       "brood": {
-        "wall_ms": 51.5,
-        "rss_kb": 35200,
-        "cpu_pct": 104,
+        "wall_ms": 50.3,
+        "rss_kb": 35376,
+        "cpu_pct": 102,
         "checksum": "78498"
       },
       "clojure": {
-        "wall_ms": 494.4,
-        "rss_kb": 110948,
-        "cpu_pct": 250,
+        "wall_ms": 484.4,
+        "rss_kb": 110356,
+        "cpu_pct": 242,
         "checksum": "78498"
       },
       "elixir": {
-        "wall_ms": 238.1,
-        "rss_kb": 81816,
-        "cpu_pct": 165,
+        "wall_ms": 244.5,
+        "rss_kb": 80176,
+        "cpu_pct": 162,
         "checksum": "78498"
       },
       "python": {
-        "wall_ms": 136.1,
-        "rss_kb": 10952,
-        "cpu_pct": 100,
+        "wall_ms": 125.6,
+        "rss_kb": 11012,
+        "cpu_pct": 98,
         "checksum": "78498"
       },
       "node": {
-        "wall_ms": 24.3,
-        "rss_kb": 50408,
-        "cpu_pct": 109,
+        "wall_ms": 24.4,
+        "rss_kb": 50420,
+        "cpu_pct": 113,
         "checksum": "78498"
       },
       "ruby": {
-        "wall_ms": 126.7,
-        "rss_kb": 27284,
+        "wall_ms": 127.1,
+        "rss_kb": 27280,
         "cpu_pct": 100,
         "checksum": "78498"
       },
       "dotnet": {
-        "wall_ms": 24.9,
-        "rss_kb": 28016,
+        "wall_ms": 24.8,
+        "rss_kb": 28048,
         "cpu_pct": 100,
         "checksum": "78498"
       }
@@ -868,44 +868,44 @@
     "what": "read-modify-write churn on a map (deep CHAMP)",
     "langs": {
       "brood": {
-        "wall_ms": 74.8,
-        "rss_kb": 77384,
-        "cpu_pct": 109,
+        "wall_ms": 76.7,
+        "rss_kb": 77112,
+        "cpu_pct": 110,
         "checksum": "30039386344"
       },
       "clojure": {
-        "wall_ms": 652.2,
-        "rss_kb": 297932,
-        "cpu_pct": 221,
+        "wall_ms": 651.7,
+        "rss_kb": 299108,
+        "cpu_pct": 224,
         "checksum": "30039386344"
       },
       "elixir": {
-        "wall_ms": 310.6,
-        "rss_kb": 101296,
-        "cpu_pct": 166,
+        "wall_ms": 306.6,
+        "rss_kb": 101236,
+        "cpu_pct": 163,
         "checksum": "30039386344"
       },
       "python": {
-        "wall_ms": 94.5,
-        "rss_kb": 15276,
-        "cpu_pct": 98,
+        "wall_ms": 94.0,
+        "rss_kb": 15312,
+        "cpu_pct": 100,
         "checksum": "30039386344"
       },
       "node": {
-        "wall_ms": 41.4,
-        "rss_kb": 54932,
-        "cpu_pct": 112,
+        "wall_ms": 41.9,
+        "rss_kb": 54920,
+        "cpu_pct": 107,
         "checksum": "30039386344"
       },
       "ruby": {
-        "wall_ms": 78.7,
-        "rss_kb": 21912,
+        "wall_ms": 79.0,
+        "rss_kb": 21900,
         "cpu_pct": 98,
         "checksum": "30039386344"
       },
       "dotnet": {
-        "wall_ms": 44.5,
-        "rss_kb": 31044,
+        "wall_ms": 44.8,
+        "rss_kb": 31116,
         "cpu_pct": 100,
         "checksum": "30039386344"
       }
@@ -916,44 +916,44 @@
     "what": "floating-point physics sim (N-body)",
     "langs": {
       "brood": {
-        "wall_ms": 201.8,
-        "rss_kb": 52792,
-        "cpu_pct": 108,
+        "wall_ms": 188.9,
+        "rss_kb": 53220,
+        "cpu_pct": 109,
         "checksum": "-169078071"
       },
       "clojure": {
-        "wall_ms": 524.7,
-        "rss_kb": 111552,
-        "cpu_pct": 250,
+        "wall_ms": 534.0,
+        "rss_kb": 111072,
+        "cpu_pct": 255,
         "checksum": "-169078071"
       },
       "elixir": {
-        "wall_ms": 326.7,
-        "rss_kb": 71048,
-        "cpu_pct": 147,
+        "wall_ms": 317.3,
+        "rss_kb": 72028,
+        "cpu_pct": 149,
         "checksum": "-169078071"
       },
       "python": {
-        "wall_ms": 757.1,
-        "rss_kb": 10540,
+        "wall_ms": 695.2,
+        "rss_kb": 10488,
         "cpu_pct": 99,
         "checksum": "-169078071"
       },
       "node": {
-        "wall_ms": 30.8,
-        "rss_kb": 51380,
-        "cpu_pct": 106,
+        "wall_ms": 32.2,
+        "rss_kb": 51332,
+        "cpu_pct": 110,
         "checksum": "-169078071"
       },
       "ruby": {
-        "wall_ms": 339.4,
-        "rss_kb": 19472,
+        "wall_ms": 374.3,
+        "rss_kb": 19476,
         "cpu_pct": 99,
         "checksum": "-169078071"
       },
       "dotnet": {
-        "wall_ms": 28.8,
-        "rss_kb": 27520,
+        "wall_ms": 28.0,
+        "rss_kb": 27644,
         "cpu_pct": 100,
         "checksum": "-169078071"
       }
@@ -964,45 +964,45 @@
     "what": "JSON encode+parse round-trip (pure-Brood vs native)",
     "langs": {
       "brood": {
-        "wall_ms": 176.0,
-        "rss_kb": 79444,
-        "cpu_pct": 134,
+        "wall_ms": 178.4,
+        "rss_kb": 75412,
+        "cpu_pct": 132,
         "checksum": "1489952542"
       },
       "clojure": {
-        "wall_ms": 776.1,
-        "rss_kb": 171832,
-        "cpu_pct": 279,
+        "wall_ms": 778.7,
+        "rss_kb": 162776,
+        "cpu_pct": 285,
         "checksum": "1489952542"
       },
       "elixir": {
-        "wall_ms": 187.5,
-        "rss_kb": 78888,
-        "cpu_pct": 184,
+        "wall_ms": 193.4,
+        "rss_kb": 75204,
+        "cpu_pct": 172,
         "checksum": "1489952542"
       },
       "python": {
-        "wall_ms": 19.0,
-        "rss_kb": 12620,
-        "cpu_pct": 100,
+        "wall_ms": 18.6,
+        "rss_kb": 12636,
+        "cpu_pct": 88,
         "checksum": "1489952542"
       },
       "node": {
-        "wall_ms": 19.8,
-        "rss_kb": 44840,
-        "cpu_pct": 94,
+        "wall_ms": 20.0,
+        "rss_kb": 44828,
+        "cpu_pct": 100,
         "checksum": "1489952542"
       },
       "ruby": {
         "wall_ms": 43.7,
-        "rss_kb": 20120,
-        "cpu_pct": 95,
+        "rss_kb": 20112,
+        "cpu_pct": 100,
         "checksum": "1489952542"
       },
       "dotnet": {
-        "wall_ms": 67.1,
-        "rss_kb": 34948,
-        "cpu_pct": 100,
+        "wall_ms": 66.3,
+        "rss_kb": 35072,
+        "cpu_pct": 98,
         "checksum": "1489952542"
       }
     }
@@ -1012,45 +1012,45 @@
     "what": "regex full-match count (pure-Brood vs native)",
     "langs": {
       "brood": {
-        "wall_ms": 104.9,
-        "rss_kb": 46744,
+        "wall_ms": 106.0,
+        "rss_kb": 46500,
         "cpu_pct": 116,
         "checksum": "10000"
       },
       "clojure": {
-        "wall_ms": 482.0,
-        "rss_kb": 111208,
-        "cpu_pct": 260,
+        "wall_ms": 492.9,
+        "rss_kb": 110700,
+        "cpu_pct": 251,
         "checksum": "10000"
       },
       "elixir": {
-        "wall_ms": 204.5,
-        "rss_kb": 72128,
-        "cpu_pct": 173,
+        "wall_ms": 201.1,
+        "rss_kb": 71940,
+        "cpu_pct": 179,
         "checksum": "10000"
       },
       "python": {
-        "wall_ms": 23.8,
-        "rss_kb": 11340,
-        "cpu_pct": 100,
+        "wall_ms": 23.5,
+        "rss_kb": 11304,
+        "cpu_pct": 90,
         "checksum": "10000"
       },
       "node": {
-        "wall_ms": 21.6,
-        "rss_kb": 51248,
+        "wall_ms": 22.2,
+        "rss_kb": 51232,
         "cpu_pct": 110,
         "checksum": "10000"
       },
       "ruby": {
-        "wall_ms": 47.6,
-        "rss_kb": 19708,
-        "cpu_pct": 97,
+        "wall_ms": 46.6,
+        "rss_kb": 19724,
+        "cpu_pct": 100,
         "checksum": "10000"
       },
       "dotnet": {
-        "wall_ms": 34.3,
-        "rss_kb": 32640,
-        "cpu_pct": 103,
+        "wall_ms": 35.6,
+        "rss_kb": 32776,
+        "cpu_pct": 100,
         "checksum": "10000"
       }
     }
@@ -1060,44 +1060,44 @@
     "what": "base64 encode+decode (pure-Brood vs native)",
     "langs": {
       "brood": {
-        "wall_ms": 104.9,
-        "rss_kb": 84340,
+        "wall_ms": 107.8,
+        "rss_kb": 82380,
         "cpu_pct": 105,
         "checksum": "12081249"
       },
       "clojure": {
-        "wall_ms": 521.4,
-        "rss_kb": 111780,
-        "cpu_pct": 250,
+        "wall_ms": 516.4,
+        "rss_kb": 111336,
+        "cpu_pct": 254,
         "checksum": "12081249"
       },
       "elixir": {
-        "wall_ms": 193.1,
-        "rss_kb": 77704,
-        "cpu_pct": 180,
+        "wall_ms": 193.9,
+        "rss_kb": 79732,
+        "cpu_pct": 176,
         "checksum": "12081249"
       },
       "python": {
-        "wall_ms": 23.7,
-        "rss_kb": 10368,
+        "wall_ms": 23.6,
+        "rss_kb": 10412,
         "cpu_pct": 95,
         "checksum": "12081249"
       },
       "node": {
-        "wall_ms": 24.1,
-        "rss_kb": 51752,
-        "cpu_pct": 118,
+        "wall_ms": 24.3,
+        "rss_kb": 51776,
+        "cpu_pct": 113,
         "checksum": "12081249"
       },
       "ruby": {
-        "wall_ms": 48.0,
-        "rss_kb": 19848,
+        "wall_ms": 46.8,
+        "rss_kb": 19860,
         "cpu_pct": 100,
         "checksum": "12081249"
       },
       "dotnet": {
-        "wall_ms": 26.5,
-        "rss_kb": 27772,
+        "wall_ms": 26.2,
+        "rss_kb": 27824,
         "cpu_pct": 95,
         "checksum": "12081249"
       }
@@ -1108,45 +1108,45 @@
     "what": "lightweight concurrent units + result collection",
     "langs": {
       "brood": {
-        "wall_ms": 50.7,
-        "rss_kb": 41300,
-        "cpu_pct": 593,
+        "wall_ms": 51.5,
+        "rss_kb": 38324,
+        "cpu_pct": 572,
         "checksum": "6100000"
       },
       "clojure": {
-        "wall_ms": 534.9,
-        "rss_kb": 136172,
-        "cpu_pct": 344,
+        "wall_ms": 542.8,
+        "rss_kb": 137556,
+        "cpu_pct": 336,
         "checksum": "6100000"
       },
       "elixir": {
-        "wall_ms": 203.0,
-        "rss_kb": 78324,
-        "cpu_pct": 215,
+        "wall_ms": 206.7,
+        "rss_kb": 78380,
+        "cpu_pct": 207,
         "checksum": "6100000"
       },
       "python": {
-        "wall_ms": 564.3,
-        "rss_kb": 28504,
+        "wall_ms": 567.6,
+        "rss_kb": 28532,
         "cpu_pct": 99,
         "checksum": "6100000"
       },
       "node": {
-        "wall_ms": 71.6,
-        "rss_kb": 52544,
-        "cpu_pct": 101,
+        "wall_ms": 71.9,
+        "rss_kb": 52440,
+        "cpu_pct": 102,
         "checksum": "6100000"
       },
       "ruby": {
-        "wall_ms": 1642.8,
-        "rss_kb": 136464,
+        "wall_ms": 1615.0,
+        "rss_kb": 135400,
         "cpu_pct": 109,
         "checksum": "6100000"
       },
       "dotnet": {
-        "wall_ms": 39.3,
-        "rss_kb": 31968,
-        "cpu_pct": 218,
+        "wall_ms": 38.8,
+        "rss_kb": 31512,
+        "cpu_pct": 216,
         "checksum": "6100000"
       }
     }
@@ -1156,32 +1156,32 @@
     "what": "hold N units alive, then wake each with a copied message",
     "langs": {
       "brood": {
-        "wall_ms": 1770.8,
-        "rss_kb": 1679376,
-        "cpu_pct": 263,
+        "wall_ms": 1778.0,
+        "rss_kb": 1703128,
+        "cpu_pct": 265,
         "checksum": "36300000"
       },
       "elixir": {
-        "wall_ms": 893.6,
-        "rss_kb": 937936,
-        "cpu_pct": 231,
+        "wall_ms": 900.4,
+        "rss_kb": 933572,
+        "cpu_pct": 228,
         "checksum": "36300000"
       },
       "python": {
-        "wall_ms": 1306.5,
-        "rss_kb": 369960,
-        "cpu_pct": 99,
+        "wall_ms": 1302.7,
+        "rss_kb": 370068,
+        "cpu_pct": 100,
         "checksum": "36300000"
       },
       "node": {
-        "wall_ms": 245.2,
-        "rss_kb": 252476,
+        "wall_ms": 243.7,
+        "rss_kb": 249744,
         "cpu_pct": 220,
         "checksum": "36300000"
       },
       "dotnet": {
-        "wall_ms": 309.9,
-        "rss_kb": 140812,
+        "wall_ms": 312.5,
+        "rss_kb": 140932,
         "cpu_pct": 162,
         "checksum": "36300000"
       }
@@ -1192,82 +1192,82 @@
     "what": "latency under a fixed arrival rate, 5% of requests occupying 500us each",
     "langs": {
       "brood": {
-        "wall_ms": 2567.9,
-        "rss_kb": 123528,
-        "cpu_pct": 179,
+        "wall_ms": 2568.0,
+        "rss_kb": 118784,
+        "cpu_pct": 183,
         "checksum": "168000000",
         "metrics": {
-          "fat_units": 59139,
-          "fat_measured_us": 472,
+          "fat_units": 63420,
+          "fat_measured_us": 512,
           "ordinary_n": 47500,
-          "p50_us": 16,
-          "p99_us": 73,
-          "p999_us": 492,
-          "max_us": 2713,
-          "sustained_rps": 19933
+          "p50_us": 17,
+          "p99_us": 76,
+          "p999_us": 519,
+          "max_us": 1616,
+          "sustained_rps": 19929
         }
       },
       "elixir": {
-        "wall_ms": 2713.2,
-        "rss_kb": 81296,
-        "cpu_pct": 165,
+        "wall_ms": 2709.2,
+        "rss_kb": 81016,
+        "cpu_pct": 172,
         "checksum": "168000000",
         "metrics": {
-          "fat_units": 50286,
-          "fat_measured_us": 500,
+          "fat_units": 56855,
+          "fat_measured_us": 489,
           "ordinary_n": 47500,
           "p50_us": 8,
           "p99_us": 58,
-          "p999_us": 90,
-          "max_us": 148,
-          "sustained_rps": 19995
+          "p999_us": 91,
+          "max_us": 673,
+          "sustained_rps": 19994
         }
       },
       "python": {
-        "wall_ms": 2551.3,
-        "rss_kb": 11300,
-        "cpu_pct": 100,
+        "wall_ms": 2549.0,
+        "rss_kb": 11332,
+        "cpu_pct": 99,
         "checksum": "168000000",
         "metrics": {
-          "fat_units": 4985,
-          "fat_measured_us": 490,
+          "fat_units": 5474,
+          "fat_measured_us": 502,
           "ordinary_n": 47500,
-          "p50_us": 32,
-          "p99_us": 467,
-          "p999_us": 711,
-          "max_us": 868,
+          "p50_us": 21,
+          "p99_us": 458,
+          "p999_us": 1213,
+          "max_us": 1941,
           "sustained_rps": 20000
         }
       },
       "node": {
-        "wall_ms": 2563.0,
-        "rss_kb": 59612,
-        "cpu_pct": 99,
+        "wall_ms": 2550.3,
+        "rss_kb": 59452,
+        "cpu_pct": 100,
         "checksum": "168000000",
         "metrics": {
-          "fat_units": 327665,
-          "fat_measured_us": 512,
+          "fat_units": 327666,
+          "fat_measured_us": 499,
           "ordinary_n": 47500,
-          "p50_us": 12,
-          "p99_us": 472,
-          "p999_us": 574,
-          "max_us": 747,
+          "p50_us": 9,
+          "p99_us": 464,
+          "p999_us": 489,
+          "max_us": 605,
           "sustained_rps": 20000
         }
       },
       "dotnet": {
-        "wall_ms": 2558.8,
-        "rss_kb": 49720,
-        "cpu_pct": 235,
+        "wall_ms": 2557.1,
+        "rss_kb": 49912,
+        "cpu_pct": 237,
         "checksum": "168000000",
         "metrics": {
-          "fat_units": 117529,
+          "fat_units": 115403,
           "fat_measured_us": 493,
           "ordinary_n": 47500,
           "p50_us": 4,
-          "p99_us": 839,
-          "p999_us": 13211,
-          "max_us": 15553,
+          "p99_us": 642,
+          "p999_us": 12812,
+          "max_us": 15162,
           "sustained_rps": 19997
         }
       }
@@ -1278,15 +1278,15 @@
     "what": "supervise N children, then retire a quarter and let the supervisor restart them",
     "langs": {
       "brood": {
-        "wall_ms": 862.7,
-        "rss_kb": 475472,
+        "wall_ms": 883.9,
+        "rss_kb": 481768,
         "cpu_pct": 145,
         "checksum": "25000"
       },
       "elixir": {
-        "wall_ms": 439.6,
-        "rss_kb": 156612,
-        "cpu_pct": 200,
+        "wall_ms": 451.3,
+        "rss_kb": 158060,
+        "cpu_pct": 242,
         "checksum": "25000"
       }
     }
@@ -1296,45 +1296,45 @@
     "what": "parallel fib \u2014 100 computed at once across cores",
     "langs": {
       "brood": {
-        "wall_ms": 204.6,
-        "rss_kb": 31028,
-        "cpu_pct": 1024,
+        "wall_ms": 203.1,
+        "rss_kb": 31016,
+        "cpu_pct": 1047,
         "checksum": "134626900"
       },
       "clojure": {
-        "wall_ms": 755.1,
-        "rss_kb": 139392,
-        "cpu_pct": 535,
+        "wall_ms": 755.5,
+        "rss_kb": 138192,
+        "cpu_pct": 541,
         "checksum": "134626900"
       },
       "elixir": {
-        "wall_ms": 480.5,
-        "rss_kb": 72848,
-        "cpu_pct": 317,
+        "wall_ms": 473.0,
+        "rss_kb": 74096,
+        "cpu_pct": 322,
         "checksum": "134626900"
       },
       "python": {
-        "wall_ms": 2570.7,
-        "rss_kb": 17300,
-        "cpu_pct": 1068,
+        "wall_ms": 2565.4,
+        "rss_kb": 17380,
+        "cpu_pct": 1067,
         "checksum": "134626900"
       },
       "node": {
-        "wall_ms": 326.4,
-        "rss_kb": 186172,
-        "cpu_pct": 1050,
+        "wall_ms": 326.2,
+        "rss_kb": 185880,
+        "cpu_pct": 1065,
         "checksum": "134626900"
       },
       "ruby": {
-        "wall_ms": 2002.0,
-        "rss_kb": 19484,
-        "cpu_pct": 1091,
+        "wall_ms": 1983.8,
+        "rss_kb": 19476,
+        "cpu_pct": 1122,
         "checksum": "134626900"
       },
       "dotnet": {
-        "wall_ms": 138.9,
-        "rss_kb": 28768,
-        "cpu_pct": 779,
+        "wall_ms": 139.2,
+        "rss_kb": 28848,
+        "cpu_pct": 788,
         "checksum": "134626900"
       }
     }
@@ -1344,45 +1344,45 @@
     "what": "concurrent HTTP \u2014 N in-flight GETs to a local server",
     "langs": {
       "brood": {
-        "wall_ms": 171.4,
-        "rss_kb": 83752,
-        "cpu_pct": 217,
+        "wall_ms": 171.9,
+        "rss_kb": 84424,
+        "cpu_pct": 214,
         "checksum": "500"
       },
       "clojure": {
-        "wall_ms": 1180.1,
-        "rss_kb": 288220,
-        "cpu_pct": 324,
+        "wall_ms": 1162.7,
+        "rss_kb": 300488,
+        "cpu_pct": 314,
         "checksum": "500"
       },
       "elixir": {
-        "wall_ms": 778.1,
-        "rss_kb": 454648,
-        "cpu_pct": 355,
+        "wall_ms": 753.0,
+        "rss_kb": 486060,
+        "cpu_pct": 335,
         "checksum": "500"
       },
       "python": {
-        "wall_ms": 189.1,
-        "rss_kb": 45740,
-        "cpu_pct": 165,
+        "wall_ms": 182.8,
+        "rss_kb": 45808,
+        "cpu_pct": 164,
         "checksum": "500"
       },
       "node": {
-        "wall_ms": 141.2,
-        "rss_kb": 66256,
-        "cpu_pct": 104,
-        "checksum": "500"
-      },
-      "ruby": {
-        "wall_ms": 252.7,
-        "rss_kb": 46544,
+        "wall_ms": 139.7,
+        "rss_kb": 66132,
         "cpu_pct": 103,
         "checksum": "500"
       },
+      "ruby": {
+        "wall_ms": 243.2,
+        "rss_kb": 47056,
+        "cpu_pct": 104,
+        "checksum": "500"
+      },
       "dotnet": {
-        "wall_ms": 172.3,
-        "rss_kb": 49264,
-        "cpu_pct": 167,
+        "wall_ms": 167.2,
+        "rss_kb": 49088,
+        "cpu_pct": 169,
         "checksum": "500"
       }
     }
@@ -1392,45 +1392,45 @@
     "what": "message round-trip latency \u2014 two units bounce a token N times",
     "langs": {
       "brood": {
-        "wall_ms": 218.2,
-        "rss_kb": 46540,
+        "wall_ms": 221.7,
+        "rss_kb": 44536,
         "cpu_pct": 108,
         "checksum": "100000"
       },
       "clojure": {
-        "wall_ms": 941.1,
-        "rss_kb": 135560,
-        "cpu_pct": 197,
+        "wall_ms": 939.9,
+        "rss_kb": 136452,
+        "cpu_pct": 195,
         "checksum": "100000"
       },
       "elixir": {
-        "wall_ms": 242.1,
-        "rss_kb": 74968,
-        "cpu_pct": 170,
+        "wall_ms": 236.0,
+        "rss_kb": 72424,
+        "cpu_pct": 180,
         "checksum": "100000"
       },
       "python": {
-        "wall_ms": 839.9,
-        "rss_kb": 11028,
-        "cpu_pct": 117,
+        "wall_ms": 793.6,
+        "rss_kb": 11116,
+        "cpu_pct": 127,
         "checksum": "100000"
       },
       "node": {
-        "wall_ms": 668.5,
-        "rss_kb": 69004,
-        "cpu_pct": 129,
+        "wall_ms": 648.9,
+        "rss_kb": 68656,
+        "cpu_pct": 130,
         "checksum": "100000"
       },
       "ruby": {
-        "wall_ms": 633.8,
-        "rss_kb": 19488,
+        "wall_ms": 633.5,
+        "rss_kb": 19480,
         "cpu_pct": 101,
         "checksum": "100000"
       },
       "dotnet": {
-        "wall_ms": 197.3,
-        "rss_kb": 28360,
-        "cpu_pct": 691,
+        "wall_ms": 194.4,
+        "rss_kb": 28428,
+        "cpu_pct": 725,
         "checksum": "100000"
       }
     }
@@ -1440,45 +1440,45 @@
     "what": "N-process ring \u2014 token travels N*5000 hops",
     "langs": {
       "brood": {
-        "wall_ms": 742.0,
-        "rss_kb": 64040,
+        "wall_ms": 748.2,
+        "rss_kb": 64944,
         "cpu_pct": 104,
         "checksum": "1000000"
       },
       "clojure": {
-        "wall_ms": 4819.0,
-        "rss_kb": 771848,
-        "cpu_pct": 144,
+        "wall_ms": 4680.3,
+        "rss_kb": 801996,
+        "cpu_pct": 147,
         "checksum": "1000000"
       },
       "elixir": {
-        "wall_ms": 449.6,
-        "rss_kb": 73492,
-        "cpu_pct": 141,
+        "wall_ms": 446.6,
+        "rss_kb": 73644,
+        "cpu_pct": 143,
         "checksum": "1000000"
       },
       "python": {
-        "wall_ms": 4688.3,
-        "rss_kb": 16392,
-        "cpu_pct": 116,
+        "wall_ms": 4626.2,
+        "rss_kb": 16304,
+        "cpu_pct": 117,
         "checksum": "1000000"
       },
       "node": {
-        "wall_ms": 137.2,
-        "rss_kb": 66828,
-        "cpu_pct": 106,
+        "wall_ms": 134.7,
+        "rss_kb": 66912,
+        "cpu_pct": 105,
         "checksum": "1000000"
       },
       "ruby": {
-        "wall_ms": 3531.3,
-        "rss_kb": 23584,
-        "cpu_pct": 96,
+        "wall_ms": 3416.8,
+        "rss_kb": 23580,
+        "cpu_pct": 98,
         "checksum": "1000000"
       },
       "dotnet": {
-        "wall_ms": 883.4,
-        "rss_kb": 31136,
-        "cpu_pct": 936,
+        "wall_ms": 889.5,
+        "rss_kb": 31184,
+        "cpu_pct": 974,
         "checksum": "1000000"
       }
     }
@@ -1487,10 +1487,10 @@
     "host": "whklat",
     "cores": 12,
     "platform": "Linux-7.0.0-29-generic-x86_64-with-glibc2.43",
-    "date": "2026-08-10 10:50",
-    "brood_commit": "853afe6f",
+    "date": "2026-08-13 17:49",
+    "brood_commit": "d5572d61",
     "versions": {
-      "brood": "brood 0.3.9",
+      "brood": "brood 0.3.11 (d5572d61)",
       "clojure": "Clojure 1.12.5 / JDK 25.0.3",
       "elixir": "Elixir 1.21.0-dev (b82c44a) (compiled with Erlang/OTP 28)",
       "python": "Python 3.14.4",
