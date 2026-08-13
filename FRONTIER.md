@@ -23,8 +23,12 @@ arm's native code *and* its bytecode — compiled once per runtime, not once per
 
 Ratios are Brood's compute vs the fastest language on that row.
 
-- **`spawn-live` (1.75 s, 1.60 GB — 2.5× slower, 1.8× heavier than the BEAM).** ~5.5 KB per live
-  process against ~3.1 KB. Moved 2026-08-05 (−16% wall, −26% CPU, A/B-corroborated): the previous
+- **`spawn-live` (1.76 s, 1.62 GB — 2.5× slower, 1.8× heavier than the BEAM).** ~5.5 KB per live
+  process against ~3.1 KB. **Flat 2026-08-13** (0.3.9 → 0.3.11), and flat by measurement rather
+  than by silence: a fixed-baseline A/B reads CPU **+1.1%** (per-side spreads 5.5% / 7.0%) and wall
+  −0.6% against a 0.9% floor. That ends a run of four consecutive moves; nothing in the 56 commits
+  of that range touched this row, which is consistent with the standing diagnosis that what is left
+  is the process floor. Moved 2026-08-05 (−16% wall, −26% CPU, A/B-corroborated): the previous
   entry claimed compiled code was no longer the cause, which was true of the mechanism and false in
   practice — sharing was keyed by the closure *handle*, and a no-capture closure is promoted afresh
   per creation, so 300k `spawn` thunks and 300k `receive` matchers each compiled their own copy
@@ -37,8 +41,11 @@ Ratios are Brood's compute vs the fastest language on that row.
   named here as what came next and has since been measured and retired** — worth ~1.8% of this row,
   inside the noise (see ruled-out). What is left is the process floor, which none of the four wins
   touched, and which wants a real allocation profile.
-- **`nbody` (~11× Node, ~25× .NET)** — was ~23×/~54× until 2026-07-30; now 4/7, within 1.2× of
-  Elixir. The cause was not the immutable rebuild this entry once blamed: the tier-time profile
+- **`nbody` (~12× Node, ~27× .NET)** — was ~23×/~54× until 2026-07-30; now 4/7, within 1.3× of
+  Elixir. The 2026-08-13 harness read it **−7.1%, which an A/B did not confirm** (−0.9%, verdict
+  noise) — a reminder that a single harness row is one best-of-3 sample, not a result; do not
+  bank this as a win. The cause was not the immutable rebuild this entry once blamed: the
+  tier-time profile
   types an arm's *parameters* only, so a function whose floats arrive from a `def`'d constant read
   as non-float context, lowered its float multiply onto the integer path, and deopted on every
   activation until the sixteen-deopt rule bailed it to the interpreter — silent interpretation, no
@@ -47,7 +54,7 @@ Ratios are Brood's compute vs the fastest language on that row.
   analysis or a native float array. A standing check fell out of it: **the JIT-vs-no-JIT ratio per
   row** — `fib` 54×, `collatz` 40×, but nbody 3.2×, which is what exposed the bail; `bintree` (3.5×)
   and `nqueens` (3.4×) are still in that band.
-- **`bintree` (~103 ms, 6th; the BEAM is unusually fast here at ~12 ms)** — drifts in the
+- **`bintree` (~108 ms, 6th; the BEAM is unusually fast here at ~12 ms)** — drifts in the
   95–115 ms band, trading places with Python/Ruby. The cost is the call protocol: ~77 ns
   per node over four non-tail calls. That is the X-register/call-convention redesign, not
   a tuning knob. The open watch-item.
@@ -55,9 +62,13 @@ Ratios are Brood's compute vs the fastest language on that row.
   the non-tail `solve`/`safe?` recursion dominate.
 - **`mandelbrot` (~8×)** — `esc` is JIT'd with register-carried f64 params; the residual is
   boxed 24-byte `Value` tagging in the arithmetic plus loop overhead. Near the JIT floor.
-- **`pipeline` (~8×)** — lazy-seq/transducer composition the JIT doesn't cover; allocation
-  churn dominates. Blocker: `eduction`'s step closures capture, and the fast-link bails on
-  captures.
+- **`pipeline` (9.0×) — REGRESSED +9.1% in 0.3.9 → 0.3.11, confirmed and unexplained.** Lazy-seq/
+  transducer composition the JIT doesn't cover; allocation churn dominates. Blocker: `eduction`'s
+  step closures capture, and the fast-link bails on captures. The regression is real, not sweep
+  drift: the harness saw +10.0%, a fixed-baseline A/B saw +9.3% in a sweep and **+9.1% re-run
+  alone against a 1.8% floor** — five times its own noise, by two independent instruments. Cause
+  unknown; nothing in the range is an obvious candidate, so it wants a bisect over the 56 commits.
+  Small absolute (35 → 38.5 ms), which is why it is easy to wave off — don't.
 - **`matmul` (the ~32× ratio is inflated by .NET's 4 ms denominator)** — inner loop is
   native; residual is the one read LICM can't hoist plus boxed `Value` array storage.
 - **Message latency (`pingpong`, `ring` — Elixir leads ~2.7–3.3×)** — the widest honest gap, with
@@ -74,9 +85,13 @@ Ratios are Brood's compute vs the fastest language on that row.
   bytes/codepoint fast path shared by all three.
 - **`sort`** — do not re-optimise the comparator (already unboxed). Still the suite's
   heaviest row for memory; the allocation volume is the cost, not collection.
-- **`primes`, `loop`** — raw dispatch overhead, both already closed hard.
+- **`primes` (5.8×) — REGRESSED +7.2% in 0.3.9 → 0.3.11, confirmed; `loop` flat.** Raw dispatch
+  overhead, both previously closed hard — which is what makes `primes` moving backwards worth a
+  look rather than a shrug. Same corroboration as `pipeline`: harness +6.7%, A/B +8.8% in a sweep,
+  **+7.2% re-run alone against a 1.4% floor**. `loop` is unchanged (+0.9%), so whatever this is,
+  it is not general dispatch cost — the two rows share that and only one moved.
 
-**Memory is not a frontier row.** Base RSS ~20 MB: 3rd-lightest of the seven and the
+**Memory is not a frontier row.** Base RSS ~23 MB: 3rd-lightest of the seven and the
 lightest of the compiled-class runtimes.
 
 ## Levers (rough priority)

@@ -116,13 +116,26 @@ def header_cells(header):
     return out
 
 
+def brood_version(res):
+    """`0.3.11 (`d5572d61`)` — the version with the commit attached exactly once.
+
+    `brood --version` grew a trailing `(hash)` of its own in 0.3.10; before that the
+    harness's separate `brood_commit` was the only source. Strip whatever the version
+    string carries and re-attach from `brood_commit`, so neither shape double-prints it
+    (0.3.11 did: `Brood 0.3.11 (d5572d61) (`d5572d61`)`).
+    """
+    m = res["_meta"]
+    ver = m["versions"]["brood"].replace("brood ", "")
+    ver = re.sub(r"\s*\([0-9a-f]{7,40}\)\s*$", "", ver).strip()
+    commit = m.get("brood_commit")
+    return f"{ver} (`{commit}`)" if commit else ver
+
+
 def machine_line(res):
     m = res["_meta"]
     v = m["versions"]
     date = m["date"].split(" ")[0]
-    brood = v["brood"].replace("brood ", "")
-    commit = m.get("brood_commit")
-    brood = f"{brood} (`{commit}`)" if commit else brood
+    brood = brood_version(res)
     elixir = re.sub(r" \(compiled with Erlang/OTP (\d+)\)", r" / OTP \1", v["elixir"])
     elixir = elixir.replace("Elixir ", "").replace(" (", " (")
     return (
@@ -398,12 +411,11 @@ def standings_block(res, starts):
 
 def environment_block(res, starts):
     m, v = res["_meta"], res["_meta"]["versions"]
-    commit = f" (`{m['brood_commit']}`)" if m.get("brood_commit") else ""
     return [
         begin("ENVIRONMENT"),
         f"Numbers in the docs were measured on `{m['host']}`: a {m['cores']}-core x86-64 "
         f"Linux {m['platform'].split('-')[1]} machine · Brood "
-        f"{v['brood'].replace('brood ', '')}{commit} (bytecode VM + tier-1 JIT) · "
+        f"{brood_version(res)} (bytecode VM + tier-1 JIT) · "
         f"{v['clojure'].replace(' / JDK', ' / OpenJDK')} (HotSpot) · "
         f"{re.sub(r' \(compiled with Erlang/OTP (\d+)\)', r' / OTP \1', v['elixir'])} "
         f"(BeamAsm JIT) · {v['python']} · Node {v['node'].lstrip('v')} (V8) · "
