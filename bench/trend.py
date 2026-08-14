@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Brood's own rows over time — the chart the positioning map cannot be.
+"""Brood's own rows over time — the chart a field-wide scalar cannot be.
 
     python3 bench/trend.py            # → results/trend.svg (+ a table on stdout)
     python3 bench/trend.py --rows spawn-live,fib
 
-Why this exists. `positioning.svg` places seven languages by one scalar each, aggregated
+Why this exists. `overview.svg` ranks the languages by one scalar each, aggregated
 over 27 rows. That is the right shape for "where does this runtime stand" and the wrong
 shape for "did the thing I just optimised move": a 16% win on one row shifts a 27-row
 geometric mean by well under a pixel, so real progress reads as no progress. `spawn-live`
@@ -29,7 +29,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 RESULTS = ROOT / "results"
 
-# Rows worth trending: the concurrency story the positioning map cannot show, plus a
+# Rows worth trending: the concurrency story a field-wide scalar cannot show, plus a
 # couple of compute rows as controls (if everything moves together it was the machine).
 DEFAULT_ROWS = ["spawn-live", "supervisor", "ring", "pingpong", "fib", "bintree"]
 COLOR = ["#c0392b", "#8e44ad", "#2980b9", "#27ae60", "#d35400", "#16a085", "#e67e22"]

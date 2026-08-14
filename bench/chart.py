@@ -1,10 +1,14 @@
 #!/usr/bin/env python3
-"""Render results/positioning.svg from results/results.json — a 2-D map of where
-each language sits: compute speed (x, log) vs memory footprint (y). Lower-left =
-fast + light. Pure-Python SVG (no deps), so it regenerates anywhere and renders
-inline on GitHub.
+"""Render results/overview.svg from results/results.json — the ranked overall-speed
+chart at the top of the README. Pure-Python SVG (no deps), so it regenerates anywhere
+and renders inline on GitHub.
 
     python3 bench/chart.py
+
+This replaced a 2-D speed-vs-memory scatter (`positioning.svg`, retired 2026-08-14).
+The scatter was the more complete picture and the worse README opener: it took a
+paragraph to explain, and the memory axis it existed for is reported per language in
+the standings table anyway. `git log -- bench/chart.py` has it if it is ever wanted back.
 """
 import json
 import math
@@ -136,79 +140,11 @@ def esc(s):
     return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
 
-def render(points, nrows):
-    W, H = 760, 480
-    ml, mr, mt, mb = 70, 30, 50, 60     # margins
-    pw, ph = W - ml - mr, H - mt - mb
-    xs = [p[0] for p in points.values()]
-    ys = [p[1] for p in points.values()]
-    # x: log scale from 1 to a bit past the max slowdown.
-    xmin, xmax = 1.0, max(xs) * 1.25
-    lxmin, lxmax = math.log10(xmin), math.log10(xmax)
-    ymin, ymax = 0.0, max(ys) * 1.15
-
-    def X(v):
-        return ml + (math.log10(v) - lxmin) / (lxmax - lxmin) * pw
-
-    def Y(v):
-        return mt + ph - (v - ymin) / (ymax - ymin) * ph
-
-    s = [f'<svg xmlns="http://www.w3.org/2000/svg" width="{W}" height="{H}" '
-         f'viewBox="0 0 {W} {H}" font-family="system-ui,Segoe UI,Helvetica,Arial,sans-serif">']
-    s.append(f'<rect width="{W}" height="{H}" fill="#ffffff"/>')
-    s.append(f'<text x="{W/2}" y="26" text-anchor="middle" font-size="17" '
-             f'font-weight="700" fill="#222">Where the languages land — overall speed vs memory</text>')
-    # Axes
-    s.append(f'<line x1="{ml}" y1="{mt+ph}" x2="{ml+pw}" y2="{mt+ph}" stroke="#888" stroke-width="1"/>')
-    s.append(f'<line x1="{ml}" y1="{mt}" x2="{ml}" y2="{mt+ph}" stroke="#888" stroke-width="1"/>')
-    # X gridlines/ticks at 1,2,5,10,20,50,100
-    for tick in [1, 2, 5, 10, 20, 50, 100]:
-        if tick > xmax:
-            break
-        x = X(tick)
-        s.append(f'<line x1="{x:.1f}" y1="{mt}" x2="{x:.1f}" y2="{mt+ph}" stroke="#eee" stroke-width="1"/>')
-        s.append(f'<text x="{x:.1f}" y="{mt+ph+18}" text-anchor="middle" font-size="12" fill="#555">{tick}×</text>')
-    # Y gridlines/ticks
-    ystep = 20 if ymax <= 120 else 40
-    t = 0
-    while t <= ymax:
-        y = Y(t)
-        s.append(f'<line x1="{ml}" y1="{y:.1f}" x2="{ml+pw}" y2="{y:.1f}" stroke="#eee" stroke-width="1"/>')
-        s.append(f'<text x="{ml-10}" y="{y+4:.1f}" text-anchor="end" font-size="12" fill="#555">{t}</text>')
-        t += ystep
-    # Axis labels
-    s.append(f'<text x="{ml+pw/2}" y="{H-16}" text-anchor="middle" font-size="13" fill="#333">'
-             f'overall slowdown vs the fastest — geomean of {nrows} rows, startup excluded, log scale — left is faster</text>')
-    s.append(f'<text x="18" y="{mt+ph/2}" text-anchor="middle" font-size="13" fill="#333" '
-             f'transform="rotate(-90 18 {mt+ph/2})">base memory (MB) — lower is lighter</text>')
-    # "ideal" hint
-    s.append(f'<text x="{ml+8}" y="{mt+ph-8}" font-size="11" fill="#aaa">↙ fast &amp; light</text>')
-    # Points
-    for l, (gx, my, ox) in sorted(points.items(), key=lambda kv: kv[1][1]):
-        c = COLOR.get(l, "#444")
-        cx, cy = X(gx), Y(my)
-        s.append(f'<circle cx="{cx:.1f}" cy="{cy:.1f}" r="7" fill="{c}" '
-                 f'fill-opacity="0.85" stroke="#fff" stroke-width="1.5"/>')
-        # Flip the label to the left of the dot when near the right edge, and keep it
-        # clear of its own overlay marker when that sits to the right.
-        if cx > ml + pw * 0.7:
-            tx, anchor = cx - 11, "end"
-        else:
-            tx, anchor = cx + 11, "start"
-        s.append(f'<text x="{tx:.1f}" y="{cy+4:.1f}" text-anchor="{anchor}" font-size="13" '
-                 f'font-weight="600" fill="{c}">{esc(LABEL.get(l, l))} '
-                 f'<tspan font-weight="400" fill="#777">({gx:.1f}× · {my:.0f}MB)</tspan></text>')
-    s.append('</svg>')
-    return "\n".join(s)
-
-
 def render_bars(points):
     """results/overview.svg — the one-glance ranking, for the top of the README.
 
-    The positioning map answers "fast AND light, in two dimensions"; that is the right
-    picture but it takes a paragraph to read. This answers the blunter question a reader
-    actually opens with — *how far off the pace is Brood?* — as a sorted bar chart, which
-    is what magnitude-across-categories should be.
+    Answers the blunt question a reader opens with — *how far off the pace is Brood?* —
+    as a sorted bar chart, which is what magnitude-across-categories should be.
 
     EMPHASIS, not categorical: Brood is the subject of this repo and the rest are context,
     so Brood carries its own colour, C carries its own as the floor the chart is scaled
@@ -262,11 +198,8 @@ def render_bars(points):
 def main():
     results = json.loads((RESULTS / "results.json").read_text())
     points, nrows = collect(results)
-    svg = render(points, nrows)
-    (RESULTS / "positioning.svg").write_text(svg)
     (RESULTS / "overview.svg").write_text(render_bars(points))
-    print(f"wrote {RESULTS/'positioning.svg'} and {RESULTS/'overview.svg'} "
-          f"— {len(points)} languages")
+    print(f"wrote {RESULTS/'overview.svg'} — {len(points)} languages over {nrows} rows")
     for l, (g, m, o) in sorted(points.items(), key=lambda kv: kv[1][0]):
         tail = f", {o:5.2f}× incl. spawn-live" if o else ""
         print(f"  {l:8} {g:5.2f}× slowdown, {m:5.1f} MB{tail}")

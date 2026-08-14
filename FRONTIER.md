@@ -238,4 +238,5 @@ runtime in it; the meaningful comparison stays Python 9.8, Ruby 19.0, .NET 25.9,
   −14.8% to fix nothing.
 
 See [`results/report.md`](results/report.md) for the current numbers and
-[`results/positioning.svg`](results/positioning.svg) for the compute-vs-memory map.
+[`results/overview.svg`](results/overview.svg) for the ranked overall-speed chart
+(base RSS per language is in the README standings table).

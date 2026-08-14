@@ -184,7 +184,7 @@ Against the rest of the field, for context:
 | `ring` | 890ms | 118ms | **744ms** | 4.3s | 4.6s | 3.4s | 2/6 | 🔴 +6.3× | 🟢 −2.0× |
 
 Brood is never last above; it **is** last on `spawn-live`, below. Note the tables above are the
-eleven single-threaded compute rows — the positioning map in the README aggregates the 15 rows
+eleven single-threaded compute rows — the overview chart in the README aggregates the 15 rows
 every column implements, where Brood sits 4th of eight. The field drifts ±10%
 run-to-run, so read orderings, not digits. (`spawn-live`, `supervisor` and `latency` are outside
 the field-wide aggregate: subset of languages, and `latency` is percentiles.)
