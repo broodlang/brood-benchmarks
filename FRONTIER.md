@@ -72,13 +72,26 @@ old denominator is the more useful one it is named explicitly below.
   residual is boxed 24-byte `Value` tagging in the arithmetic plus loop overhead. Near the JIT
   floor. That C is only 1.2× ahead of .NET here says the row is close to its arithmetic limit
   for everyone, which is the useful reading.
-- **`pipeline` (9.0×) — REGRESSED +9.1% in 0.3.9 → 0.3.11, confirmed and unexplained.** Lazy-seq/
-  transducer composition the JIT doesn't cover; allocation churn dominates. Blocker: `eduction`'s
-  step closures capture, and the fast-link bails on captures. The regression is real, not sweep
-  drift: the harness saw +10.0%, a fixed-baseline A/B saw +9.3% in a sweep and **+9.1% re-run
-  alone against a 1.8% floor** — five times its own noise, by two independent instruments. Cause
-  unknown; nothing in the range is an obvious candidate, so it wants a bisect over the 56 commits.
-  Small absolute (35 → 38.5 ms), which is why it is easy to wave off — don't.
+- **`pipeline` (9.0×) — REGRESSED +9.3%, bisected to `98e97308` (ADR-224).** Lazy-seq/transducer
+  composition the JIT doesn't cover; allocation churn dominates. Blocker: `eduction`'s step
+  closures capture, and the fast-link bails on captures.
+
+  The regression bisects cleanly to **`98e97308` "reach a shared compiled arm through a
+  process-local handle"**, confirmed against its own parent: **+5.8%** in a sweep and **+5.7%**
+  re-run alone against a 1.9% floor. The mechanism is the commit working as designed. It removes
+  multi-core contention — three `Arc` clones per call on one shared refcount cache line, which had
+  `pfib` stalled at 769% cores — by routing every call through a process-local `ArmHandle` created
+  per (process, call site) at IC-fill. That is a 3.19× multi-core win. **Single-threaded there is
+  no contention to relieve, so the indirection is pure cost**, and a row that calls a closure per
+  element pays it per element.
+
+  Not a diligence failure: the commit ran an 8-row `make ab` and explicitly accepted a known +1.8%
+  on `spawn-live`. The 8 rows just did not include this one. If the trade is worth keeping — and
+  on the `pfib` numbers it probably is — this row's ~6% is the price, and should be recorded as
+  such rather than chased.
+
+  The remaining ~3.5% (bisected step +5.7%, end-to-end +9.3%) is not attributed; see `primes`
+  below for why that is expected rather than a loose end.
 - **`matmul` (49.5× C, 29.3× .NET)** — inner loop is native; residual is the one read LICM can't
   hoist plus boxed `Value` array storage. Both denominators are small (2.6 ms and 4.4 ms), so the
   ratio is dramatic on a row where everyone is fast; read the absolute, not the multiple.
@@ -96,11 +109,26 @@ old denominator is the more useful one it is named explicitly below.
   bytes/codepoint fast path shared by all three.
 - **`sort`** — do not re-optimise the comparator (already unboxed). Still the suite's
   heaviest row for memory; the allocation volume is the cost, not collection.
-- **`primes` (7.1× C, 5.4× .NET) — REGRESSED +7.2% in 0.3.9 → 0.3.11, confirmed; `loop` flat.** Raw dispatch
-  overhead, both previously closed hard — which is what makes `primes` moving backwards worth a
-  look rather than a shrug. Same corroboration as `pipeline`: harness +6.7%, A/B +8.8% in a sweep,
-  **+7.2% re-run alone against a 1.4% floor**. `loop` is unchanged (+0.9%), so whatever this is,
-  it is not general dispatch cost — the two rows share that and only one moved.
+- **`primes` (7.1× C, 5.4× .NET) — REGRESSED ~+6%, and it does NOT bisect. Read this before
+  hunting it.** Raw dispatch overhead, previously closed hard, which is what made it worth a look.
+  The regression is real and reproduces on demand: +7.2% one day and +5.8% the next, each against
+  a 1.4% floor, end to end across 0.3.9 → 0.3.11.
+
+  **But there is no culprit commit.** A bisect over the range landed on `69b03dcb`, which changes
+  exactly one file — `tests/tcp_test.blsp`, a Brood test that cannot touch the compiled runtime —
+  and A/B'ing that commit against its parent reads +1.4% against a 1.4% floor, i.e. nothing. The
+  bisect had to return *something*, so it returned the commit that happened to sit on the far side
+  of the threshold. Intermediate points bear this out: 69 → 68 → 70 → 74 ms across the range is a
+  ramp, not a step. `98e97308` contributes ~+2.9% of it (measured, and correctly called noise at
+  the time).
+
+  **The methodological point is the finding, and it generalises.** The A/B gate rejects anything
+  under 5% or twice the row's floor, so a change worth +2–3% passes as noise — correctly, on its
+  own evidence. Five such changes are a real 6% regression that no individual gate ever saw and no
+  bisect can localise, because no single step crosses the line. Do not spend another bisect on this
+  row. If it matters, the tools that fit are a per-commit sweep recording absolutes for trend
+  rather than pass/fail verdicts, or profiling 0.3.11 directly against 0.3.9 to find where the time
+  went. `loop` stayed flat (+0.9%) throughout, so it is not general dispatch cost.
 
 **Memory is not a frontier row.** Base RSS ~23 MB: 4th-lightest of the eight and the lightest of
 the *managed* runtimes. C's 1.6 MB is the new floor and is not a target — it is a process with no
