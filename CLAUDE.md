@@ -2,7 +2,24 @@
 
 A cross-language micro-benchmark suite: 31 programs across Brood, Clojure, Elixir,
 Python, Node, Ruby and .NET, run under one harness. 28 are implemented in every
-language. `spawn-live` runs in five, but only **two of those five provide the same
+language.
+
+**C is a partial column and a deliberate one** (added 2026-08-14): 16 of the 31 rows, as a
+machine-floor reference so ratios mean "vs roughly what the hardware does" rather than "vs
+the fastest managed runtime". A row opts in with the `"all+c"` sentinel rather than `"all"` —
+C is *not* in `ALL`, so a missing C port is a loud absence rather than an empty cell. Two
+consequences worth knowing before touching it:
+- **Adding a partial column narrows the field-wide aggregate for everyone.** Both `chart.py`
+  and `docs.py:overall_numbers` intersect the rows every column implements, so C landing took
+  that set 27 → 15 and moved the reference from .NET to C. Field-wide figures are therefore
+  **not comparable across that date**; the per-row tables and `trend.svg` are.
+- **Watch for C numbers that are too SLOW.** The first C run lost to Brood on `reduce` and
+  `strings` and to Node on `primes`; all three were self-inflicted (`sprintf` format parsing,
+  64-bit `idivq` where the field uses 32-bit ints, and a `volatile` pointer defeating the
+  inliner). A C row that loses is a bug report about this repo's C, not a finding — see
+  `bench/c/README.md`, which also records the elision audit and why there is no asm barrier.
+
+`spawn-live` runs in five, but only **two of those five provide the same
 thing** — Brood and Elixir have isolated preemptively-scheduled processes with
 copying sends; Node, .NET and Python have coroutines/tasks on a shared heap, and are
 included so the `cores`/`CPU·s` columns make that difference legible rather than to
@@ -125,12 +142,13 @@ fixed unit count with the two binaries interleaved** — that gives a <2% spread
 
 ## Editing benchmark programs
 
-- **Same algorithm, same inputs, same printed checksum** across all seven
-  languages — the harness gates on it. Idiomatic per language, not adversarial;
+- **Same algorithm, same inputs, same printed checksum** across every column that
+  runs it — the harness gates on it. Idiomatic per language, not adversarial;
   the fairness rules live in the README.
-- Files are named identically per benchmark (`fib.blsp`/`fib.clj`/`fib.ex`/…)
+- Files are named identically per benchmark (`fib.blsp`/`fib.clj`/`fib.ex`/`fib.c`/…)
   so they diff side by side. A new benchmark needs all seven ports plus a
-  `BENCHMARKS` entry in `bench/harness.py`.
+  `BENCHES` entry in `bench/harness.py` (and a C port if the row is compute and you
+  want the floor — use `"all+c"`).
 - For Brood idioms read `docs/brood-for-claude.md` before writing `.blsp`.
 
 ## Analysis docs
