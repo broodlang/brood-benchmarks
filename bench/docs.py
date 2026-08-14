@@ -180,11 +180,22 @@ def overall_numbers(res, starts):
     # Kept here so the chart and the standings table cannot drift apart — they were two
     # different aggregates over two different row sets until 2026-08-10, which is exactly
     # the kind of quiet disagreement `docs.py` exists to prevent.
+    #
+    # The row set is the INTERSECTION of what each language completed, mirroring
+    # bench/chart.py exactly. It used to require a language to implement every
+    # CHART_ROW, which silently excluded any partial-coverage column — so when the C
+    # floor column landed (16 of 31 rows) the chart rebased onto it and this figure did
+    # not, and the two disagreed again. Intersecting here is what keeps them identical;
+    # the cost is that adding a partial column NARROWS the row set for everyone, which
+    # is a real editorial event and is called out in the prose rather than hidden.
     all_langs = [l for l in res["startup"]["langs"]
-                 if all(compute(res, starts, r, l) is not None for r in CHART_ROWS)]
-    all_best = {r: min(compute(res, starts, r, l) for l in all_langs) for r in CHART_ROWS}
+                 if any(compute(res, starts, r, l) is not None for r in CHART_ROWS)]
+    _ran = {l: {r for r in CHART_ROWS if compute(res, starts, r, l) is not None}
+            for l in all_langs}
+    all_rows = sorted(set.intersection(*_ran.values())) if _ran else []
+    all_best = {r: min(compute(res, starts, r, l) for l in all_langs) for r in all_rows}
     all_geo = {l: geomean([compute(res, starts, r, l) / all_best[r]
-                           for r in CHART_ROWS if all_best[r]]) for l in all_langs}
+                           for r in all_rows if all_best[r]]) for l in all_langs}
     # Normalised to the leader, matching the chart — see bench/chart.py for why a raw
     # geomean of per-row ratios leaves nobody at 1.0x.
     _lead = min(all_geo.values())
@@ -194,7 +205,8 @@ def overall_numbers(res, starts):
     return {
         "agg_all": all_geo.get("brood"),
         "agg_all_rank": all_order.index("brood") + 1 if "brood" in all_order else None,
-        "agg_all_rows": len(CHART_ROWS),
+        "agg_all_rows": len(all_rows),
+        "agg_all_langs": len(all_order),
         "agg_all_field": " · ".join(f"{PRETTY[l]} {all_geo[l]:.1f}"
                                     for l in all_order if l != "brood"),
         "agg_avg": sums["brood"] / field_geo if field_geo else None,
@@ -379,8 +391,9 @@ def standings_block(res, starts):
         f"{field('startup', 'wall_ms', ' ms')} |",
         f"| base RSS | {res['startup']['langs']['brood']['rss_kb']/1024:.1f} MB | "
         f"{field('startup', 'rss_kb', ' MB', 1/1024)} |",
-        f"| overall speed — geomean of all {o['agg_all_rows']} rows every port implements "
-        f"| {o['agg_all']:.1f}× the fastest ({o['agg_all_rank']}/7) | {o['agg_all_field']} |",
+        f"| overall speed — geomean of the {o['agg_all_rows']} rows every column implements "
+        f"| {o['agg_all']:.1f}× the fastest ({o['agg_all_rank']}/{o['agg_all_langs']}) "
+        f"| {o['agg_all_field']} |",
         f"| aggregate single-threaded compute | {o['agg']:.1f}× the fastest | "
         + " · ".join(f"{PRETTY[l]} {v:.1f}" for l, v in o["field"]) + " |",
         f"| aggregate vs the field's average | **{o['agg_avg']:.2f}×** | "

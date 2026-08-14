@@ -48,7 +48,7 @@ CHART_ROWS = ["fib", "loop", "reduce", "primes", "collatz", "mandelbrot", "matmu
 CHART_OVERLAY_ROW = "spawn-live"
 
 # Markdown column heading -> results.json key.
-LANG_COL = {".NET": "dotnet", "Elixir": "elixir", "Node": "node", "Brood": "brood",
+LANG_COL = {"C": "c", ".NET": "dotnet", "Elixir": "elixir", "Node": "node", "Brood": "brood",
             "Ruby": "ruby", "Python": "python", "Clojure": "clojure"}
 PRETTY = {v: k for k, v in LANG_COL.items()}
 

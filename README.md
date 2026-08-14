@@ -1,9 +1,12 @@
-# benchmark — Brood vs Clojure vs Elixir vs Python vs Node vs Ruby vs .NET
+# benchmark — Brood vs C vs Clojure vs Elixir vs Python vs Node vs Ruby vs .NET
 
 **29 small programs** under one harness, measuring where the Brood runtime stands on startup,
 memory, compute and concurrency. 28 are implemented once per language; `spawn-live` needs a real
 process, which only Brood and Elixir provide. The field spans interpreters (Python, Ruby), JITs
-(Node/V8, Elixir/BeamAsm, .NET/RyuJIT) and a fellow immutable-data Lisp (Clojure/HotSpot).
+(Node/V8, Elixir/BeamAsm, .NET/RyuJIT), a fellow immutable-data Lisp (Clojure/HotSpot), and
+**C as a machine-floor reference** — a deliberately partial column covering the 16 compute rows
+where "what would the hardware do" is a meaningful question at all
+([why not all 31](bench/c/README.md)).
 
 Brood is a young runtime measured against mature ones: this is a "where does it stand today"
 snapshot, not a claim to lead.
@@ -17,26 +20,36 @@ snapshot, not a claim to lead.
 
 ![Where the languages land — overall speed (startup excluded) vs memory](results/positioning.svg)
 
-The map aggregates **all 27 rows every port implements**, as a geometric mean of per-row ratios
-so each benchmark counts once regardless of its absolute size, normalised so the leading runtime
-reads 1×. It used to plot eleven single-threaded rows summed by wall time, which left two thirds
-of the suite out of the picture *and* let whichever row was largest in milliseconds decide
-everyone's position.
+> **⚠ The basis changed on 2026-08-14 — this figure is not comparable with earlier runs.**
+> A C column was added as a machine-floor reference, and because the aggregate is taken over the
+> rows *every* column implements, adding a partial column narrowed the row set from **27 to 15**
+> and moved the reference from .NET to C. Brood reads **9.6×** here against **2.3×** in the
+> 2026-08-10 run. **Brood did not get four times slower** — the denominator and the row set both
+> changed underneath the number. For like-for-like movement over time use the per-row trend chart
+> below, which is immune to this because it compares each row against its own history.
 
-Brood reads **2.3×** the leader over the wider set against 2.8× over the eleven compute rows —
-so the broader picture is not the harsher one for Brood in absolute terms. It does drop from 3rd
-to **4th**, because Elixir gains more than Brood does when the concurrency rows are counted.
+The map aggregates the **15 rows all eight columns implement**, as a geometric mean of per-row
+ratios so each benchmark counts once regardless of its absolute size, normalised so the leading
+runtime reads 1×.
+
+**C is the reference now, and that is the point of it.** Before, `1.00` meant "the fastest
+managed runtime" and every ratio was read against .NET. It now means roughly what the hardware
+will do, which is a more honest denominator for a young runtime to be measured against. C leads
+**14 of the 15** rows — it loses `bintree` to Elixir, where a generational collector beats
+malloc/free on ~819k short-lived nodes.
+
+The cost of that choice is coverage, and it is a real cost: the 12 rows C does not implement
+(`json`, `regex`, `base64`, `errors`, `errors-deep`, `persistent-map`, `pipeline`, `spawn`,
+`pfib`, `http`, `pingpong`, `ring`) leave the aggregate entirely, so this scalar no longer says
+anything about concurrency, error handling or native-library work. Those rows are still measured
+— they are in the standings table below and in [BENCHMARKS.md](BENCHMARKS.md) — they just are not
+in this one number. Why C runs 16 of 31 rows and not all of them is set out in
+[`bench/c/README.md`](bench/c/README.md).
 
 Worth knowing how to read a per-row geomean: a language scores 1× only by being fastest on
-*every* row, which nothing is — .NET leads and still wins just 13 of 27. So these are ratios to
-the leader, not to some perfect runtime.
-
-The three rows not in it are the ones no cross-field scalar can hold: `spawn-live` and `latency`
-have five ports each, `supervisor` two, so aggregating them would compare different work. They
-are in the standings table below and in [BENCHMARKS.md](BENCHMARKS.md). Note also what a
-27-row geometric mean *cannot* show: a large win on a single row barely moves it, by design —
-including `spawn-live` at all would shift Brood only 4.76 → 4.84×. Read the per-row tables for
-per-row progress.
+*every* row, which nothing is — even C, leading, wins 14 of 15. So these are ratios to the
+leader, not to some perfect runtime. And note what a geometric mean *cannot* show: a large win on
+a single row barely moves it, by design. Read the per-row tables for per-row progress.
 
 ### Brood over time
 
@@ -44,30 +57,32 @@ per-row progress.
 
 The map above answers "where does this runtime stand"; this one answers "did the thing we
 optimised move", which a field-wide scalar cannot. `spawn-live` is **−67%** across every
-published run at this size (5362 → 1778 ms) — progress entirely invisible on the positioning map, because
-one row inside a 27-row geometric mean barely shifts it. Regenerate with
+published run at this size (5362 → 1795 ms) — progress entirely invisible on the positioning map, because
+one row inside a field-wide geometric mean barely shifts it. Regenerate with
 `python3 bench/trend.py`; the data is every published `results.json` in git history, so it is
 a record of what was published rather than a re-measurement. Rows are compared only across
 runs at the same `N` (`fib` went 30 → 35 and `bintree` 40 → 200 early on, which reads as a
 285% blow-up if you normalise straight through it).
 
 <!-- BEGIN STANDINGS (generated by bench/docs.py) -->
-**2026-08-13 run.** Numbers regenerate with each run; the full table is in [BENCHMARKS.md](BENCHMARKS.md).
+**2026-08-14 run.** Numbers regenerate with each run; the full table is in [BENCHMARKS.md](BENCHMARKS.md).
 
 | | Brood | field |
 |---|---|---|
-| startup (wall) | 16.3 ms | Python 10.0, Node 18.1, .NET 21.7, Ruby 38.8, Elixir 182.0, Clojure 335.0 ms |
-| base RSS | 23.5 MB | Python 9.8, Ruby 19.0, .NET 25.8, Node 42.2, Elixir 70.8, Clojure 102.9 MB |
-| overall speed — geomean of all 27 rows every port implements | 2.3× the fastest (4/7) | .NET 1.0 · Node 1.3 · Elixir 1.7 · Ruby 4.9 · Python 6.4 · Clojure 9.4 |
-| aggregate single-threaded compute | 2.9× the fastest | .NET 1.0 · Node 2.7 · Elixir 3.5 · Clojure 8.5 · Ruby 11.9 · Python 28.0 |
-| aggregate vs the field's average | **0.53×** | ahead of the field average on 6 of 11 core-compute rows |
-| rank by row | 1st on `reduce`, `strings`; last on `spawn-live` | |
-| `spawn-live` (300k units held alive, each sent a copied message) | 1.76 s, 1.62 GB, 4.71 CPU·s | Elixir 718 ms / 912 MB — the only peer; Node 226 ms / 244 MB, .NET 291 ms / 138 MB, Python 1.29 s / 361 MB are coroutines on a shared heap |
-| `supervisor` (20k supervised children, a quarter retired and restarted) | 868 ms, 470 MB | Elixir 269 ms / 154 MB — the only peer; no other runtime here has a supervisor |
-| `latency` p99 / p99.9 (20k req/s, 5% of them occupying 500µs) | **76 µs / 519 µs** | Elixir 58 / 91 µs · Python 458 / 1213 µs · Node 464 / 489 µs · .NET 642 / 12812 µs — the compute winner has the worst tail |
+| startup (wall) | 16.5 ms | C 1.8, Python 10.0, Node 17.9, .NET 21.9, Ruby 39.2, Elixir 181.6, Clojure 343.2 ms |
+| base RSS | 23.5 MB | C 1.6, Python 9.8, Ruby 19.0, .NET 25.9, Node 42.7, Elixir 72.0, Clojure 103.5 MB |
+| overall speed — geomean of the 15 rows every column implements | 9.6× the fastest (4/8) | C 1.0 · .NET 3.0 · Node 5.7 · Elixir 10.4 · Clojure 31.6 · Ruby 34.9 · Python 52.9 |
+| aggregate single-threaded compute | 6.0× the fastest | C 1.0 · .NET 2.1 · Node 5.6 · Elixir 7.4 · Clojure 16.7 · Ruby 25.4 · Python 62.4 |
+| aggregate vs the field's average | **0.74×** | ahead of the field average on 6 of 11 core-compute rows |
+| rank by row | 1st on —; last on `spawn-live` | |
+| `spawn-live` (300k units held alive, each sent a copied message) | 1.78 s, 1.62 GB, 4.65 CPU·s | Elixir 707 ms / 918 MB — the only peer; Node 222 ms / 247 MB, .NET 275 ms / 138 MB, Python 1.28 s / 361 MB are coroutines on a shared heap |
+| `supervisor` (20k supervised children, a quarter retired and restarted) | 874 ms, 446 MB | Elixir 264 ms / 154 MB — the only peer; no other runtime here has a supervisor |
+| `latency` p99 / p99.9 (20k req/s, 5% of them occupying 500µs) | **69 µs / 1169 µs** | Elixir 60 / 71 µs · Node 438 / 508 µs · Python 489 / 619 µs · .NET 685 / 12994 µs — the compute winner has the worst tail |
 <!-- END STANDINGS -->
 
-The aggregate covers the core-compute rows only and varies ±0.3 run-to-run.
+The aggregate covers the core-compute rows only and drifts a few percent run-to-run. (It used to
+be quoted as ±0.3 absolute, calibrated when the figure read ~2.8 against .NET; now that it reads
+~6.0 against C the absolute band scales with it, so read it as relative.)
 
 **`spawn-live` is Brood's worst row**: 300k units held alive, each handed a message it must
 *copy*. Against its only peer Brood is 2.5× slower and 1.8× heavier (~5.5 KB per live process
@@ -196,7 +211,7 @@ peak RSS, checksum), and `positioning.svg` (the overall-speed-vs-memory map).
 ## Environment
 
 <!-- BEGIN ENVIRONMENT (generated by bench/docs.py) -->
-Numbers in the docs were measured on `whklat`: a 12-core x86-64 Linux 7.0.0 machine · Brood 0.3.11 (`d5572d61`) (bytecode VM + tier-1 JIT) · Clojure 1.12.5 / OpenJDK 25.0.3 (HotSpot) · Elixir 1.21.0-dev (b82c44a) / OTP 28 (BeamAsm JIT) · Python 3.14.4 · Node 22.21.0 (V8) · ruby 3.3.8 · .NET 10.0.110 (RyuJIT). 2026-08-13.
+Numbers in the docs were measured on `whklat`: a 12-core x86-64 Linux 7.0.0 machine · Brood 0.3.11 (`d5572d61`) (bytecode VM + tier-1 JIT) · Clojure 1.12.5 / OpenJDK 25.0.3 (HotSpot) · Elixir 1.21.0-dev (b82c44a) / OTP 28 (BeamAsm JIT) · Python 3.14.4 · Node 22.21.0 (V8) · ruby 3.3.8 · .NET 10.0.110 (RyuJIT). 2026-08-14.
 <!-- END ENVIRONMENT -->
 each, after one discarded warmup run per language; the concurrency benchmarks
 (`spawn`/`pfib`/`http`/`pingpong`/`ring`) take

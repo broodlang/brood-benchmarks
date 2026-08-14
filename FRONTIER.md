@@ -21,7 +21,11 @@ arm's native code *and* its bytecode — compiled once per runtime, not once per
 
 ## Where the gaps are
 
-Ratios are Brood's compute vs the fastest language on that row.
+Ratios are Brood's compute vs the fastest language on that row. **From 2026-08-14 that is usually
+C**, which now runs the 16 compute rows as a machine-floor reference and leads 14 of the 15 it
+shares with the aggregate. Ratios on those rows therefore got larger without Brood moving —
+they are now "vs roughly the hardware" rather than "vs the fastest managed runtime". Where the
+old denominator is the more useful one it is named explicitly below.
 
 - **`spawn-live` (1.76 s, 1.62 GB — 2.5× slower, 1.8× heavier than the BEAM).** ~5.5 KB per live
   process against ~3.1 KB. **Flat 2026-08-13** (0.3.9 → 0.3.11), and flat by measurement rather
@@ -54,14 +58,20 @@ Ratios are Brood's compute vs the fastest language on that row.
   analysis or a native float array. A standing check fell out of it: **the JIT-vs-no-JIT ratio per
   row** — `fib` 54×, `collatz` 40×, but nbody 3.2×, which is what exposed the bail; `bintree` (3.5×)
   and `nqueens` (3.4×) are still in that band.
-- **`bintree` (~108 ms, 6th; the BEAM is unusually fast here at ~12 ms)** — drifts in the
+- **`bintree` (7.4×; the BEAM is unusually fast here at ~15 ms — and beats C)** — the one row C
+  does not lead: malloc/free on ~819k short-lived nodes loses to a generational collector, which
+  is worth knowing before treating "native allocation" as the target. Drifts in the
   95–115 ms band, trading places with Python/Ruby. The cost is the call protocol: ~77 ns
   per node over four non-tail calls. That is the X-register/call-convention redesign, not
   a tuning knob. The open watch-item.
-- **`nqueens` (~12×)** — backtracking recursion; the `reduce`-over-`range` per node and
-  the non-tail `solve`/`safe?` recursion dominate.
-- **`mandelbrot` (~8×)** — `esc` is JIT'd with register-carried f64 params; the residual is
-  boxed 24-byte `Value` tagging in the arithmetic plus loop overhead. Near the JIT floor.
+- **`nqueens` (31.4× C, 12.0× Node)** — backtracking recursion; the `reduce`-over-`range` per node
+  and the non-tail `solve`/`safe?` recursion dominate. Note C's margin here is partly structural:
+  it pushes onto a stack array where Node and .NET copy the placed-columns list per node, so the
+  12× against Node is the fairer number to optimise against.
+- **`mandelbrot` (10.6× C, 8.9× .NET)** — `esc` is JIT'd with register-carried f64 params; the
+  residual is boxed 24-byte `Value` tagging in the arithmetic plus loop overhead. Near the JIT
+  floor. That C is only 1.2× ahead of .NET here says the row is close to its arithmetic limit
+  for everyone, which is the useful reading.
 - **`pipeline` (9.0×) — REGRESSED +9.1% in 0.3.9 → 0.3.11, confirmed and unexplained.** Lazy-seq/
   transducer composition the JIT doesn't cover; allocation churn dominates. Blocker: `eduction`'s
   step closures capture, and the fast-link bails on captures. The regression is real, not sweep
@@ -69,8 +79,9 @@ Ratios are Brood's compute vs the fastest language on that row.
   alone against a 1.8% floor** — five times its own noise, by two independent instruments. Cause
   unknown; nothing in the range is an obvious candidate, so it wants a bisect over the 56 commits.
   Small absolute (35 → 38.5 ms), which is why it is easy to wave off — don't.
-- **`matmul` (the ~32× ratio is inflated by .NET's 4 ms denominator)** — inner loop is
-  native; residual is the one read LICM can't hoist plus boxed `Value` array storage.
+- **`matmul` (49.5× C, 29.3× .NET)** — inner loop is native; residual is the one read LICM can't
+  hoist plus boxed `Value` array storage. Both denominators are small (2.6 ms and 4.4 ms), so the
+  ratio is dramatic on a row where everyone is fast; read the absolute, not the multiple.
 - **Message latency (`pingpong`, `ring` — Elixir leads ~2.7–3.3×)** — the widest honest gap, with
   its three large levers already taken: direct handoff (1.9×), the HOF matcher fast path (3.0×), and
   the leading-keyword receive filter that removed an O(rounds × backlog) rescan (backlog 500:
@@ -85,14 +96,15 @@ Ratios are Brood's compute vs the fastest language on that row.
   bytes/codepoint fast path shared by all three.
 - **`sort`** — do not re-optimise the comparator (already unboxed). Still the suite's
   heaviest row for memory; the allocation volume is the cost, not collection.
-- **`primes` (5.8×) — REGRESSED +7.2% in 0.3.9 → 0.3.11, confirmed; `loop` flat.** Raw dispatch
+- **`primes` (7.1× C, 5.4× .NET) — REGRESSED +7.2% in 0.3.9 → 0.3.11, confirmed; `loop` flat.** Raw dispatch
   overhead, both previously closed hard — which is what makes `primes` moving backwards worth a
   look rather than a shrug. Same corroboration as `pipeline`: harness +6.7%, A/B +8.8% in a sweep,
   **+7.2% re-run alone against a 1.4% floor**. `loop` is unchanged (+0.9%), so whatever this is,
   it is not general dispatch cost — the two rows share that and only one moved.
 
-**Memory is not a frontier row.** Base RSS ~23 MB: 3rd-lightest of the seven and the
-lightest of the compiled-class runtimes.
+**Memory is not a frontier row.** Base RSS ~23 MB: 4th-lightest of the eight and the lightest of
+the *managed* runtimes. C's 1.6 MB is the new floor and is not a target — it is a process with no
+runtime in it; the meaningful comparison stays Python 9.8, Ruby 19.0, .NET 25.9, Node 42.7.
 
 ## Levers (rough priority)
 
