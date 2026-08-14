@@ -17,14 +17,24 @@ RESULTS = ROOT / "results"
 # the materialization-y outliers handled elsewhere) — this is "compute speed".
 from common import CHART_ROWS, CHART_OVERLAY_ROW, compute, geomean  # noqa: E402
 
-# Brand-ish colours, kept distinct.
+# Brand-ish colours, kept distinct. C is gold: the one hue region the other seven
+# leave free, and it clears the lightness/chroma checks the obvious dark-slate pick
+# failed (it read as grey).
+#
+# KNOWN LIMITATION, deliberate: python(blue) vs elixir(purple) sit at ΔE 4.6 under
+# deuteranopia — a classic blue/purple confusion. Nudging the purple does not fix it
+# (4.6 -> 5.1); only moving one language out of the blue/purple region would, and
+# trading away two languages' recognisable colours is the worse deal. Both charts
+# therefore carry a DIRECT TEXT LABEL on every mark, so identity never depends on
+# colour. Keep it that way if you restyle either chart.
 COLOR = {
     "brood": "#c0392b", "elixir": "#8e44ad", "python": "#2980b9",
     "node": "#27ae60", "ruby": "#d35400", "dotnet": "#16a085",
-    "clojure": "#e67e22",
+    "clojure": "#e67e22", "c": "#b7950b",
 }
 LABEL = {"brood": "Brood", "elixir": "Elixir", "python": "Python",
-         "node": "Node", "ruby": "Ruby", "dotnet": ".NET", "clojure": "Clojure"}
+         "node": "Node", "ruby": "Ruby", "dotnet": ".NET", "clojure": "Clojure",
+         "c": "C"}
 
 
 def collect(results):
@@ -70,7 +80,7 @@ def collect(results):
               + ", ".join(f"{b} [missing: {', '.join(missing[b])}]" for b in dropped))
     if not common:
         print("  WARNING: no row was completed by every language; plotting nothing.")
-        return {}
+        return {}, 0
     print(f"  aggregating {len(common)} rows across {len(ran)} languages (geomean of per-row ratios)")
 
     def geo_over(rows, langset):
@@ -119,14 +129,14 @@ def collect(results):
                     if k == l and "rss_kb" in v]
             mem = min(mems) if mems else 0
         out[l] = (overall[l], mem, overlay.get(l))
-    return out
+    return out, len(common)
 
 
 def esc(s):
     return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
 
-def render(points):
+def render(points, nrows):
     W, H = 760, 480
     ml, mr, mt, mb = 70, 30, 50, 60     # margins
     pw, ph = W - ml - mr, H - mt - mb
@@ -168,7 +178,7 @@ def render(points):
         t += ystep
     # Axis labels
     s.append(f'<text x="{ml+pw/2}" y="{H-16}" text-anchor="middle" font-size="13" fill="#333">'
-             f'overall slowdown vs the fastest — geomean of {len(CHART_ROWS)} rows, startup excluded, log scale — left is faster</text>')
+             f'overall slowdown vs the fastest — geomean of {nrows} rows, startup excluded, log scale — left is faster</text>')
     s.append(f'<text x="18" y="{mt+ph/2}" text-anchor="middle" font-size="13" fill="#333" '
              f'transform="rotate(-90 18 {mt+ph/2})">base memory (MB) — lower is lighter</text>')
     # "ideal" hint
@@ -192,12 +202,71 @@ def render(points):
     return "\n".join(s)
 
 
+def render_bars(points):
+    """results/overview.svg — the one-glance ranking, for the top of the README.
+
+    The positioning map answers "fast AND light, in two dimensions"; that is the right
+    picture but it takes a paragraph to read. This answers the blunter question a reader
+    actually opens with — *how far off the pace is Brood?* — as a sorted bar chart, which
+    is what magnitude-across-categories should be.
+
+    EMPHASIS, not categorical: Brood is the subject of this repo and the rest are context,
+    so Brood carries its own colour, C carries its own as the floor the chart is scaled
+    against, and everyone else is one neutral grey. That is the documented form for "one
+    series is the point" — and it sidesteps the palette's blue/purple CVD clash entirely,
+    since three well-separated colours replace eight.
+
+    Single measure, so no legend: every bar carries its own name and number, so identity
+    never rests on colour at all.
+
+    The scale is linear and starts at zero, because bar LENGTH is the encoding — a log
+    axis here would make Python's 53x look like a near neighbour of Brood's 9.6x. The
+    price is that the fast end is compressed; the per-bar numbers carry the detail the
+    lengths cannot.
+    """
+    GREY = "#b3bac1"
+    order = sorted(points, key=lambda l: points[l][0])
+    W, rowh, top, left, right = 760, 34, 58, 92, 96
+    H = top + rowh * len(order) + 34
+    worst = max(points[l][0] for l in order)
+    pw = W - left - right
+
+    s = [f'<svg xmlns="http://www.w3.org/2000/svg" width="{W}" height="{H}" '
+         f'viewBox="0 0 {W} {H}" font-family="system-ui,Segoe UI,Helvetica,Arial,sans-serif">',
+         f'<rect width="{W}" height="{H}" fill="#ffffff"/>',
+         f'<text x="{left}" y="26" font-size="17" font-weight="700" fill="#222">'
+         f'Overall speed — geomean across the rows every language runs</text>',
+         f'<text x="{left}" y="44" font-size="12" fill="#777">'
+         f'lower is faster · 1.0× = the leader on this set · C is a machine-floor reference, '
+         f'not a peer</text>']
+
+    for i, l in enumerate(order):
+        g = points[l][0]
+        y = top + i * rowh
+        bw = max(2.0, pw * (g / worst))
+        brood = l == "brood"
+        c = COLOR["brood"] if brood else COLOR["c"] if l == "c" else GREY
+        # 4px rounded data-end, anchored to the baseline at x=left.
+        s.append(f'<rect x="{left}" y="{y}" width="{bw:.1f}" height="{rowh-12}" rx="4" '
+                 f'fill="{c}"/>')
+        s.append(f'<text x="{left-10}" y="{y+16}" text-anchor="end" font-size="13" '
+                 f'font-weight="{"700" if brood else "500"}" '
+                 f'fill="{"#222" if brood else "#555"}">{esc(LABEL.get(l, l))}</text>')
+        s.append(f'<text x="{left+bw+8:.1f}" y="{y+16}" font-size="13" '
+                 f'font-weight="{"700" if brood else "400"}" fill="#444">{g:.1f}×</text>')
+
+    s.append('</svg>')
+    return "\n".join(s)
+
+
 def main():
     results = json.loads((RESULTS / "results.json").read_text())
-    points = collect(results)
-    svg = render(points)
+    points, nrows = collect(results)
+    svg = render(points, nrows)
     (RESULTS / "positioning.svg").write_text(svg)
-    print(f"wrote {RESULTS/'positioning.svg'} — {len(points)} languages")
+    (RESULTS / "overview.svg").write_text(render_bars(points))
+    print(f"wrote {RESULTS/'positioning.svg'} and {RESULTS/'overview.svg'} "
+          f"— {len(points)} languages")
     for l, (g, m, o) in sorted(points.items(), key=lambda kv: kv[1][0]):
         tail = f", {o:5.2f}× incl. spawn-live" if o else ""
         print(f"  {l:8} {g:5.2f}× slowdown, {m:5.1f} MB{tail}")
