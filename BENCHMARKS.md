@@ -202,13 +202,22 @@ the row this suite watches hardest, is **1.76 s / 1.62 GB / 4.71 CPU·s** agains
 reads CPU **+1.1%** and wall **−0.6%** against the row's own 0.9% noise floor. That ends a run of
 four consecutive moves on it. The gap to its only peer stays **2.5×** on wall (2.3× on CPU·s).
 
-**Two rows regressed, both confirmed, neither explained.** `pipeline` **+9.1%** (35.0 → 38.5 ms)
-and `primes` **+7.2%** (46.6 → 49.7 ms) — each measured three ways: this harness, an A/B sweep
-against a fixed 0.3.9 baseline, and an A/B re-run of that row *alone* against its own floor (1.8%
-and 1.4%). The absolutes are small, which is precisely why they are easy to lose: a 9% regression
-on a 38 ms row shifts no aggregate in this document. Both are open in
-[FRONTIER.md](FRONTIER.md) and want a bisect over the 56-commit range. Note `loop` is unchanged
-(+0.9%) while `primes` moved, so this is not general dispatch cost — the two rows share that.
+**Two rows regressed, both confirmed. One has a culprit; the other cannot have one.**
+`pipeline` **+9.3%** and `primes` **~+6%**, each measured three ways: this harness, an A/B sweep
+against a fixed 0.3.9 baseline, and an A/B re-run of that row *alone* against its own floor.
+
+`pipeline` bisects cleanly to **`98e97308` (ADR-224)**, which routes every call through a
+process-local handle to kill multi-core refcount contention — a 3.19× win on `pfib`, and on a
+single-threaded row pure indirection with no contention to relieve. Probably a trade worth
+keeping; the ~6% is its price.
+
+`primes` **does not bisect, and that is the interesting part.** The bisect returned a commit
+touching one Brood *test file*, which A/Bs against its parent at +1.4% on a 1.4% floor — nothing.
+Intermediate points are a ramp (69 → 68 → 70 → 74 ms), not a step. The A/B gate rejects anything
+under 5% or twice a row's floor, so several +2–3% changes each pass as noise on their own evidence
+while summing to a real 6% no gate ever saw and no bisect can localise. Detail and what to do
+instead: [FRONTIER.md](FRONTIER.md). `loop` stayed flat (+0.9%) throughout, so neither is general
+dispatch cost.
 
 `nbody` read **−7.1%** here and did **not** survive the same check (A/B −0.9%, verdict noise), so
 it is not banked as a win; `reduce` (−5.1%) is a 0.2 ms movement on a 3.7 ms row and means nothing

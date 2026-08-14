@@ -140,6 +140,22 @@ apparent swings and confirmed one real one (2026-08-05, −16%). Measure it as *
 fixed unit count with the two binaries interleaved** — that gives a <2% spread where wall on a
 3.3-core row gives 20%.
 
+**A confirmed regression does not imply a culprit commit exists. Check the shape before
+bisecting.** (Learned 2026-08-14 on `primes`, ~+6% across 0.3.9 → 0.3.11, reproducible on demand
+against a 1.4% floor.) The A/B gate rejects anything under 5% or twice a row's floor, so a change
+worth +2–3% passes as noise on its own evidence — correctly. Several of those sum to a real
+regression that **no individual gate ever saw and no bisect can localise**, because no single step
+crosses the threshold. `git bisect` must return something, so it returns whichever commit sits on
+the far side of your cutoff: on `primes` it named a commit touching one `.blsp` *test file*, which
+A/Bs against its parent at nothing.
+
+So before spending ~20 minutes of builds on a bisect, **sample three or four points across the
+range and look at the curve**. A step means bisect. A ramp (`primes`: 69 → 68 → 70 → 74 ms) means
+there is nothing to find, and the tools that fit are a per-commit sweep recording *absolutes for
+trend* rather than pass/fail verdicts, or profiling the two ends directly. And always sanity-check
+a bisect result against what the commit actually touches — a test-only diff cannot move a runtime
+row, and that check is what exposed this.
+
 ## Editing benchmark programs
 
 - **Same algorithm, same inputs, same printed checksum** across every column that
