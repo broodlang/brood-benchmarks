@@ -10,8 +10,8 @@ reference** — 16 compute rows, not a peer ([why not all 31](bench/c/README.md)
 Geometric mean over the 15 rows every column runs, so each benchmark counts once whatever
 its absolute size. **Not comparable with runs before 2026-08-14:** adding C narrowed that
 set from 27 rows to 15 and moved the reference from .NET to C, so Brood reads 9.6× where it
-read 2.3×. Nothing got slower — the denominator moved. The speed-vs-memory map is
-[`results/positioning.svg`](results/positioning.svg).
+read 2.3×. Nothing got slower — the denominator moved. Memory per language is in the
+standings table below.
 
 ### Brood over time
 

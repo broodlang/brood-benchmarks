@@ -36,7 +36,7 @@ python3 bench/test_guard.py           # regression test for the corruption guard
 python3 bench/harness.py --quick      # smaller sizes, smoke test
 python3 bench/harness.py --only fib   # subset (comma-separated)
 python3 bench/harness.py --langs brood,node
-python3 bench/chart.py                # regenerate results/positioning.svg from results.json
+python3 bench/chart.py                # regenerate results/overview.svg from results.json
 ```
 
 - **A corrupt run now fails itself; you do not have to remember anything.** `startup` is
@@ -105,7 +105,7 @@ python3 bench/chart.py                # regenerate results/positioning.svg from 
 the canonical numbers. Then, in this order:
 
 ```sh
-python3 bench/chart.py     # 1. the README's positioning chart (results/positioning.svg)
+python3 bench/chart.py     # 1. the README's overall-speed chart (results/overview.svg)
 python3 bench/docs.py      # 2. every derivable number in BENCHMARKS.md + README.md
 python3 bench/docs.py --check   # 3. must exit 0 before you commit
 ```

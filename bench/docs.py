@@ -175,7 +175,7 @@ def overall_numbers(res, starts):
         g = geomean([compute(res, starts, r, l) for l in langs if l != "brood"])
         if b and g:
             avg_ratios.append(b / g)
-    # The OVERALL figure the positioning chart plots: a geomean of per-row ratios across
+    # The OVERALL figure the overview chart plots: a geomean of per-row ratios across
     # every row all seven languages implement, not just the eleven single-threaded ones.
     # Kept here so the chart and the standings table cannot drift apart — they were two
     # different aggregates over two different row sets until 2026-08-10, which is exactly
