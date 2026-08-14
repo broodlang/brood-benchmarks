@@ -72,9 +72,71 @@ old denominator is the more useful one it is named explicitly below.
   residual is boxed 24-byte `Value` tagging in the arithmetic plus loop overhead. Near the JIT
   floor. That C is only 1.2× ahead of .NET here says the row is close to its arithmetic limit
   for everyone, which is the useful reading.
-- **`pipeline` (9.0×) — REGRESSED +9.3%, bisected to `98e97308` (ADR-224).** Lazy-seq/transducer
-  composition the JIT doesn't cover; allocation churn dominates. Blocker: `eduction`'s step
-  closures capture, and the fast-link bails on captures.
+- **`pipeline` (9.0×) — the +9.3% regression is RECOVERED (ADR-228, 2026-08-14), and it was not
+  the unavoidable price this entry priced it as.** Lazy-seq/transducer composition the JIT
+  doesn't cover; allocation churn dominates. A/B measured against **two** bases, and the runs
+  disagree by more than a couple of points, so the range is what is claimed: **−9.1% vs
+  `26b04e36` and −5.6% vs `a57cc573`** (both best-of-15, default ceiling), **−6.2% then −4.7%**
+  at ceiling 1. It improves on every run and at both ceilings — the direction is settled and
+  ADR-224's +9.3% is substantially recovered — but the **size is uncertain within ~5–9%**, and
+  the `floor` column read 0.0% on several of these, which at integer-millisecond output means
+  "below the resolution", not "no noise". Pinning it wants a fixed baseline binary plus a
+  base-vs-base control at higher N. Not yet in a published harness run — the ratio above is the
+  last published one. `nqueens` came with it at **−6.2% then −4.4%** (ceiling 1), which
+  *straddles* the `max(5%, 2×floor)` gate and so is not claimed as certified either.
+
+  **What ADR-224 actually cost, and why the diagnosis below stopped one step short.** The entry
+  was right that a closure-per-element row pays ADR-224 per element, and wrong that the cost was
+  "pure indirection". `exec_chunk`'s call arm states that a **computed head takes no inline
+  cache** — and ADR-224 creates its handle at *IC-fill*. So on this row there was no IC to fill:
+  every element allocated a fresh `Arc<ArmHandle>` **and** cloned the shared
+  `Arc<CompiledArm>`, an atomic RMW on the very cross-process cache line KI-40 is about.
+  Memoizing the handle per `(closure, argc)` in the `vm_cache` entry the path already consults
+  removes both. `pfib` at ceiling 1 is unchanged (−1.9% against a 0.7% floor), so ADR-224's
+  3.19× is intact — a `vm_cache` is per-process, so no handle is shared across processes.
+  `nqueens` improves with it too (see above) — a new win rather than a recovery, though not one
+  that clears the gate on both runs.
+
+  The lesson worth carrying: "the commit working as designed, so the cost is the price" was a
+  *plausible* reading of a clean bisect, and it closed the question one level above the
+  mechanism. The bisect was correct; the conclusion drawn from it was not.
+
+  **The blocker named here for two revisions — "`eduction`'s step closures capture, and the
+  fast-link bails on captures" — is wrong, and was killed by profiling on 2026-07-03 (the
+  correction now lives with the lever it retired, in the brood repo's
+  `docs/compute-frontier.md` — the 2026-07-02 block's "Next levers", item 1). It is restated
+  here because this file is what a contributor reads first.** Two independent reasons:
+  the bail is on the **elided free-global in-IR fast-link**, and `perf` measured that path at
+  **0% of pipeline** — a transducer step is a **computed head** (a captured `rf`/`f`), so it never
+  reaches the elided fast-link at all; and separately, both JIT fast frames now **fill** capture
+  slots from the captured env rather than refusing the arm (`jit_runtime.rs`'s native→native
+  link and `hof_apply_native`, verified present on 2026-08-14). Do not spend a session dropping
+  a capture bail for this row.
+
+  **What actually dominates — re-profiled 2026-08-14 at N=10M, post-ADR-228** (`perf` works on
+  the dev box again; self time). This supersedes the 2026-07-03 figures (`dispatch` 19.7%,
+  `push_frame` 11.5%), which pointed at the same place:
+
+  | share | symbol | what it is |
+  |---|---|---|
+  | 15.1% | `dispatch::dispatch` | the computed-head branch |
+  | 8.1% | `jit_dispatch_call` | |
+  | 6.3% | `dispatch::push_frame` | |
+  | 5.3% | `eval::passthrough_arm` | per-call thin-wrapper predicate |
+  | 5.0% | `Heap::closure` | handle deref, per call |
+  | 4.8% | `Heap::vm_cache_arm_handle` | the memo's own hash lookup |
+  | 3.1% | `compiled_arm_for` | |
+  | 2.0% | `Closure::select_arm` | `max_by_key` over arms, per call |
+  | 1.2% | `Heap::vm_arm_block` | |
+  | ~8% | SmallVec `extend`/`from_iter` | argument staging |
+
+  So **~50% of this row is call plumbing**, and the lever follows from the root cause rather than
+  from a guess: give computed heads a **one-way monomorphic IC keyed on closure identity**,
+  caching `(passthrough?, handle, cenv, bases)` together — `exec_chunk` already performs exactly
+  that identity check for *staged* heads, so the pattern exists. That collapses
+  `passthrough_arm` + `select_arm` + `vm_arm_block` + the memo lookup + much of `Heap::closure`
+  into one guarded slot read, and it reaches every callback / message-handler workload, not just
+  this row. A fast frame for the path (skipping `push_frame`) is the separate, deeper half.
 
   The regression bisects cleanly to **`98e97308` "reach a shared compiled arm through a
   process-local handle"**, confirmed against its own parent: **+5.8%** in a sweep and **+5.7%**
@@ -121,6 +183,15 @@ old denominator is the more useful one it is named explicitly below.
   of the threshold. Intermediate points bear this out: 69 → 68 → 70 → 74 ms across the range is a
   ramp, not a step. `98e97308` contributes ~+2.9% of it (measured, and correctly called noise at
   the time).
+
+  **Partial update 2026-08-14: ADR-228 gives some of it back, and that is consistent with the
+  ramp reading rather than against it.** The handle memo (see `pipeline`) measures **−4.3% here
+  against a 1.4% floor** at best-of-15 — real in direction, but it does **not** clear the
+  `max(5%, 2×floor)` gate, so it is recorded as unconfirmed, not as a fix. (An earlier
+  best-of-7 sweep read −7.0%; the disagreement between the two sample sizes is exactly why the
+  gate exists.) The useful inference: a ramp made of several sub-gate contributions can also be
+  *un*-made a piece at a time, so "no culprit commit" does not mean "nothing to recover" — it
+  means no single commit will show up as the recovery either. Still do not spend a bisect here.
 
   **The methodological point is the finding, and it generalises.** The A/B gate rejects anything
   under 5% or twice the row's floor, so a change worth +2–3% passes as noise — correctly, on its
@@ -171,19 +242,36 @@ runtime in it; the meaningful comparison stays Python 9.8, Ruby 19.0, .NET 25.9,
    a first-call-in-a-process cheap would pay out across `spawn-live` far more broadly than
    nativising one function. That is unmeasured and is the thing to look at first.
 
-3. **Heap-walking / allocation-heavy code** (`nqueens`, `pipeline`) — structure-walkers
+3. **The computed-head call path — now the best-measured lever on the board, and it is one
+   mechanism serving many rows.** A computed head takes no inline cache, so `nqueens`,
+   `pipeline`, `sort` and every callback / message-handler workload re-derive the whole
+   callee resolution per call. ADR-228 took the allocation out of it (`pipeline` −9.1%,
+   `nqueens` −6.2% at ceiling 1); the per-call *work* is still there and profiled — see the
+   `pipeline` entry's table, where `passthrough_arm` + `select_arm` + `vm_arm_block` + the
+   memo lookup + much of `Heap::closure` sum to ~18% of the row. **Next: a one-way monomorphic
+   IC keyed on closure identity**, caching `(passthrough?, handle, cenv, bases)` together.
+   Then, separately and deeper, a fast frame for that path (skipping `push_frame`, 6.3%).
+
+4. **Heap-walking / allocation-heavy code** (`nqueens`, `pipeline`) — structure-walkers
    don't tier and some heap reads go through per-op FFI callbacks. Extending the proven
    inline small-vector read template to variable-index reads and in-arm alloc (blocked by
-   non-tail-call safepoints) is the win toward Elixir. `pipeline` additionally wants the
-   capturing-closure fast-link.
-4. **True call inlining / bounded unroll** — removes calls rather than cheapening them;
+   non-tail-call safepoints) is the win toward Elixir. *Not* the capturing-closure fast-link,
+   which is measured dead for `pipeline` (see the ruled-out list).
+5. **True call inlining / bounded unroll** — removes calls rather than cheapening them;
    the remaining `fib`/`bintree`-class lever.
-5. **Interpreter dispatch** — the ~60% `vm_run_bc` share bounds every un-JIT'd row.
-6. **LINMAP wider coverage** — next target is `reduce`-style folds over non-integer values.
-7. **`matmul`/`nbody` unboxed storage** — boxed 24-byte `Value` vs a register
+6. **Interpreter dispatch** — the ~60% `vm_run_bc` share bounds every un-JIT'd row.
+7. **LINMAP wider coverage** — next target is `reduce`-style folds over non-integer values.
+8. **`matmul`/`nbody` unboxed storage** — boxed 24-byte `Value` vs a register
    `long`/`double`; any design must not violate the immutability invariant.
 
 ## Measured and ruled out — don't re-attempt
+
+- **The capturing-closure fast-link as `pipeline`'s blocker — retired 2026-07-03, and it had
+  been this file's stated blocker for two revisions after that.** `perf` puts the elided
+  free-global fast-link (the path that bails on captures) at **0% of pipeline** — transducer
+  steps are computed-head — and both JIT fast frames fill capture slots anyway. The HOF native
+  fast frame that *did* ship from this line of attack left the row flat while buying `nqueens`
+  ~18%. Full reasoning in the `pipeline` entry above.
 
 - **The receive machinery / the matcher's missing native fast frame — was lever 1, retired
   2026-08-10.** The finding itself stands: a `receive` whose pattern **compares a literal** —
