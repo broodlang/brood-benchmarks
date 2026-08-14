@@ -246,6 +246,19 @@ def score_map(res, starts, rows, cols):
     return {n: r / lead for n, r in raw.items()}
 
 
+def score_coverage(res, starts, rows, cols):
+    """`{language: how many of `rows` it actually has}`.
+
+    A partial column (C) scores over the rows it runs, which is the only thing it *can*
+    do — but a 12-row geomean printed under a "(15)" heading next to everyone else's
+    15-row one is a cross-subset comparison wearing a like-for-like label. The scoreboard
+    uses this to annotate the coverage instead of hiding it.
+    """
+    keys = dict(cols)
+    return {n: sum(1 for row in rows if compute(res, starts, row, keys[n]))
+            for n, _ in cols}
+
+
 def score_row(res, starts, rows, cols):
     """The table's top row: every language's **normalized score** over that table's rows.
 
@@ -454,13 +467,18 @@ def scoreboard_block(res, starts, specs):
     Each table's own top row says the same thing for that table; this is the one place that
     shows all of them together, which is what "how are we doing" actually asks.
     """
-    names = [n for n, _ in LANG_COL.items()]
+    scored = [(label, cols, rows, score_map(res, starts, rows, cols)) for label, cols, rows in specs]
+    scored = [s for s in scored if s[3]]
+    # Only show a language column if some table can actually fill it. Without this, adding a
+    # language to LANG_COL puts a permanently empty column in the scoreboard — which is what
+    # happened when C landed: the header advertised C and every cell read `·`, because the
+    # per-table scores come from each table's own header and none of them listed C yet.
+    present = {n for _, _, _, row in scored for n in row}
+    names = [n for n, _ in LANG_COL.items() if n in present]
     head = ["| table | " + " | ".join(names) + " |", "|---" * (len(names) + 1) + "|"]
     body = []
-    for label, cols, rows in specs:
-        row = score_map(res, starts, rows, cols)
-        if not row:
-            continue
+    for label, cols, rows, row in scored:
+        cover = score_coverage(res, starts, rows, cols)
         cells = []
         for n in names:
             v = row.get(n)
@@ -468,11 +486,16 @@ def scoreboard_block(res, starts, specs):
                 cells.append("·")
             else:
                 txt = f"{v:.2f}"
+                # Disclose a partial column rather than letting it read like full coverage.
+                if cover.get(n, len(rows)) < len(rows):
+                    txt += f"<sup>{cover[n]}/{len(rows)}</sup>"
                 cells.append(f"**{txt}**" if n == "Brood" else txt)
         body.append(f"| {label} ({len(rows)}) | " + " | ".join(cells) + " |")
     return [begin("SCOREBOARD"), *head, *body, "",
             "`1.00` = that table's fastest column; each score is the geometric mean of a "
-            "language's time ÷ that row's best. `·` = no port in that table. (The colour "
+            "language's time ÷ that row's best. `·` = no port in that table; a superscript "
+            "like <sup>12/15</sup> means that column scored over only those rows, so it is "
+            "not a like-for-like comparison with the full-coverage columns beside it. (The colour "
             "bands are on the `vs best` / `vs avg` columns in the tables below: 🟢 at least "
             "as fast · 🟠 up to 3× slower · 🔴 beyond.)",
             end("SCOREBOARD")]
