@@ -2,7 +2,6 @@
 ;; (sum of encoded char codes + sum of decoded bytes) mod 2^31 — exercises and
 ;; verifies both directions. Brood's base64 is pure-Brood (std/encoding) vs the
 ;; native codecs elsewhere.
-(require 'encoding)
 (def n (let (e (getenv "BENCH_N")) (if e (string->number e) 50000)))
 
 (defn gen (i x acc)

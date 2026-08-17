@@ -45,7 +45,16 @@ old denominator is the more useful one it is named explicitly below.
   named here as what came next and has since been measured and retired** — worth ~1.8% of this row,
   inside the noise (see ruled-out). What is left is the process floor, which none of the four wins
   touched, and which wants a real allocation profile.
-- **`nbody` (~12× Node, ~27× .NET)** — was ~23×/~54× until 2026-07-30; now 4/7, within 1.3× of
+- **`nbody` (~12× Node, ~27× .NET) — READ THIS BEFORE PUBLISHING AN `nbody` NUMBER.** The row was
+  **dead** from 2026-08-14 to 2026-08-17 (`unbound symbol: sqrt` — brood ADR-227 moved `sqrt` into
+  `std/math.blsp` and this repo was never migrated; a full harness run would have failed on it),
+  and fixing it correctly costs **~1.8×**: the kernel's `sqrt` call-site JIT inline requires a
+  **bare** head resolving to a **PRELUDE** closure, and post-move neither spelling qualifies, so
+  every `sqrt` now pays a closure call plus the wrapper's two `cond` comparisons. Measured, pinned:
+  **0.38–0.40 s with the inlined native vs 0.66–0.74 s through `math/sqrt`** (microbench: 406 vs
+  754 ms). So **an `nbody` figure measured now is ~1.8× off its pre-2026-08-14 self and is NOT a
+  runtime regression** — see brood `docs/known-issues.md` KI-44, whose performance half is open.
+  Was ~23×/~54× until 2026-07-30; then 4/7, within 1.3× of
   Elixir. The 2026-08-13 harness read it **−7.1%, which an A/B did not confirm** (−0.9%, verdict
   noise) — a reminder that a single harness row is one best-of-3 sample, not a result; do not
   bank this as a win. The cause was not the immutable rebuild this entry once blamed: the
