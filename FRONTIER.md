@@ -180,8 +180,15 @@ old denominator is the more useful one it is named explicitly below.
   bytes/codepoint fast path shared by all three.
 - **`sort`** — do not re-optimise the comparator (already unboxed). Still the suite's
   heaviest row for memory; the allocation volume is the cost, not collection.
-- **`primes` (7.1× C, 5.4× .NET) — REGRESSED ~+6%, and it does NOT bisect. Read this before
-  hunting it.** Raw dispatch overhead, previously closed hard, which is what made it worth a look.
+- **`primes` (7.1× C, 5.4× .NET) — the ~+6% regression is CLOSED (measured 2026-08-17). The
+  methodology note below is why it is worth keeping anyway.** Against a **pinned** 0.3.9
+  baseline (`ad622d35`, via `make ab-pin`), best-of-15: **65 → 66 ms, +1.5%, noise** — and at
+  4× the row's N, interleaved best-of-5, **210 ms on both sides, twice each**. So current HEAD
+  and 0.3.9 are indistinguishable on this row; there is nothing left to hunt. ADR-228's handle
+  memo took −4.3%/−5.7% of it, the rest went with subsequent work, and the ramp never had a
+  single culprit to remove. Historical account follows.
+
+  **What it was: REGRESSED ~+6%, and it did NOT bisect.** Raw dispatch overhead, previously closed hard, which is what made it worth a look.
   The regression is real and reproduces on demand: +7.2% one day and +5.8% the next, each against
   a 1.4% floor, end to end across 0.3.9 → 0.3.11.
 
