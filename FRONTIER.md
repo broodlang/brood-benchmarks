@@ -251,8 +251,12 @@ runtime in it; the meaningful comparison stays Python 9.8, Ruby 19.0, .NET 25.9,
    a first-call-in-a-process cheap would pay out across `spawn-live` far more broadly than
    nativising one function. That is unmeasured and is the thing to look at first.
 
-3. **The computed-head call path — now the best-measured lever on the board, and it is one
-   mechanism serving many rows.** A computed head takes no inline cache, so `nqueens`,
+3. **The computed-head call path — the *resolution* half is measured and ruled out (see below);
+   what is left is the call protocol itself.** Memoizing the per-call resolution bought ~0 at
+   the default ceiling and cost `spawn-live` 7% RSS, so it was reverted — the remaining cost
+   here is the frame setup and the dispatch, not the bookkeeping.
+
+   Original framing, kept because the profile is still the best map of this path: A computed head takes no inline cache, so `nqueens`,
    `pipeline`, `sort` and every callback / message-handler workload re-derive the whole
    callee resolution per call. ADR-228 took the allocation out of it (`pipeline` −9.1%,
    `nqueens` −6.2% at ceiling 1); the per-call *work* is still there and profiled — see the
@@ -274,6 +278,40 @@ runtime in it; the meaningful comparison stays Python 9.8, Ruby 19.0, .NET 25.9,
    `long`/`double`; any design must not violate the immutability invariant.
 
 ## Measured and ruled out — don't re-attempt
+
+- **Memoizing the computed-head resolution per `(closure, argc)` — implemented, measured,
+  REVERTED 2026-08-17.** This was lever 3 on this list, sized at ~18% of `pipeline` from the
+  2026-08-14 profile: a computed head takes no inline cache, so `passthrough_arm` (5.3%),
+  `select_arm` (2.0%), `vm_arm_block` (1.2%) and the handle lookup (4.8%) are re-derived on
+  every call, and none of them can change between two calls to the same closure at the same
+  arity. Memoizing all of it in the existing `vm_cache` entry (no new table, no new
+  invalidation obligation — every `arm_ic_blocks` clear is already paired with a `vm_cache`
+  clear) is the obvious move, and it works: 4650/4650 suite, all five call sites rewired
+  including the JIT's non-elided resolve.
+
+  It is not worth it. Measured against a pinned baseline:
+
+  | | result |
+  |---|---|
+  | `nqueens`, ceiling 1 | **−4.3% / −4.9%** (two runs) |
+  | `pipeline`, ceiling 1 | −1.6% |
+  | `sort`, ceiling 1 | −1.3% |
+  | `pipeline`, **default ceiling**, N=10M interleaved | **parity** (3410/3420 base vs 3430/3420) |
+  | **`spawn-live` peak RSS** | **+45 MB, +7.0%** (647→693 and 651→699 MB at 100k units, so ≈+135 MB at the published 300k) |
+
+  So: no gain where users actually run, ~5% on one row at ceiling 1, and a **7% memory
+  regression on the row this file calls lever 1** — the open work item there is *reducing* the
+  per-process floor, and the memo adds ~24 bytes per `(closure, argc)` per process. Bad trade.
+
+  Two things worth keeping. First, **the profile over-promised because the derivations are
+  cheaper than the memo that replaces them**: a closure deref plus a `max_by_key` over a
+  single-arm closure costs less than a `HashMap` probe, so replacing 13% of profiled work
+  bought ~0. A share in a profile is not a share you can collect. Second, an intermediate
+  version cost `reduce` **+5.0%** because it resolved an arm even for thin wrappers, i.e. it
+  *compiled* every `+` just to memoize it — and that row is almost entirely passthrough calls.
+  Fixed before the final measurement, but it is the shape to watch for. Patch kept out of tree;
+  the honest summary is that the computed-head path's cost is the *call protocol* itself, not
+  the resolution bookkeeping, which points back at lever 4/5 (call inlining, dispatch).
 
 - **The capturing-closure fast-link as `pipeline`'s blocker — retired 2026-07-03, and it had
   been this file's stated blocker for two revisions after that.** `perf` puts the elided
