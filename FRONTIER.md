@@ -224,8 +224,11 @@ runtime in it; the meaningful comparison stays Python 9.8, Ruby 19.0, .NET 25.9,
 ## Levers (rough priority)
 
 1. **The green-process floor (~5.5 KB live vs the BEAM's ~3.1 KB)** — now the top lever on
-   `spawn-live`, by elimination. Attributed: IC tables ~536 B, `Box<Process>` (the inline `Heap` is
-   1376 B), `Arc<Mailbox>` 184 B, `Suspended` 128 B. **Working state, not slack** — three tunings
+   `spawn-live`, by elimination. Attributed: **IC tables 1568 B** (measured directly 2026-08-18 —
+   this entry said ~536 B, which was low by ~3×, and it makes the IC tables the *largest* single
+   attributed item, bigger than the whole `Box<Process>`), `Box<Process>` (the inline `Heap` is
+   1376 B), `Arc<Mailbox>` 184 B, `Suspended` 128 B. The IC figure is **896 B** after the lazy
+   `FastLink` mirror landed (see 2b). **Working state, not slack** — three tunings
    were measured and reverted (see ruled-out). Closing needs it *smaller*, not dropped: shrink
    `CallIcEntry`, or share IC entries for frozen callees (sound — a sealed binding resolves
    process-independently). It is also the piece none of the last four wins touched: the row's peak
@@ -253,10 +256,81 @@ runtime in it; the meaningful comparison stays Python 9.8, Ruby 19.0, .NET 25.9,
    note `seq` is *not* a Rust builtin, so the generic path has to call back into Brood. It is
    also the most-used function in the prelude, so the regression surface is the whole library.
 
-   **The per-call tax generalises and may be the bigger lever.** ~0.85 µs for one call in a
-   cold process is a tax every prelude call in this row pays, not just `fold`'s. Whatever makes
-   a first-call-in-a-process cheap would pay out across `spawn-live` far more broadly than
-   nativising one function. That is unmeasured and is the thing to look at first.
+   **The per-call tax generalises — but "first call in a process" was the wrong framing, and it
+   is now measured.** This entry used to say ~0.85 µs is what a *cold* call costs and that making
+   a first-call-in-a-process cheap was the thing to look at first. Measured 2026-08-18, that
+   premise is **false**: calling the *same* arm again in the *same* process costs the same as the
+   first call. Nesting an identity forwarder 1/2/3 deep in the unit body (`(id1 1)`,
+   `(id1 (id1 1))`, …) costs **+2.21 / +2.15 / +1.40 µs CPU per unit** — flat, not front-loaded,
+   against a base-vs-base control of 1.5% on min and 3.75% on median (N=200k, best-of-5 CPU).
+   There is no warm-up to remove.
+
+   The ladder itself reproduces at HEAD (`271ba371`), 18% faster than in August but with the
+   slope intact: **19.45 / 21.05 / 21.90 / 24.45 µs** for the direct `%vector-reduce`, one
+   forwarder, two, and `fold`. Compilation is *not* the cost either — `BROOD_TRACE_COMPILE`
+   counts a constant ~142 compiles whether the run spawns 100 processes or 400, so ADR-215's
+   sharing holds.
+
+   What the added cost actually is, from a symbolized profile converted to absolute ns/unit:
+   `Heap::env_get` **+560**, kernel page faults **+274**, `value::is_dynamic` **+232**,
+   `code_gen_pinned` **+170**, `GlobalAlloc::alloc` **+164**, `RwLock::read_contended` **+128**.
+   That is memory traffic in a 1.2 GB working set, not dispatch bookkeeping — which is what sent
+   the measurement toward per-process *bytes*, and to the entry below.
+
+2b. **Per-process inline-cache tables — 1568 B per `spawn-live` process, half of it never
+   touched.** The measured allocation profile the `spawn-live` entry above has been asking for.
+   Instrumenting teardown (2026-08-18, real `spawn-live`, 300 units) gives an identical shape for
+   every unit process:
+
+   | | per process |
+   |---|---|
+   | call-IC sites allocated | **14** |
+   | of those, ever populated | **6–7** |
+   | arms entered | 4 |
+   | bytes | **1568** (14 × [64 B `CallIcEntry` + 48 B `FastLink`]) + 2 global sites |
+
+   Measured sizes: `CallIcEntry` **64 B** (and `Option<CallIcEntry>` is also 64 — the niche is
+   already exploited), `FastLink` **48 B**, `Value` 24 B.
+
+   Against a measured 6332 B/process for this row, **the IC tables are ~26% of the per-process
+   footprint**, and against the BEAM gap (5.5–6.3 KB vs ~3.1 KB) they are over half of it. The
+   reason half the slots are dead: `vm_arm_block` allocates an arm's block **whole on first entry
+   to that arm in that process**, sized by the arm's *total* `nsites`, whether or not this process
+   will ever execute those sites. A process that calls each site once — which is every unit in
+   this row — populates 6 or 7 of 14 and retains all 14 for its lifetime.
+
+   Three fixes, cheapest first:
+   - ~~**Allocate the `FastLink` mirror lazily**~~ — **DONE 2026-08-18.** `vm_arm_block` no longer
+     pre-grows the mirror; `Heap::fastlink_slot_grown` grows it on the first *publish*, so a
+     process that never JIT-links never allocates it. Safe by construction rather than by luck:
+     every reader already tolerated a short table (VM probe `.get`, publish paths `.get_mut`, and
+     the IR bounds-checks `site < len` against a length it **re-fetches after each Brood→Brood
+     call precisely because a cold nested call may grow + realloc this table**).
+     Measured: **19,968 of 20,001 unit processes now allocate 0 slots instead of 14** (mean 1 B
+     per process, from 672). `spawn-live` RSS 6364 → 6093 B/process (−4.3%), and 5821 → 5605
+     (−3.7%) under `MIMALLOC_PURGE_DELAY=0`. Time-neutral at BOTH ceilings (default: fib +0.0%,
+     pfib −1.3%, nqueens/pipeline +0.0%, sort −1.0%, spawn-live +0.6% vs a 1.2% floor; tier 1: all
+     noise). `fib` is the load-bearing row there — the in-IR fast-link is worth ~20% on it, so
+     +0.0% is what proves linking still happens. 992/992 suite.
+
+     **And a caution for the other two, from this one's own numbers: allocation saved ≠ RSS saved.**
+     672 B/process of allocation provably removed bought 216–271 B/process of RSS — a ratio of
+     roughly **1:0.35**, and page granularity does not explain it (the saving stayed ~216 B with
+     purging forced). So size the fixes below by ~a third of their allocated bytes until someone
+     explains where the rest goes. This repo's own note applies: RSS is not a proxy for live bytes
+     on this runtime.
+   - **Shrink `CallIcEntry`** 64 → ~48 B: `epoch` u64→u32, `callee: Value` (24 B) narrowed, and
+     `callee_bases: (u32, u32)` packed. This is lever 1's "shrink `CallIcEntry`" with a number on
+     it: ~224 B/process per 14 sites.
+   - **Share entries for frozen callees** across processes — the biggest of the three (it could
+     retire most of the 896 B of `CallIcEntry` for prelude/std callees) and the most design.
+
+   Method notes for anyone re-running this: the ladder numbers above are **CPU** µs/unit, not
+   wall — wall shows +0.21 µs where CPU shows +1.60, because this row spreads across workers.
+   `release-fast` sets `strip = true`, so `perf` gives raw addresses until you rebuild with
+   `CARGO_PROFILE_RELEASE_FAST_STRIP=none CARGO_PROFILE_RELEASE_FAST_DEBUG=1`. And the
+   `perf-stats` `ns_*` accumulators are useless for this comparison — every one of them read
+   *lower* for the slower variant, the atomics' own perturbation swamping the signal.
 
 3. **The computed-head call path — the *resolution* half is measured and ruled out (see below);
    what is left is the call protocol itself.** Memoizing the per-call resolution bought ~0 at
