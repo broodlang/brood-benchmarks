@@ -306,19 +306,26 @@ runtime in it; the meaningful comparison stays Python 9.8, Ruby 19.0, .NET 25.9,
      every reader already tolerated a short table (VM probe `.get`, publish paths `.get_mut`, and
      the IR bounds-checks `site < len` against a length it **re-fetches after each Brood→Brood
      call precisely because a cold nested call may grow + realloc this table**).
-     Measured: **19,968 of 20,001 unit processes now allocate 0 slots instead of 14** (mean 1 B
-     per process, from 672). `spawn-live` RSS 6364 → 6093 B/process (−4.3%), and 5821 → 5605
-     (−3.7%) under `MIMALLOC_PURGE_DELAY=0`. Time-neutral at BOTH ceilings (default: fib +0.0%,
-     pfib −1.3%, nqueens/pipeline +0.0%, sort −1.0%, spawn-live +0.6% vs a 1.2% floor; tier 1: all
-     noise). `fib` is the load-bearing row there — the in-IR fast-link is worth ~20% on it, so
-     +0.0% is what proves linking still happens. 992/992 suite.
+     Measured: **19,968 of 20,001 unit processes now publish into none of their slots**, so they
+     allocate no mirror at all. The saving is **48 B per call site entered** — **192.6 B/process**
+     measured as allocated bytes (`(mem-bytes)` after spawn: 504,375,386 → 485,113,258), against
+     which `spawn-live` RSS 6364 → 6093 B/process (−4.3%) tracked it fully. Time-neutral at BOTH
+     ceilings (default: fib +0.0%, pfib −1.3%, nqueens/pipeline +0.0%, sort −1.0%, spawn-live +0.6%
+     vs a 1.2% floor; tier 1: all noise). `fib` is the load-bearing row there — the in-IR fast-link
+     is worth ~20% on it, so +0.0% is what proves linking still happens. 992/992 on both engines.
 
-     **And a caution for the other two, from this one's own numbers: allocation saved ≠ RSS saved.**
-     672 B/process of allocation provably removed bought 216–271 B/process of RSS — a ratio of
-     roughly **1:0.35**, and page granularity does not explain it (the saving stayed ~216 B with
-     purging forced). So size the fixes below by ~a third of their allocated bytes until someone
-     explains where the rest goes. This repo's own note applies: RSS is not a proxy for live bytes
-     on this runtime.
+     **Read the 193 B, not the 672 B, and know why.** A unit parked in `receive` has entered only
+     ~4 call sites' worth of arms; it reaches 14 (672 B) only after running its whole body, by
+     which time most units have died and freed. Peak memory is set by the *parked* state, because
+     that is the state all N processes are in at once. Confirmed by construction: adding 24 call
+     sites to the unit body moved the measured saving to **1345.6 B ≈ 193 + 24 × 48**.
+
+     An earlier revision of this entry claimed a "1:0.35 allocation-to-RSS discount" and told you
+     to size the fixes below at a third of face value. **That was a measurement error — retracted.**
+     It compared a measured RSS delta against an *inferred* allocation delta (the teardown slot
+     count). Use **`(mem-bytes)` / `(mem-peak)`** for an allocation question — the `Counting` global
+     allocator has exposed them all along — and RSS only for "what did the OS map". The two agree
+     here.
    - **Shrink `CallIcEntry`** 64 → ~48 B: `epoch` u64→u32, `callee: Value` (24 B) narrowed, and
      `callee_bases: (u32, u32)` packed. This is lever 1's "shrink `CallIcEntry`" with a number on
      it: ~224 B/process per 14 sites.
