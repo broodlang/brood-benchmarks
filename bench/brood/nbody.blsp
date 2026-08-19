@@ -5,6 +5,8 @@
 ;; so `(nth b i)` is O(1) like their `b[i]`/`elem(b,i)` rather than an O(i) list walk.
 ;; Each step rebuilds the bodies. Checksum = floor(energy*1e9 + 0.5).
 (def n (let (e (getenv "BENCH_N")) (if e (string->number e) 50000)))
+;; `sqrt` moved to the `math` module (brood ADR-227), so it is referenced qualified;
+;; the module loads by inference from that reference (ADR-229 removed `require`).
 (def dt 0.01)
 (def pi 3.141592653589793)
 (def sm (* 4.0 pi pi))
@@ -74,7 +76,7 @@
             dy (- (nth bi 1) (nth bj 1))
             dz (- (nth bi 2) (nth bj 2))
             dsq (+ (* dx dx) (* dy dy) (* dz dz))
-            dist (sqrt dsq)
+            dist (math/sqrt dsq)
             mag (/ dt (* dsq dist))
             mj (nth bj 6))
         (newvel b i (+ j 1) (- vx (* dx mj mag)) (- vy (* dy mj mag)) (- vz (* dz mj mag))))))
@@ -116,7 +118,7 @@
             dx (- (nth bi 0) (nth bj 0))
             dy (- (nth bi 1) (nth bj 1))
             dz (- (nth bi 2) (nth bj 2))
-            dist (sqrt (+ (* dx dx) (* dy dy) (* dz dz))))
+            dist (math/sqrt (+ (* dx dx) (* dy dy) (* dz dz))))
         (potential b i (+ j 1) (- acc (/ (* (nth bi 6) (nth bj 6)) dist))))))
 
 (def final (run 0 (offset init)))

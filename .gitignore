@@ -25,3 +25,7 @@ results/results.*.json
 results/report.*.md
 bench/elixir/_build/
 bench/clojure/.cpcache/
+
+# Compiled C benches (regenerable; the harness rebuilds via build_c()). The .c
+# sources ARE committed — only the binaries are ignored.
+bench/c/build/

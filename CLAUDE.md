@@ -2,7 +2,24 @@
 
 A cross-language micro-benchmark suite: 31 programs across Brood, Clojure, Elixir,
 Python, Node, Ruby and .NET, run under one harness. 28 are implemented in every
-language. `spawn-live` runs in five, but only **two of those five provide the same
+language.
+
+**C is a partial column and a deliberate one** (added 2026-08-14): 16 of the 31 rows, as a
+machine-floor reference so ratios mean "vs roughly what the hardware does" rather than "vs
+the fastest managed runtime". A row opts in with the `"all+c"` sentinel rather than `"all"` —
+C is *not* in `ALL`, so a missing C port is a loud absence rather than an empty cell. Two
+consequences worth knowing before touching it:
+- **Adding a partial column narrows the field-wide aggregate for everyone.** Both `chart.py`
+  and `docs.py:overall_numbers` intersect the rows every column implements, so C landing took
+  that set 27 → 15 and moved the reference from .NET to C. Field-wide figures are therefore
+  **not comparable across that date**; the per-row tables and `trend.svg` are.
+- **Watch for C numbers that are too SLOW.** The first C run lost to Brood on `reduce` and
+  `strings` and to Node on `primes`; all three were self-inflicted (`sprintf` format parsing,
+  64-bit `idivq` where the field uses 32-bit ints, and a `volatile` pointer defeating the
+  inliner). A C row that loses is a bug report about this repo's C, not a finding — see
+  `bench/c/README.md`, which also records the elision audit and why there is no asm barrier.
+
+`spawn-live` runs in five, but only **two of those five provide the same
 thing** — Brood and Elixir have isolated preemptively-scheduled processes with
 copying sends; Node, .NET and Python have coroutines/tasks on a shared heap, and are
 included so the `cores`/`CPU·s` columns make that difference legible rather than to
@@ -19,7 +36,7 @@ python3 bench/test_guard.py           # regression test for the corruption guard
 python3 bench/harness.py --quick      # smaller sizes, smoke test
 python3 bench/harness.py --only fib   # subset (comma-separated)
 python3 bench/harness.py --langs brood,node
-python3 bench/chart.py                # regenerate results/positioning.svg from results.json
+python3 bench/chart.py                # regenerate results/overview.svg from results.json
 ```
 
 - **A corrupt run now fails itself; you do not have to remember anything.** `startup` is
@@ -88,7 +105,7 @@ python3 bench/chart.py                # regenerate results/positioning.svg from 
 the canonical numbers. Then, in this order:
 
 ```sh
-python3 bench/chart.py     # 1. the README's positioning chart (results/positioning.svg)
+python3 bench/chart.py     # 1. the README's overall-speed chart (results/overview.svg)
 python3 bench/docs.py      # 2. every derivable number in BENCHMARKS.md + README.md
 python3 bench/docs.py --check   # 3. must exit 0 before you commit
 ```
@@ -123,14 +140,31 @@ apparent swings and confirmed one real one (2026-08-05, −16%). Measure it as *
 fixed unit count with the two binaries interleaved** — that gives a <2% spread where wall on a
 3.3-core row gives 20%.
 
+**A confirmed regression does not imply a culprit commit exists. Check the shape before
+bisecting.** (Learned 2026-08-14 on `primes`, ~+6% across 0.3.9 → 0.3.11, reproducible on demand
+against a 1.4% floor.) The A/B gate rejects anything under 5% or twice a row's floor, so a change
+worth +2–3% passes as noise on its own evidence — correctly. Several of those sum to a real
+regression that **no individual gate ever saw and no bisect can localise**, because no single step
+crosses the threshold. `git bisect` must return something, so it returns whichever commit sits on
+the far side of your cutoff: on `primes` it named a commit touching one `.blsp` *test file*, which
+A/Bs against its parent at nothing.
+
+So before spending ~20 minutes of builds on a bisect, **sample three or four points across the
+range and look at the curve**. A step means bisect. A ramp (`primes`: 69 → 68 → 70 → 74 ms) means
+there is nothing to find, and the tools that fit are a per-commit sweep recording *absolutes for
+trend* rather than pass/fail verdicts, or profiling the two ends directly. And always sanity-check
+a bisect result against what the commit actually touches — a test-only diff cannot move a runtime
+row, and that check is what exposed this.
+
 ## Editing benchmark programs
 
-- **Same algorithm, same inputs, same printed checksum** across all seven
-  languages — the harness gates on it. Idiomatic per language, not adversarial;
+- **Same algorithm, same inputs, same printed checksum** across every column that
+  runs it — the harness gates on it. Idiomatic per language, not adversarial;
   the fairness rules live in the README.
-- Files are named identically per benchmark (`fib.blsp`/`fib.clj`/`fib.ex`/…)
+- Files are named identically per benchmark (`fib.blsp`/`fib.clj`/`fib.ex`/`fib.c`/…)
   so they diff side by side. A new benchmark needs all seven ports plus a
-  `BENCHMARKS` entry in `bench/harness.py`.
+  `BENCHES` entry in `bench/harness.py` (and a C port if the row is compute and you
+  want the floor — use `"all+c"`).
 - For Brood idioms read `docs/brood-for-claude.md` before writing `.blsp`.
 
 ## Analysis docs

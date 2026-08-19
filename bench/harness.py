@@ -33,7 +33,8 @@ RESULTS = ROOT.parent / "results"
 
 # Display names for report headers/titles, in the canonical column order.
 NICE = {"brood": "Brood", "clojure": "Clojure", "elixir": "Elixir",
-        "python": "Python", "node": "Node", "ruby": "Ruby", "dotnet": ".NET"}
+        "python": "Python", "node": "Node", "ruby": "Ruby", "dotnet": ".NET",
+        "c": "C"}
 
 # ext + how to invoke a single source file. `env` is merged on top of the
 # inherited environment for that language's child process.
@@ -46,6 +47,26 @@ NICE = {"brood": "Brood", "clojure": "Clojure", "elixir": "Elixir",
 # .cs files still live one-per-benchmark so they diff side by side.
 DOTNET_DIR = ROOT / "dotnet"
 DOTNET_APP = DOTNET_DIR / "publish" / "brood-bench"
+
+# C is the MACHINE FLOOR column, and it is deliberately a PARTIAL port: it runs the
+# compute rows only (the `all+c` rows below), not the whole suite. The concurrency
+# rows have no honest C answer — 300k held-alive units means 300k pthread stacks
+# (~2 GB), and a supervisor would be a loop this repo wrote, which measures the
+# harness author rather than the language. The codec rows would measure whichever
+# third-party C library was picked, since C ships none. Those absences are the same
+# judgement `spawn-live` and `supervisor` already make about their own columns.
+#
+# Each benchmark is a standalone binary (bench/c/<name>.c -> build/<name>), so the
+# `startup` row measures a real C process: exec, loader, one write, exit.
+#
+# -O2 is how C is normally shipped. `-march=native` is included because every other
+# runtime here JITs for the host CPU at runtime (V8, RyuJIT, BeamAsm, Brood's tier-1)
+# — targeting baseline x86-64 would understate C against columns that do not. The
+# consequence is that this column, like every absolute in this repo, is specific to
+# the machine in the header.
+C_DIR = ROOT / "c"
+C_BUILD = C_DIR / "build"
+C_CFLAGS = ["-O2", "-march=native", "-std=c11", "-Wall", "-Wextra"]
 
 # Elixir, like .NET, is precompiled once at startup rather than run from source.
 # `elixir file.exs` recompiles the program's module on every run — that ~100ms
@@ -97,7 +118,16 @@ LANGS = {
     "node":   {"dir": "node",   "ext": "js",   "cmd": lambda p: ["node", p]},
     "ruby":   {"dir": "ruby",   "ext": "rb",   "cmd": lambda p: ["ruby", p]},
     "dotnet": {"dir": "dotnet", "ext": "cs",   "cmd": lambda p: [str(DOTNET_APP), Path(p).stem]},
+    "c":      {"dir": "c",      "ext": "c",    "cmd": lambda p: [str(C_BUILD / Path(p).stem)]},
 }
+
+# Which languages an "all"-style row runs in. C is not in ALL: it is a partial port
+# (see the C_DIR comment), so a row opts into it explicitly with "all+c" rather than
+# C being silently expected everywhere and skipped when missing. A missing port
+# should be a loud absence in this suite, not an empty cell.
+ALL = ["brood", "clojure", "elixir", "python", "node", "ruby", "dotnet"]
+ALL_C = ALL + ["c"]
+WHERE = {"all": ALL, "all+c": ALL_C}
 
 
 def build_clojure():
@@ -122,6 +152,31 @@ def build_dotnet():
     )
     if r.returncode != 0:
         raise RuntimeError("dotnet build failed:\n" + r.stdout + r.stderr)
+
+
+def build_c():
+    """Compile every C bench to its own binary under bench/c/build (mirrors build_dotnet).
+
+    One binary per benchmark rather than a dispatcher, so the `startup` row measures a
+    real C process rather than a switch inside an already-running one. Fails the run on
+    any compile error: a silently missing binary would show up as an absent column,
+    which is exactly the kind of quiet hole this suite is built to refuse.
+    """
+    print("compiling C benches (gcc -O2 -march=native)…")
+    C_BUILD.mkdir(parents=True, exist_ok=True)
+    sources = sorted(C_DIR.glob("*.c"))
+    if not sources:
+        raise RuntimeError(f"no C sources found in {C_DIR}")
+    for src in sources:
+        out = C_BUILD / src.stem
+        r = subprocess.run(
+            ["gcc", *C_CFLAGS, str(src), "-o", str(out), "-lm"],
+            capture_output=True, text=True,
+        )
+        if r.returncode != 0:
+            raise RuntimeError(f"gcc failed on {src.name}:\n{r.stdout}{r.stderr}")
+        if r.stderr.strip():
+            print(f"  warning ({src.name}): {r.stderr.strip().splitlines()[0]}")
 
 
 def build_beam():
@@ -170,6 +225,7 @@ def probe_version(lang):
         "node":   ["node", "--version"],
         "ruby":   ["ruby", "--version"],
         "dotnet": ["dotnet", "--version"],
+        "c":      ["gcc", "--version"],
     }.get(lang)
     if not cmd or shutil.which(cmd[0]) is None:
         return None
@@ -226,26 +282,26 @@ def collect_meta(langs):
 # the slowest (the Brood VM) still finishes in a couple of seconds. `reduce` is
 # the freshest tune (it became a real higher-order fold; re-measure to settle N).
 BENCHES = [
-    ("startup",    0,        "all", "interpreter/VM startup + base memory"),
-    ("fib",        35,       "all", "naive recursion / function-call overhead"),
-    ("loop",       30000000, "all", "raw iteration (tail recursion vs for-loop)"),
-    ("reduce",     5000000,  "all", "higher-order fold over a range"),
-    ("primes",     150000,   "all", "integer arithmetic (trial division)"),
-    ("collatz",    250000,   "all", "integer arithmetic + tight inner loop"),
-    ("mandelbrot", 540,      "all", "floating-point math (escape iterations)"),
-    ("matmul",     175,      "all", "nested loops + indexing (integer NxN)"),
-    ("strings",    500000,   "all", "string building (join) + length"),
-    ("wordcount",  750000,   "all", "hash-map build (immutable vs mutable)"),
-    ("bintree",    200,      "all", "allocation / GC pressure (build+walk trees)"),
-    ("sort",       375000,   "all", "sort a list of ints + checksum walk"),
-    ("nqueens",    10,       "all", "backtracking recursion — count N-queens solutions"),
+    ("startup",    0,        "all+c", "interpreter/VM startup + base memory"),
+    ("fib",        35,       "all+c", "naive recursion / function-call overhead"),
+    ("loop",       30000000, "all+c", "raw iteration (tail recursion vs for-loop)"),
+    ("reduce",     5000000,  "all+c", "higher-order fold over a range"),
+    ("primes",     150000,   "all+c", "integer arithmetic (trial division)"),
+    ("collatz",    250000,   "all+c", "integer arithmetic + tight inner loop"),
+    ("mandelbrot", 540,      "all+c", "floating-point math (escape iterations)"),
+    ("matmul",     175,      "all+c", "nested loops + indexing (integer NxN)"),
+    ("strings",    500000,   "all+c", "string building (join) + length"),
+    ("wordcount",  750000,   "all+c", "hash-map build (immutable vs mutable)"),
+    ("bintree",    200,      "all+c", "allocation / GC pressure (build+walk trees)"),
+    ("sort",       375000,   "all+c", "sort a list of ints + checksum walk"),
+    ("nqueens",    10,       "all+c", "backtracking recursion — count N-queens solutions"),
     ("errors",     200000,   "all", "error handling — raise + recover a value N times"),
     ("errors-deep", 50000,   "all", "error propagation — throw 50 frames deep, catch at top"),
     ("pipeline",   100000,   "all", "filter/map/reduce pipeline over a range"),
-    ("ackermann",  6,        "all", "deep double-recursion (Ackermann ack(3,9))"),
-    ("sieve",      1000000,  "all", "Sieve of Eratosthenes (mutable array vs Table)"),
+    ("ackermann",  6,        "all+c", "deep double-recursion (Ackermann ack(3,9))"),
+    ("sieve",      1000000,  "all+c", "Sieve of Eratosthenes (mutable array vs Table)"),
     ("persistent-map", 300000, "all", "read-modify-write churn on a map (deep CHAMP)"),
-    ("nbody",      50000,    "all", "floating-point physics sim (N-body)"),
+    ("nbody",      50000,    "all+c", "floating-point physics sim (N-body)"),
     ("json",       2000,     "all", "JSON encode+parse round-trip (pure-Brood vs native)"),
     ("regex",      20000,    "all", "regex full-match count (pure-Brood vs native)"),
     ("base64",     50000,    "all", "base64 encode+decode (pure-Brood vs native)"),
@@ -497,7 +553,7 @@ def main():
                     help="skip the discarded per-language warmup run (see warmup(): it keeps a "
                          "cold boot-cache populate out of the reported peak RSS)")
     ap.add_argument("--only", default="", help="comma list of benchmark names")
-    ap.add_argument("--langs", default="brood,clojure,elixir,python,node,ruby,dotnet")
+    ap.add_argument("--langs", default="brood,clojure,elixir,python,node,ruby,dotnet,c")
     ap.add_argument("--quick", action="store_true")
     ap.add_argument("--out", default="", help="directory to write result files into (default: results/)")
     ap.add_argument("--label", default="", help="filename suffix, e.g. --label whklat -> results.whklat.json")
@@ -539,11 +595,17 @@ def main():
 
     # A missing runtime is skipped (with a warning), not fatal — so the default
     # invocation works on a machine that lacks one of the toolchains.
+    # `dotnet` and `c` are compiled columns: their `cmd` points at a build artifact that
+    # does not exist until build_dotnet()/build_c() has run, so probing it here would
+    # always "miss" and silently drop the column. They are checked by toolchain below.
     for l in list(langs):
         binary = LANGS[l]["cmd"]("x")[0]
-        if l != "dotnet" and shutil.which(binary) is None:
+        if l not in ("dotnet", "c") and shutil.which(binary) is None:
             print(f"warning: `{binary}` not found on PATH — skipping {l}.", file=sys.stderr)
             langs.remove(l)
+    if "c" in langs and shutil.which("gcc") is None:
+        print("warning: `gcc` not found on PATH — skipping the C column.", file=sys.stderr)
+        langs.remove("c")
     if "dotnet" in langs and shutil.which("dotnet") is None:
         print("warning: `dotnet` not found on PATH — skipping the .NET column. "
               "Install it with `sudo apt install dotnet-sdk-10.0`.", file=sys.stderr)
@@ -554,6 +616,8 @@ def main():
 
     if "dotnet" in langs:
         build_dotnet()
+    if "c" in langs:
+        build_c()
     if "elixir" in langs:
         build_beam()
     if "clojure" in langs:
@@ -609,7 +673,11 @@ def main():
             runs = max(args.runs, NOISY_RUNS)
         else:
             runs = args.runs
-        run_langs = langs if where == "all" else [l for l in langs if l in where]
+        # `where` is either a sentinel ("all" / "all+c") or an explicit list of langs
+        # (spawn-live, supervisor, latency). Only the sentinel form is a dict lookup —
+        # a list is unhashable, so `WHERE.get(where, where)` would raise on those rows.
+        target = WHERE[where] if isinstance(where, str) else where
+        run_langs = [l for l in langs if l in target]
         results[name] = {"n": n, "what": what, "langs": {}}
         print(f"\n## {name}  (N={n}) — {what}")
         server = None
@@ -756,7 +824,7 @@ def fmt_ms(ms):
 
 
 def build_report(results, args, meta=None):
-    order = ["brood", "clojure", "elixir", "python", "node", "ruby", "dotnet"]
+    order = ["brood", "clojure", "elixir", "python", "node", "ruby", "dotnet", "c"]
     focus = getattr(args, "focus", "") or ""
     # Title names only the languages that actually produced a result this run.
     present = [l for l in order if any(l in d["langs"] for d in results.values())]
