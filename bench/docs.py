@@ -18,7 +18,8 @@ previous run).
 import re
 import sys
 
-from common import COMPUTE, LANG_COL, PRETTY, ROOT, compute, geomean, load
+from common import (CHART_ROWS, COMPUTE, LANG_COL, PRETTY, ROOT, compute, geomean,
+                    load)
 
 DOCS = [ROOT / "BENCHMARKS.md", ROOT / "README.md"]
 
@@ -115,13 +116,26 @@ def header_cells(header):
     return out
 
 
+def brood_version(res):
+    """`0.3.11 (`d5572d61`)` — the version with the commit attached exactly once.
+
+    `brood --version` grew a trailing `(hash)` of its own in 0.3.10; before that the
+    harness's separate `brood_commit` was the only source. Strip whatever the version
+    string carries and re-attach from `brood_commit`, so neither shape double-prints it
+    (0.3.11 did: `Brood 0.3.11 (d5572d61) (`d5572d61`)`).
+    """
+    m = res["_meta"]
+    ver = m["versions"]["brood"].replace("brood ", "")
+    ver = re.sub(r"\s*\([0-9a-f]{7,40}\)\s*$", "", ver).strip()
+    commit = m.get("brood_commit")
+    return f"{ver} (`{commit}`)" if commit else ver
+
+
 def machine_line(res):
     m = res["_meta"]
     v = m["versions"]
     date = m["date"].split(" ")[0]
-    brood = v["brood"].replace("brood ", "")
-    commit = m.get("brood_commit")
-    brood = f"{brood} (`{commit}`)" if commit else brood
+    brood = brood_version(res)
     elixir = re.sub(r" \(compiled with Erlang/OTP (\d+)\)", r" / OTP \1", v["elixir"])
     elixir = elixir.replace("Elixir ", "").replace(" (", " (")
     return (
@@ -161,7 +175,40 @@ def overall_numbers(res, starts):
         g = geomean([compute(res, starts, r, l) for l in langs if l != "brood"])
         if b and g:
             avg_ratios.append(b / g)
+    # The OVERALL figure the overview chart plots: a geomean of per-row ratios across
+    # every row all seven languages implement, not just the eleven single-threaded ones.
+    # Kept here so the chart and the standings table cannot drift apart — they were two
+    # different aggregates over two different row sets until 2026-08-10, which is exactly
+    # the kind of quiet disagreement `docs.py` exists to prevent.
+    #
+    # The row set is the INTERSECTION of what each language completed, mirroring
+    # bench/chart.py exactly. It used to require a language to implement every
+    # CHART_ROW, which silently excluded any partial-coverage column — so when the C
+    # floor column landed (16 of 31 rows) the chart rebased onto it and this figure did
+    # not, and the two disagreed again. Intersecting here is what keeps them identical;
+    # the cost is that adding a partial column NARROWS the row set for everyone, which
+    # is a real editorial event and is called out in the prose rather than hidden.
+    all_langs = [l for l in res["startup"]["langs"]
+                 if any(compute(res, starts, r, l) is not None for r in CHART_ROWS)]
+    _ran = {l: {r for r in CHART_ROWS if compute(res, starts, r, l) is not None}
+            for l in all_langs}
+    all_rows = sorted(set.intersection(*_ran.values())) if _ran else []
+    all_best = {r: min(compute(res, starts, r, l) for l in all_langs) for r in all_rows}
+    all_geo = {l: geomean([compute(res, starts, r, l) / all_best[r]
+                           for r in all_rows if all_best[r]]) for l in all_langs}
+    # Normalised to the leader, matching the chart — see bench/chart.py for why a raw
+    # geomean of per-row ratios leaves nobody at 1.0x.
+    _lead = min(all_geo.values())
+    all_geo = {l: v / _lead for l, v in all_geo.items()}
+    all_order = sorted(all_geo, key=lambda l: all_geo[l])
+
     return {
+        "agg_all": all_geo.get("brood"),
+        "agg_all_rank": all_order.index("brood") + 1 if "brood" in all_order else None,
+        "agg_all_rows": len(all_rows),
+        "agg_all_langs": len(all_order),
+        "agg_all_field": " · ".join(f"{PRETTY[l]} {all_geo[l]:.1f}"
+                                    for l in all_order if l != "brood"),
         "agg_avg": sums["brood"] / field_geo if field_geo else None,
         "beats_avg": sum(1 for x in avg_ratios if x < 1.0),
         "navg": len(avg_ratios),
@@ -197,6 +244,19 @@ def score_map(res, starts, rows, cols):
         return {}
     lead = min(raw.values())
     return {n: r / lead for n, r in raw.items()}
+
+
+def score_coverage(res, starts, rows, cols):
+    """`{language: how many of `rows` it actually has}`.
+
+    A partial column (C) scores over the rows it runs, which is the only thing it *can*
+    do — but a 12-row geomean printed under a "(15)" heading next to everyone else's
+    15-row one is a cross-subset comparison wearing a like-for-like label. The scoreboard
+    uses this to annotate the coverage instead of hiding it.
+    """
+    keys = dict(cols)
+    return {n: sum(1 for row in rows if compute(res, starts, row, keys[n]))
+            for n, _ in cols}
 
 
 def score_row(res, starts, rows, cols):
@@ -344,6 +404,9 @@ def standings_block(res, starts):
         f"{field('startup', 'wall_ms', ' ms')} |",
         f"| base RSS | {res['startup']['langs']['brood']['rss_kb']/1024:.1f} MB | "
         f"{field('startup', 'rss_kb', ' MB', 1/1024)} |",
+        f"| overall speed — geomean of the {o['agg_all_rows']} rows every column implements "
+        f"| {o['agg_all']:.1f}× the fastest ({o['agg_all_rank']}/{o['agg_all_langs']}) "
+        f"| {o['agg_all_field']} |",
         f"| aggregate single-threaded compute | {o['agg']:.1f}× the fastest | "
         + " · ".join(f"{PRETTY[l]} {v:.1f}" for l, v in o["field"]) + " |",
         f"| aggregate vs the field's average | **{o['agg_avg']:.2f}×** | "
@@ -374,12 +437,11 @@ def standings_block(res, starts):
 
 def environment_block(res, starts):
     m, v = res["_meta"], res["_meta"]["versions"]
-    commit = f" (`{m['brood_commit']}`)" if m.get("brood_commit") else ""
     return [
         begin("ENVIRONMENT"),
         f"Numbers in the docs were measured on `{m['host']}`: a {m['cores']}-core x86-64 "
         f"Linux {m['platform'].split('-')[1]} machine · Brood "
-        f"{v['brood'].replace('brood ', '')}{commit} (bytecode VM + tier-1 JIT) · "
+        f"{brood_version(res)} (bytecode VM + tier-1 JIT) · "
         f"{v['clojure'].replace(' / JDK', ' / OpenJDK')} (HotSpot) · "
         f"{re.sub(r' \(compiled with Erlang/OTP (\d+)\)', r' / OTP \1', v['elixir'])} "
         f"(BeamAsm JIT) · {v['python']} · Node {v['node'].lstrip('v')} (V8) · "
@@ -405,13 +467,18 @@ def scoreboard_block(res, starts, specs):
     Each table's own top row says the same thing for that table; this is the one place that
     shows all of them together, which is what "how are we doing" actually asks.
     """
-    names = [n for n, _ in LANG_COL.items()]
+    scored = [(label, cols, rows, score_map(res, starts, rows, cols)) for label, cols, rows in specs]
+    scored = [s for s in scored if s[3]]
+    # Only show a language column if some table can actually fill it. Without this, adding a
+    # language to LANG_COL puts a permanently empty column in the scoreboard — which is what
+    # happened when C landed: the header advertised C and every cell read `·`, because the
+    # per-table scores come from each table's own header and none of them listed C yet.
+    present = {n for _, _, _, row in scored for n in row}
+    names = [n for n, _ in LANG_COL.items() if n in present]
     head = ["| table | " + " | ".join(names) + " |", "|---" * (len(names) + 1) + "|"]
     body = []
-    for label, cols, rows in specs:
-        row = score_map(res, starts, rows, cols)
-        if not row:
-            continue
+    for label, cols, rows, row in scored:
+        cover = score_coverage(res, starts, rows, cols)
         cells = []
         for n in names:
             v = row.get(n)
@@ -419,11 +486,16 @@ def scoreboard_block(res, starts, specs):
                 cells.append("·")
             else:
                 txt = f"{v:.2f}"
+                # Disclose a partial column rather than letting it read like full coverage.
+                if cover.get(n, len(rows)) < len(rows):
+                    txt += f"<sup>{cover[n]}/{len(rows)}</sup>"
                 cells.append(f"**{txt}**" if n == "Brood" else txt)
         body.append(f"| {label} ({len(rows)}) | " + " | ".join(cells) + " |")
     return [begin("SCOREBOARD"), *head, *body, "",
             "`1.00` = that table's fastest column; each score is the geometric mean of a "
-            "language's time ÷ that row's best. `·` = no port in that table. (The colour "
+            "language's time ÷ that row's best. `·` = no port in that table; a superscript "
+            "like <sup>12/15</sup> means that column scored over only those rows, so it is "
+            "not a like-for-like comparison with the full-coverage columns beside it. (The colour "
             "bands are on the `vs best` / `vs avg` columns in the tables below: 🟢 at least "
             "as fast · 🟠 up to 3× slower · 🔴 beyond.)",
             end("SCOREBOARD")]
