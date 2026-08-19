@@ -3,10 +3,10 @@
 ;; is message-based — `http-get` parks its process on a `receive`, so all N
 ;; requests are in flight at once rather than serialising. Checksum = N.
 ;;
-;; net/* ships in the default install — net/http is a bundled std module
+;; net/* ships in the default install — http is a bundled std module
 ;; (ADR-097, amends ADR-085 Move 2), so `require` resolves it straight from the
 ;; `brood` binary with no load-path setup.
-(require 'net/http)
+(require 'http)
 
 (def n (let (e (getenv "BENCH_N")) (if e (string->number e) 500)))
 (def port (let (e (getenv "BENCH_HTTP_PORT")) (if e e "8089")))
@@ -16,7 +16,7 @@
 (def me (self))
 
 ;; `http/http-get` must run inside a process (it `receive`s the response).
-(defn worker () (send me [:r (if (= (get (net/http/http-get url) :status) 200) 1 0)]))
+(defn worker () (send me [:r (if (= (get (http/http-get url) :status) 200) 1 0)]))
 
 (defn fan (i) (if (>= i n) nil (do (spawn (worker)) (fan (+ i 1)))))
 
