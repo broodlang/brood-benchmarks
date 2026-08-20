@@ -60,7 +60,7 @@ def  fn  quote  quasiquote  if  do  let  letrec
 ```
 
 Common macros (expanded once at the compile pass — runtime-free): `defmacro`
-(lowers to `(def name (%make-macro (fn …)))`), `defn`, `defdyn`, `binding`,
+(lowers to `(def name (%make-macro (fn …)))`), `defn`, `defn-` / `def-`, `defdyn`, `binding`,
 `cond`, `when`, `unless`, `and`, `or`, `match`, `try` / `catch`, `->` / `->>` /
 `as->`, `some->` / `some->>` / `cond->` / `cond->>` / `doto`, `if-let` / `when-let`,
 `fmt` (string interpolation), `receive`, `spawn`.
@@ -71,6 +71,8 @@ Common macros (expanded once at the compile pass — runtime-free): `defmacro`
 (defn greet (name) (str "hello, " name))            ; defn = (def greet (fn (name) ...))
 (defn add (& xs) (fold %add 0 xs))                  ; variadic via & rest
 (defn opt-arg (x &optional (y 10)) (+ x y))         ; optionals with defaults
+(defn- helper (x) …)                                ; MODULE-PRIVATE (ADR-146) — same as
+(def- *table* {})                                   ;   defn/def, plus (%mark-private 'name)
 
 (defmacro when (test & body) `(if ~test (do ~@body) nil))
 (defmacro my-or (a b) `(let (r# ~a) (if r# r# ~b)))  ; `r#` = auto-gensym: a fresh,
@@ -215,19 +217,24 @@ your code will read like the standard library.
 ```
 foo?         ; predicate — returns a boolean (int? empty? starts-with?)
 *foo*         ; dynamic var or module-level config/state (defdyn *log-level*)
-foo->bar      ; conversion (number->string, vec->list)
+foo->bar      ; conversion (string->number, int->char); a module-rooted
+              ; conversion drops the source: string/->bytes, string/bytes->
 ```
 
 **Privacy is a def form, not a spelling** (ADR-146): `(defn- helper …)` and
-`(def- x …)` define a MODULE-PRIVATE name — a *clean* name, no marker in it. A
-hand-written cross-module qualified reference to a private is a compile error
-without `(:use-internals mod)`; call it bare (same module) or `mod/name` (granted).
-The name never carries a sigil, at the definition or any call site.
+`(def- x …)` define a MODULE-PRIVATE name — a *clean* name, no marker in it, at the
+definition or any call site. A hand-written cross-module qualified reference to a
+private is a compile error without `(:use-internals mod)`; call it bare (same module)
+or `mod/name` (granted). There is no marker to spell and none to read, so ask the
+image: `(private? 'mod/name)`. The old `--`-in-name convention (`append--onto`) was
+**deleted** in favour of this — if you meet it in older code or a stale doc, it no
+longer means anything. There is no `defmacro-`/`defprocess-`: private macros and
+processes were rare enough that they simply stay public.
 
 A trailing `!` is **rare and not a mutation warning** — nothing mutates, so the
 Scheme/Clojure reading is vacuous here and `!` is per-context by decision (ADR-163):
 `sig!` = a signature *enforced* at runtime, `set-load-path!` / `clipboard-set!` = the
-few root/OS-state setters, `(! pid payload)` = the Erlang-style cast in `proc/gen`.
+few root/OS-state setters, `(! pid payload)` = the Erlang-style cast in `gen`.
 **Don't add a `!` to a name of your own.**
 
 **Names come from whichever language named the thing best** — `partition` (Clojure)
@@ -254,14 +261,15 @@ recursion with an accumulator:
 ```lisp
 (defn reverse (coll) "The items of `coll` in reverse order." (fold flip-cons nil coll))
 
-;; longer recursions split into a public shell + a private helper
-(defn- count-newlines-at (s i acc) …)              ; private worker (defn-)
+;; longer recursions split into a public shell + a private -at helper
+(defn- count-newlines-at (s i acc) …)              ; private worker
 (defn count-newlines (s) "Number of \\n in `s`." (count-newlines-at s 0 0))
 ```
 
 **Docstrings** go on every public `defn` / `defmacro`. First line is a complete
 one-sentence summary (it's what `(doc 'name)` and the LSP show on hover);
-backtick code, **bold**, and `-` bullet lists are rendered, so use them. Private (`defn-`) helpers usually skip the docstring and use a `;;` comment instead.
+backtick code, **bold**, and `-` bullet lists are rendered, so use them. `defn-`
+privates usually skip the docstring and use a `;;` comment instead.
 
 ```lisp
 (defn format-source (src)
@@ -380,7 +388,7 @@ Other things worth knowing:
 - `(satisfies? 'Shape x)` to branch instead of letting a missing op raise.
 - **Register at load time.** Top-level `impl` forms are safe; two *processes* calling
   `impl` concurrently can lose an update (it is a `def` under the hood).
-- `defbehaviour` (`(require 'protocol)`) is the *other* seam — a contract a **module**
+- `defbehaviour` (`(:use protocol)`) is the *other* seam — a contract a **module**
   satisfies by defining plain functions, claimed with `(:implements Name)` in the
   header. No value dispatch. Use it when the implementor is a namespace, not a value.
 - **`defprotocol`/`defimpl` no longer exist** (retired, ADR-168). If you were about to
@@ -389,16 +397,16 @@ Other things worth knowing:
 ### The abilities `std/` already ships (ADR-177)
 
 `impl` one of these for your own record and that library accepts your type — you don't
-edit the library. Beyond the core `Display` (`to-str`, what `println` shows) and `Inspect`
+edit the library. Beyond the core `Display` (`->string`, what `println` shows) and `Inspect`
 (`inspect`, the debug form):
 
 | `impl` this | to get |
 |---|---|
-| `JsonEncode` — `(to-json x)`, from `json` | `json-encode` handles your type (a record's wire shape; a pid/fn/datetime at all). **No `:default`** — an unimpl'd kind still errors loudly. |
+| `JsonEncode` — `(->json x)`, from `json` | `json/encode` handles your type (a record's wire shape; a pid/fn/datetime at all). **No `:default`** — an unimpl'd kind still errors loudly. |
 | `Port` — `(io-write p s)`, from `io` | your value is an output port (`with-out`, logger sinks). A bare 1-arg fn already is one. |
 | `LogBackend` — `(backend-emit b rec)`, from `log` | a backend that batches / emits JSON lines / samples. `backend-passes?` is the stock level+filter gate. |
-| `Response` — `(send-response r sock)`, from `net/http` | a response kind with its own wire behaviour, including who closes the socket. |
-| `Dependency` (**sealed**), from `package` · `Temporal` — `(to-iso x)` (**sealed**), from `datetime` | a new manifest dep kind / calendar type. Sealed ⇒ `nest check` demands every op. |
+| `Response` — `(send-response r sock)`, from `http` | a response kind with its own wire behaviour, including who closes the socket. |
+| `Dependency` (**sealed**), from `package` · `Temporal` — `(->iso x)` (**sealed**), from `datetime` | a new manifest dep kind / calendar type. Sealed ⇒ `nest check` demands every op. |
 
 Also: `std/`'s value types are **records**, not plain maps — `buffer`, `queue`, `pq`,
 `multimap`, `datetime`/`date`/`time-of-day`, and the four dependency kinds. So
@@ -407,7 +415,7 @@ prints as itself (`#<buffer *scratch* 11 chars>`, `2026-07-29T…Z`) rather than
 internals, and **none of them is `=` to a map with the same fields** — build them with
 their constructors, and don't compare one against a map literal in a test. Where a library
 renders a *user* value to text (`template/render`, `csv-emit`, `url/query-encode`) it calls
-`to-str`, so your `Display` impl governs that output too.
+`->string`, so your `Display` impl governs that output too.
 
 ## Patterns (`let`, `fn`, `match`, `receive`)
 
@@ -478,10 +486,10 @@ Prefer the higher-order combinators:
 ```lisp
 (reduce + 0 xs)
 (map sq xs)
-(filter even? xs)
+(filter math/even? xs)             ; even?/odd?/… live in the `math` module (ADR-227)
 (fold (fn (m k) (assoc m k (* k k))) {} (range 10))
 (map (partial + 10) xs)            ; partial / complement / constantly / comp all exist
-(filter (complement odd?) xs)
+(filter (complement math/odd?) xs)
 ```
 
 **One sequence view over every collection.** `count` `empty?` `first` `rest` `last`
@@ -537,15 +545,15 @@ intermediate collections (one pass, no throwaway lists). Thread them with `->>`:
 
 ```lisp
 ;; eager: builds two throwaway lists of ~1000 / ~500 elements
-(reduce + 0 (map sq (filter even? (range 1000))))
+(reduce + 0 (map sq (filter math/even? (range 1000))))
 ;; fused: one pass, no intermediate lists (≈3× faster on large inputs)
-(->> (range 1000) (lfilter even?) (lmap sq) (reduce + 0))
+(->> (range 1000) (lfilter math/even?) (lmap sq) (reduce + 0))
 ```
 
 `lmap`/`lfilter`/`lkeep`/`lremove` each return a lazy **seq-view** — a
 non-materialising value carrying the transform over a source. Chaining composes
 the transforms onto one view, so the whole pipeline folds/reduces in a single
-pass. Consume with `fold`/`reduce`/`sum`/`count`/`into`/`join`/`seq`; `seq`/
+pass. Consume with `fold`/`reduce`/`sum`/`count`/`into`/`string/join`/`seq`; `seq`/
 `into`/`str`/`=` realise it. Two things to know: a view is **lazy** (it defers
 its fns until realised — don't build one for side effects; use eager `map`), and
 a view is **heap-local** (`send` refuses to ship one — realise it with `seq`/
@@ -567,14 +575,14 @@ The combinators above read well, but in a function called hundreds of times per
 frame their *intermediate allocations* dominate. Two rules for code on a hot
 path:
 
-- **`mapcat`-then-reduce builds a list only to walk it once.** `(frequencies
+- **`mapcat`-then-reduce builds a list only to walk it once.** `(seq/frequencies
   (mapcat f xs))` materialises the entire `(len-of-each × count)` list of items
-  before `frequencies` tallies it — thousands of throwaway cells per frame. Fuse
+  before `seq/frequencies` tallies it — thousands of throwaway cells per frame. Fuse
   the two into one `fold` so nothing intermediate is built:
 
   ```lisp
   ;; allocates the full neighbour list, then counts it
-  (frequencies (mapcat neighbours cells))
+  (seq/frequencies (mapcat neighbours cells))
   ;; fused: tally straight into the map, no intermediate list
   (fold (fn (counts cell)
           (fold (fn (c n) (assoc c n (inc (get c n 0)))) counts (neighbours cell)))
@@ -671,7 +679,7 @@ named form.
 ```
 
 Use it for anything supervised — `std/proc/supervisor.blsp`'s `:start` thunks are
-`(fn () (spawn-link (worker …)))`, and `proc/gen`'s `spawn-server-link` is the
+`(fn () (spawn-link (worker …)))`, and `gen`'s `spawn-server-link` is the
 same idea for a `defprocess` server.
 
 ## Distributed nodes — named processes & cross-node addressing
@@ -715,10 +723,10 @@ quits or crashes is detected without any app-level goodbye message.
 cleanly — no need for an ad-hoc `[:bye]` broadcast. Returns `true` if a link
 existed.
 
-## Stateful servers — the `proc/gen` framework (`(:use proc/gen)`)
+## Stateful servers — the `gen` framework (`(:use gen)`)
 
 Raw `spawn`/`receive` is the substrate; for a process that **holds state and
-answers messages** (a gen_server / actor), use `proc/gen`. State is immutable —
+answers messages** (a gen_server / actor), use `gen`. State is immutable —
 each clause *returns the next state* to carry through the loop. Two message
 kinds:
 
@@ -730,8 +738,8 @@ kinds:
   Use this for "just read a field" cases to avoid the `[x s]` boilerplate.
 
 ```lisp
-(defmodule my-counter "…" (:use proc/gen))   ; (:use proc/gen), not (require 'proc/gen),
-                                          ; to write defprocess/cast/gen-call bare
+(defmodule my-counter "…" (:use gen))   ; (:use gen) to write
+                                          ; defprocess/cast/gen-call bare
 
 (defprocess counter (n)                 ; n is the state
   (cast  :inc       (+ n 1))            ; new state = n+1
@@ -750,7 +758,7 @@ kinds:
 
 Other primitives: `(sleep ms)` parks the current process without touching its
 mailbox (it does *not* block a worker thread). `(stop pid)` ends a server
-process's receive loop cleanly — every `proc/gen` process automatically handles
+process's receive loop cleanly — every `gen` process automatically handles
 the stop envelope, no `:stop` clause needed.
 
 **Worker pool — fan out work, fan in results** (plain `spawn`/`receive`, the
@@ -910,26 +918,37 @@ in the REPL. (`nest doc <module>` does the same for an opt-in module like
 - **list / seq**: `first` `rest` `cons` `list` `count` `empty?` `nth`
   `reverse` `map` `filter` `reduce` `fold` `append` (variadic, over
   lists *and* vectors, returning a list) `mapcat` `sort` `take`
-  `drop` `range` `zip` `partition` `frequencies` `enumerate` `repeat`
-  `repeatedly`
+  `drop` `range` `zip` `partition` `repeat` `repeatedly`. The derived
+  sequence helpers — `frequencies` `enumerate` `group-by` `chunk-by`
+  `chunk-every` `interpose` `interleave` `scan` `zip-with` `min-by` `max-by`
+  `reduce-while` `index-where` `dedupe` `distinct-by` — live in the **`seq`
+  module** (`(:use seq)` for bare access, or a qualified `seq/frequencies`
+  auto-loads it) (ADR-227, renamed from `enum` in ADR-234).
 - **iteration** (macros, for effect — there is no `while`/`for`-loop): `for`
   (list comprehension, with `:when`), `doseq` (destructuring/`:when`),
   `dotimes` `(i n)`, `dolist` `(x coll)`. All return `nil` except `for`.
-- **string**: `str` `pr-str` `string-length` `substring` `char-at`
-  (returns a 1-char *string* — Brood has no char type) `index-of`
-  `includes?` `string-split` `join` `replace` `trim` `triml` `trimr`
-  `blank?` `upper` `lower` `number->string` `string->number`
-  `string->list` `list->string` `starts-with?` `ends-with?`
-- **unicode**: `string->graphemes` (extended grapheme clusters as a vector of
+- **string**: the string surface lives in the `string` module (ADR-230), so these are
+  **`string/`-qualified** unless listed as bare below: `string/length`
+  `string/substring` `string/char-at` (returns a 1-char *string* — Brood has no char
+  type) `string/split` `string/join` `string/replace` `string/trim` `string/triml`
+  `string/trimr` `string/blank?` `string/upper` `string/lower`
+  `string/starts-with?` `string/ends-with?` `string/->list` `string/list->`
+  `string/->bytes` `string/bytes->`.
+  **Bare (core, not in the module):** `str` `pr-str` `index-of` `includes?`
+  `string->number` `->string` (the polymorphic Display op) `name`.
+  There is no `symbol->string`/`number->string` — use `str`, `->string` or `name`
+  (ADR-239 removed both as redundant).
+- **unicode**: `string/->graphemes` (extended grapheme clusters as a vector of
   strings — the unit a human calls "a character", and what a cursor must step by;
-  `"e\u{301}"` is 2 codepoints but 1 cluster) · `string-normalize` (`(string-normalize
-  s :nfc)`, also `:nfd` `:nfkc` `:nfkd` — `=` is byte-structural, so `"é"` written
-  two ways compares unequal until you normalise) · `display-width` (terminal cells)
-- **string formatting**: `string-repeat` `pad-left` `pad-right`
-  `to-fixed` (number → string with fixed decimals, e.g. `(to-fixed 3.14159 2)`
+  `"e\u{301}"` is 2 codepoints but 1 cluster) · `string/->codepoints` ·
+  `string/normalize` (`(string/normalize s :nfc)`, also `:nfd` `:nfkc` `:nfkd` — `=` is
+  byte-structural, so `"é"` written two ways compares unequal until you normalise) ·
+  `display-width` (terminal cells, bare)
+- **string formatting**: `string/repeat` `string/pad-left` `string/pad-right`
+  `->fixed` (number → string with fixed decimals, e.g. `(->fixed 3.14159 2)`
   → `"3.14"` — `str` prints full f64 precision, so reach for this for output) ·
   `format` (small printf, e.g. `(format "x=%d y=%.2f" 42 3.14)` → `"x=42 y=3.14"`;
-  specifiers `%s %d %f %.Nf %%`; width via `pad-left`/`pad-right`)
+  specifiers `%s %d %f %.Nf %%`; width via `string/pad-left`/`string/pad-right`)
 - **map**: `assoc` `dissoc` `get` `keys` `vals` `contains?` `into` `map-pairs`
   (a map's `[k v]` pairs) `seq` (universal list-view — coerces a map to its
   `[k v]` pairs; lists, vectors, strings, nil pass through). **Maps are seqable**:
@@ -937,7 +956,7 @@ in the REPL. (`nest doc <module>` does the same for an opt-in module like
   `(count m)` / `(into [] m)` all walk the map as its `[k v]` pairs — no need
   for `(zip (keys m) (vals m))`. Iteration order (`keys`/`vals`/print/`seq`) is
   **hash-derived (ADR-040), NOT insertion order and NOT sorted** — don't rely on
-  it; `(sort (keys m))` for a defined order, or compare via `frequencies`.
+  it; `(sort (keys m))` for a defined order, or compare via `seq/frequencies`.
 - **set**: a **first-class kernel value** (`Value::Set`, ADR-060), written with a
   `#{1 2 3}` literal (evaluates its elements and dedups). It is its *own* kind:
   `(set? s)` is true, `(map? s)` is **false**, `(type-of s)` is `:set`, it prints
@@ -946,24 +965,28 @@ in the REPL. (`nest doc <module>` does the same for an opt-in module like
   x)` add/remove, `(get s x)` returns the *element* (not an index) or nil, `(count
   s)`/`(first s)`/`map`/`fold`/`into`/`vec`/`seq` treat it as its elements, and
   `(into #{} coll)` pours-and-dedups. `#{[0 0] [1 2]}` is the natural live-cell model
-  (structural vector keys). The **`set` library** (`(:use set)` — `(require 'set)`
-  alone leaves names qualified, `set/union`) adds only the set-specific extras:
+  (structural vector keys). The **`set` library** (`(:use set)` for bare names, or a
+  qualified `set/union` which auto-loads) adds only the set-specific extras:
   `(set coll)` (build from a collection, dedups) and the algebra
   `union`/`intersection`/`difference`/`subset?`.
 - **types**: `type-of` plus the `?` predicates — `int?` `float?` `string?`
   `symbol?` `keyword?` `bool?` `nil?` `pair?` `vector?` `map?` `set?` `fn?` `ref?`
   `pid?`
-- **arithmetic**: variadic `+ - * /`; comparison variadic chains
-  `< > <= >= =`; `inc` `dec` `abs` `min` `max`; integer division `quot`
-  (truncating) / `rem` (truncated remainder) / `mod` (Euclidean);
-  `floor` `ceil` `round` `round-to` (round to N decimals, stays a number)
-  `pow` `sqrt`. Integer `+ - *` **error on overflow** (they don't wrap).
+- **arithmetic** (bare, core): variadic `+ - * /`; comparison variadic chains
+  `< > <= >= =`; `inc` `dec` `min` `max`; integer division `quot`
+  (truncating) / `rem` (truncated remainder) / `mod` (Euclidean); `floor`.
+  Integer `+ - *` **error on overflow** (they don't wrap).
   **`/` is exact** (ADR-196): `(/ 1 2)` → `1/2` (a **ratio**, not a float),
   `(/ 6 3)` → `2` (divides evenly → int). `1/2` is a literal; ratios do the full
   tower (ratio+decimal is exact, ratio+float contagion). Reach for `->float`
   (or `->decimal`) for an inexact result; `numerator`/`denominator` read the parts.
   Number types: `int` (bignum on overflow) · `float` · `decimal` (`1.50M`, exact
   base-10) · `ratio` (`1/2`, exact rational). `number?`/`ratio?`/`decimal?` test them.
+- **`math` module** (`math/…`, or `(:use math)`; a qualified `math/sqrt` auto-loads
+  it — ADR-227): `abs` `ceil` `round` `round-to` (round to N decimals, stays a number)
+  `pow` `sqrt` `clamp` `sum` `product`, the sign/parity predicates `positive?`
+  `negative?` `even?` `odd?`, and the constants `pi` `e`. **No bare-name magic** — a bare
+  `sqrt` with neither a `math/` prefix nor `(:use math)` stays unbound.
 - **bitwise**: `bit-and` `bit-or` `bit-xor` `bit-not` `bit-shift-left`
   `bit-shift-right` (64-bit, arithmetic right shift; shift amount in `[0,64)`).
 - **randomness** (pure & seedable — there is *no* global RNG; thread the seed):
@@ -982,27 +1005,27 @@ in the REPL. (`nest doc <module>` does the same for an opt-in module like
   probing names one at a time.
 - **timing**: `now` (ms since epoch) `now-ns` (ns since epoch) `bench`
   (macro: `(bench "label" expr)` prints `label: N ms`, returns `expr`)
-- **I/O**: `print` `println` `slurp` `spit` `load` `eval-string` `read-string`.
+- **I/O**: `print` `println` `file/slurp` `file/spit` `load` `eval-string` `read-string`.
   `print`/`println` **space-join** their args (Python-style, via `%render`) —
   distinct from `str`, which concatenates. A **record** defines how it prints on screen
   (Elixir's `String.Chars`) via the core, always-on `Display` ability: just
-  `(impl Display my/rec (to-str [r] …))` and the screen printers honor it — no require,
+  `(impl Display my/rec (->string [r] …))` and the screen printers honor it — no import,
   no activation step; built-ins unchanged (ADR-171/172).
   `print`/`println` **flush stdout every call** — there's no separate flush, so
   an animation frame paints immediately. For raw terminal control without the
-  full display protocol, `(:use editor/ansi)` in your `defmodule` header (a bare
-  `(require 'editor/ansi)` leaves them qualified, `editor/ansi/ansi-clear`) gives
+  full display protocol, `(:use editor/ansi)` in your `defmodule` header (or a
+  qualified `editor/ansi/ansi-clear`, which auto-loads) gives
   `(ansi-clear)`/`(ansi-home)`/
   `(ansi-cursor r c)`/`(ansi-hide-cursor)` — **zero-arg functions you call**, each
   *returning* an escape string. Call them: `(print (ansi-clear))`, **never**
   `(print ansi-clear)` (a bare symbol prints `#<fn …>` and emits no escape). The
   ESC byte is the `\e` string escape. (For a render-op frame buffer, use
   `std/display`.)
-- **Filesystem (stat-class)**: `file-exists?` `dir?` `list-dir` `file-mtime` `file-stat`
+- **Filesystem (stat-class)**: `file/exists?` `file/dir?` `file/ls` `file/mtime` `file/stat`
 - **processes**: `spawn` (incl. named-spawn `(spawn :name expr)`) `spawn-link`
   `send` `receive` `self` `ref` `monitor` `demonitor` `link` `unlink` `trap-exit`
   `register` `whereis`
-  — plus the **`proc/gen`** framework below
+  — plus the **`gen`** framework below
 - **lazy fusing views**: `lmap` `lfilter` `lkeep` `lremove` (thread with `->>`;
   realise with `seq`/`into`) plus `comp` for function composition
 
@@ -1046,10 +1069,13 @@ in the REPL. (`nest doc <module>` does the same for an opt-in module like
   everything else: a plain `(def *width* 10)` in module `a` is `a/*width*`. So
   earmuffs are a naming convention, not a scoping rule (ADR-151) — declare the
   knob with `defdyn` if other modules must reach it.
-- **Importing a module**: inside `defmodule`, add a `(:use mod)` clause to refer
-  `mod`'s public names **bare** (`(:use mod :only [a b])` for a subset). A
-  plain top-level `(require 'mod)` only *loads* `mod` — its names stay
-  qualified (`mod/foo`). The header understands exactly `(:use …)`,
+- **Importing a module**: there is **no `require` form** — you load a module by
+  *referencing* it. Inside `defmodule`, a `(:use mod)` clause both **loads** `mod`
+  and refers its public names **bare** (`(:use mod :only [a b])` for a subset).
+  Otherwise, a **qualified reference `mod/name` auto-infers the load**
+  (ADR-227 follow-up), for any module, so naming where something comes from loads
+  it on demand (`mod/foo`). No bare-name magic, though — a bare `sqrt` with no
+  `math/` prefix and no `(:use math)` stays unbound. The header understands exactly `(:use …)`,
   `(:use-internals …)` and `(:alias …)`; **anything else is an error** —
   `(:require …)` and a misspelled `(:use-internal …)` are rejected rather than
   silently ignored.
@@ -1093,8 +1119,8 @@ apps* above; needs a `--features gui` build).
 ```lisp
 ;; src/main.blsp
 ;; `(:use greeter)` brings `greeter`'s public names (here `greeting`) into scope
-;; bare; without it you'd call `(greeter/greeting)`. A plain `(require 'greeter)`
-;; only loads the file — it does not refer the names.
+;; bare; without it you'd call `(greeter/greeting)` (a qualified reference that
+;; auto-loads the module — there is no `require` form).
 (defmodule main "The project's entry-point module (nest run -> main/main)."
   (:use greeter))
 
