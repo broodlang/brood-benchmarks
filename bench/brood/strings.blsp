@@ -3,7 +3,7 @@
 ;; Build a comma-separated string of 0..n-1, then take its length. `join` already
 ;; renders each element (an int prints as its decimal), so we join the range
 ;; directly — the fair match to Elixir `Enum.join(0..(n-1), ",")`. The old
-;; `(map number->string (range n))` was redundant: it allocated 500k throwaway
+;; `(map str (range n))` was redundant: it allocated 500k throwaway
 ;; strings + a 500k-element list that `%string-join` then re-rendered anyway.
 ;; Native `%string-join` streams an int range straight into one buffer (no
 ;; intermediate collection) — all immutable, no string builder.
