@@ -1,8 +1,8 @@
 ;; benchmark — a Brood project.
-;; The net library ships in the default install as bundled std modules (ADR-097), so
-;; no extra source path is needed to reach `http` (ADR-233 flattened `net/http` to a
-;; bare `http`; a qualified `http/…` name auto-resolves).
+;; net/* ships in the default install as bundled std modules (ADR-097), so no
+;; extra source path is needed to reach http.
 (project
   :name "benchmark"
   :version "0.1.0"
+  :brood ">= 0.5.0"
   :source-paths ["src"])
