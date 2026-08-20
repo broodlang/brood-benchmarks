@@ -25,7 +25,7 @@
 ;;
 ;; Checksum = N + N/4 — every child announces when started, and the retired quarter
 ;; announces again when the supervisor brings it back.
-(defmodule bench-supervisor (:use proc/supervisor))
+(defmodule bench-supervisor (:use supervisor))
 
 (def n (let (e (getenv "BENCH_N")) (if e (string->number e) 20000)))
 ;; `quot`, not `/`: this is a COUNT. Brood's `/` is exact (ADR-196), so `(/ n 4)` on an
