@@ -1,4 +1,4 @@
-(def n (let (e (getenv "BENCH_N")) (if e (string->number e) 750000)))
+(def n (let (e (os/getenv "BENCH_N")) (if e (string->number e) 750000)))
 (def kk 1000)
 
 ;; LCG token stream tallied into an immutable map — single-pass update per step.

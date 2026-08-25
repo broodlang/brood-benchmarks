@@ -31,6 +31,8 @@ its wall is fixed by the arrival schedule, so wall says nothing about which runt
 ## Running
 
 ```sh
+python3 bench/smoke.py                # does every brood row still RUN? (~7 s) — run this first
+python3 bench/smoke.py --langs all    # every port + cross-language checksums (~3 min)
 python3 bench/harness.py              # full suite → results/results.json + report.md
 python3 bench/test_guard.py           # regression test for the corruption guard (instant)
 python3 bench/harness.py --quick      # smaller sizes, smoke test
@@ -38,6 +40,32 @@ python3 bench/harness.py --only fib   # subset (comma-separated)
 python3 bench/harness.py --langs brood,node
 python3 bench/chart.py                # regenerate results/overview.svg from results.json
 ```
+
+- **`bench/smoke.py` is the gate; run it before anything else and after any brood
+  upgrade.** The rows in this repo have now died wholesale *three* times from renames
+  made in the brood repo — ADR-227's `sqrt` move (KI-42, two rows, three days
+  unnoticed), then the v0.9.0/v0.10.0 namespacing waves (KI-44: `getenv`→`os/getenv`,
+  `now-ns`→`os/now-ns`, `(table)`→`(table/new)`, `start-supervisor`/`stop-supervisor`→
+  `supervisor/start`/`gen/stop`, `http/http-get`→`http/fetch`, and `require` deleted
+  outright — **30 of 31 rows dead**). Brood's own migration sweeps cover its `std/`,
+  `tests/`, `examples/` and `breakage/`; they cannot see this checkout. Nothing else here
+  runs these programs for *correctness*.
+  - It checks **two** things, and the second is the one that matters: the process exits 0,
+    **and no `unbound symbol` appears in stdout or stderr**. Exit status alone is not
+    enough — brood reports an unbound name as a compile-time `warning:` and only *errors*
+    when the reference is evaluated, so a rename on a branch a small run never takes exits
+    0, prints the right checksum, and is still broken. Verified by sabotage: a
+    `(sqrt m)` added to an untaken branch of `fib` exits 0 with the right answer and the
+    gate still fails it.
+  - With `--langs` naming more than one language it also **compares the rows' printed
+    checksums across languages** — the harness's cross-language correctness check without
+    the tens of minutes of timing. That is what catches a row that runs but computes the
+    wrong thing.
+  - Unlike the harness, it never writes `results/` — safe to run any time.
+  - `.github/workflows/smoke.yml` runs it on push/PR **and on a daily schedule**. The
+    schedule is the point: the breakage always originates in the *other* repo, so a
+    push-triggered gate here would not have fired for either incident. The daily job
+    builds `broodlang/brood@main` and points the check at it.
 
 - **A corrupt run now fails itself; you do not have to remember anything.** `startup` is
   subtracted from all 27 other rows, so an over-estimate of it corrupts the whole table
