@@ -1,4 +1,4 @@
-(def n (let (e (os/getenv "BENCH_N")) (if e (string->number e) 10)))
+(def n (let (e (os/getenv "BENCH_N")) (if e (string/->number e) 10)))
 
 ;; Backtracking N-queens, counting solutions. `placed` is the columns chosen for
 ;; the rows above (nearest row first); `dist` is the row distance to that nearest
@@ -22,4 +22,4 @@
       0
       (range n))))
 
-(println (solve 0 nil))
+(io/puts (solve 0 nil))

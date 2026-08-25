@@ -1,1 +1,1 @@
-(println 0)
+(io/puts 0)

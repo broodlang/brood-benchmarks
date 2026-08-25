@@ -6,7 +6,7 @@
 ;; Python `d[k] = d.get(k,0)+d`): read-old + path-copy in ONE trie walk, not a
 ;; separate `get` descent followed by an `assoc` descent.
 ;; Checksum = sum of key*value over the map.
-(def n (let (e (os/getenv "BENCH_N")) (if e (string->number e) 300000)))
+(def n (let (e (os/getenv "BENCH_N")) (if e (string/->number e) 300000)))
 (def m 50000)
 
 (defn go (i x acc)
@@ -17,4 +17,4 @@
       (go (+ i 1) x2 (map-int-add acc key (+ 1 (rem key 7)))))))
 
 (def final (go 0 123456789 {}))
-(println (reduce (fn (a kv) (let ([k v] kv) (+ a (* k v)))) 0 final))
+(io/puts (reduce (fn (a kv) (let ([k v] kv) (+ a (* k v)))) 0 final))

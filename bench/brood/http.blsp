@@ -10,7 +10,7 @@
 ;; The GET is `http/fetch` — the v0.9/v0.10 namespacing waves dropped the module's
 ;; `http-` name prefix, so `http/http-get` became `http/fetch` (`http/post` beside it).
 
-(def n (let (e (os/getenv "BENCH_N")) (if e (string->number e) 500)))
+(def n (let (e (os/getenv "BENCH_N")) (if e (string/->number e) 500)))
 (def port (let (e (os/getenv "BENCH_HTTP_PORT")) (if e e "8089")))
 (def url (str "http://127.0.0.1:" port "/"))
 
@@ -28,4 +28,4 @@
     (collect (+ got 1) (receive ([:r v] (+ acc v))))))
 
 (fan 0)
-(println (collect 0 0))
+(io/puts (collect 0 0))

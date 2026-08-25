@@ -1,4 +1,4 @@
-(def n (let (e (os/getenv "BENCH_N")) (if e (string->number e) 375000)))
+(def n (let (e (os/getenv "BENCH_N")) (if e (string/->number e) 375000)))
 (def md 1000000007)
 
 (defn gen (x i acc)
@@ -16,4 +16,4 @@
     h
     (hash-acc (rest lst) (rem (+ (* h 31) (first lst)) md))))
 
-(println (hash-acc data 0))
+(io/puts (hash-acc data 0))

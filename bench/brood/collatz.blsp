@@ -1,4 +1,4 @@
-(def n (let (e (os/getenv "BENCH_N")) (if e (string->number e) 250000)))
+(def n (let (e (os/getenv "BENCH_N")) (if e (string/->number e) 250000)))
 
 (defn steps (m s)
   (cond
@@ -11,4 +11,4 @@
     best
     (sweep (+ k 1) (max best (steps k 0)))))
 
-(println (sweep 1 0))
+(io/puts (sweep 1 0))

@@ -5,7 +5,7 @@
 ;; NFA once and memoises it (Erlang re:compile-style), so this row measures the
 ;; pure-Brood MATCHER — per-call codepoint-vector build + the DFA loop — against
 ;; native engines.
-(def n (let (e (os/getenv "BENCH_N")) (if e (string->number e) 20000)))
+(def n (let (e (os/getenv "BENCH_N")) (if e (string/->number e) 20000)))
 
 (defn go (i x acc)
   (if (>= i n)
@@ -16,4 +16,4 @@
           hit (if (regex/matches? "[0123456789]+" s) 1 0))
       (go (+ i 1) x2 (+ acc hit)))))
 
-(println (go 0 123456789 0))
+(io/puts (go 0 123456789 0))
