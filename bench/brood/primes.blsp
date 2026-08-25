@@ -1,4 +1,4 @@
-(def n (let (e (os/getenv "BENCH_N")) (if e (string->number e) 150000)))
+(def n (let (e (os/getenv "BENCH_N")) (if e (string/->number e) 150000)))
 
 ;; all-integer trial division: in Brood the (* d d) multiply is CHEAPER than
 ;; comparing d to a float sqrt bound (mixed int/float compare coerces) — so we
@@ -16,4 +16,4 @@
     acc
     (count-primes (+ k 1) (if (prime? k) (+ acc 1) acc))))
 
-(println (count-primes 2 0))
+(io/puts (count-primes 2 0))

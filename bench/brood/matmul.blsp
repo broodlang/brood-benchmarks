@@ -1,4 +1,4 @@
-(def n (let (e (os/getenv "BENCH_N")) (if e (string->number e) 175)))
+(def n (let (e (os/getenv "BENCH_N")) (if e (string/->number e) 175)))
 (def md 1000000007)
 
 ;; vectors of vectors — O(1) indexing via nth
@@ -16,4 +16,4 @@
 (defn iloop (i acc)
   (if (>= i n) acc (iloop (+ i 1) (+ acc (jloop (nth a i) 0 0)))))
 
-(println (rem (iloop 0 0) md))
+(io/puts (rem (iloop 0 0) md))

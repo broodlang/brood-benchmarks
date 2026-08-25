@@ -1,4 +1,4 @@
-(def n (let (e (os/getenv "BENCH_N")) (if e (string->number e) 5000000)))
+(def n (let (e (os/getenv "BENCH_N")) (if e (string/->number e) 5000000)))
 
 ;; higher-order combinator over a materialised range (0 .. n-1)
-(println (reduce + 0 (range n)))
+(io/puts (reduce + 0 (range n)))

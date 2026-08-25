@@ -32,7 +32,7 @@
 ;;
 ;; Reported as percentiles, because the mean is exactly the statistic that hides this.
 ;; Checksum = the summed work result, identical in every port.
-(def n (let (e (os/getenv "BENCH_N")) (if e (string->number e) 50000)))
+(def n (let (e (os/getenv "BENCH_N")) (if e (string/->number e) 50000)))
 (def rate 20000) ; requests/second, open loop
 (def gap-ns (quot 1000000000 rate))
 (def cheap 40) ; work units in an ordinary request
@@ -120,13 +120,13 @@
 (def elapsed-ns (- (os/now-ns) t0))
 (def lats (into [] (sort (nth res 0))))
 
-(println (str "#metric fat_units=" fat-units))
-(println (str "#metric fat_measured_us=" fat-measured-us))
-(println (str "#metric ordinary_n=" (count lats)))
-(println (str "#metric p50_us=" (pct lats 50)))
-(println (str "#metric p99_us=" (pct lats 99)))
-(println (str "#metric p999_us="
+(io/puts (str "#metric fat_units=" fat-units))
+(io/puts (str "#metric fat_measured_us=" fat-measured-us))
+(io/puts (str "#metric ordinary_n=" (count lats)))
+(io/puts (str "#metric p50_us=" (pct lats 50)))
+(io/puts (str "#metric p99_us=" (pct lats 99)))
+(io/puts (str "#metric p999_us="
            (nth lats (min (- (count lats) 1) (quot (* 999 (count lats)) 1000)))))
-(println (str "#metric max_us=" (nth lats (- (count lats) 1))))
-(println (str "#metric sustained_rps=" (quot (* n 1000000000) elapsed-ns)))
-(println (nth res 1))
+(io/puts (str "#metric max_us=" (nth lats (- (count lats) 1))))
+(io/puts (str "#metric sustained_rps=" (quot (* n 1000000000) elapsed-ns)))
+(io/puts (nth res 1))

@@ -5,4 +5,4 @@ server, see .mcp.json) loads. The benchmark programs live under bench/brood/.")
 
 (defn main ()
   "Point the caller at the real entry point."
-  (println "run: python3 bench/harness.py  (see README.md)"))
+  (io/puts "run: python3 bench/harness.py  (see README.md)"))

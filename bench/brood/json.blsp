@@ -2,7 +2,7 @@
 ;; structure. The checksum is format-independent (sum of the "v" field mod 2^31),
 ;; so encoder whitespace/key-order differences across langs don't matter.
 ;; Brood's json is pure-Brood (std/json) vs the native parsers elsewhere.
-(def n (let (e (os/getenv "BENCH_N")) (if e (string->number e) 2000)))
+(def n (let (e (os/getenv "BENCH_N")) (if e (string/->number e) 2000)))
 
 (defn build (i x acc)
   (if (>= i n)
@@ -11,4 +11,4 @@
       (build (+ i 1) x2 (cons {:id i :v x2 :name "item" :ok (= (rem x2 2) 0)} acc)))))
 
 (def parsed (json/parse (json/encode (build 0 123456789 (list)))))
-(println (reduce (fn (acc o) (rem (+ acc (get o :v)) 2147483647)) 0 parsed))
+(io/puts (reduce (fn (acc o) (rem (+ acc (get o :v)) 2147483647)) 0 parsed))
