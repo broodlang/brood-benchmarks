@@ -1,4 +1,4 @@
-(def n (let (e (getenv "BENCH_N")) (if e (string->number e) 200)))
+(def n (let (e (os/getenv "BENCH_N")) (if e (string->number e) 200)))
 (def depth 12)
 
 ;; `check-node` where the other six say `check`: `check` is Brood's advisory

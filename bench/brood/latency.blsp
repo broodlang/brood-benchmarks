@@ -32,7 +32,7 @@
 ;;
 ;; Reported as percentiles, because the mean is exactly the statistic that hides this.
 ;; Checksum = the summed work result, identical in every port.
-(def n (let (e (getenv "BENCH_N")) (if e (string->number e) 50000)))
+(def n (let (e (os/getenv "BENCH_N")) (if e (string->number e) 50000)))
 (def rate 20000) ; requests/second, open loop
 (def gap-ns (quot 1000000000 rate))
 (def cheap 40) ; work units in an ordinary request
@@ -40,7 +40,7 @@
 ;; Busy-wait until a given instant. Used twice: to hit each request's scheduled arrival
 ;; (at 20k/s the gap is 50us, far below sleep granularity, and sleeping would add its own
 ;; latency to the measurement) and to hold a fat handler's core for a fixed duration.
-(defn spin-until (t) (if (>= (now-ns) t) :ok (spin-until t)))
+(defn spin-until (t) (if (>= (os/now-ns) t) :ok (spin-until t)))
 
 ;; One request's work: `k` rounds, each allocating a small vector and summing it.
 (defn work (k j acc)
@@ -60,7 +60,7 @@
     ;; would put fat requests in every high percentile and hide the only thing worth knowing —
     ;; what the fat request did to the ORDINARY requests queued behind it. Percentiles below
     ;; therefore cover the 95% that are ordinary.
-    (send to [:done (if fat? -1 (quot (- (now-ns) sched) 1000)) r])))
+    (send to [:done (if fat? -1 (quot (- (os/now-ns) sched) 1000)) r])))
 
 (defn collector (to left lats sum)
   (if (= left 0)
@@ -91,9 +91,9 @@
 (defn best-work-ns (reps k best)
   (if (= reps 0)
     best
-    (let (t (now-ns)
+    (let (t (os/now-ns)
           _ (work k 0 0)
-          dt (- (now-ns) t))
+          dt (- (os/now-ns) t))
       (best-work-ns (- reps 1) k (if (or (= best 0) (< dt best)) dt best)))))
 
 (defn calibrate (k)
@@ -114,10 +114,10 @@
 
 (def me (self))
 (def coll (spawn (collector me n () 0)))
-(def t0 (now-ns))
+(def t0 (os/now-ns))
 (dispatch 0 t0 coll)
 (def res (receive ([:all l s] [l s]) (after 600000 :timeout)))
-(def elapsed-ns (- (now-ns) t0))
+(def elapsed-ns (- (os/now-ns) t0))
 (def lats (into [] (sort (nth res 0))))
 
 (println (str "#metric fat_units=" fat-units))

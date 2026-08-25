@@ -1,4 +1,4 @@
-(def n (let (e (getenv "BENCH_N")) (if e (string->number e) 100000)))
+(def n (let (e (os/getenv "BENCH_N")) (if e (string->number e) 100000)))
 
 ;; map / filter / reduce pipeline over a range: keep the multiples of 3 or 5,
 ;; square them, sum the squares. Checksum = that sum.

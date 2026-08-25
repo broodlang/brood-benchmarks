@@ -1,4 +1,4 @@
-(def n (let (e (getenv "BENCH_N")) (if e (string->number e) 375000)))
+(def n (let (e (os/getenv "BENCH_N")) (if e (string->number e) 375000)))
 (def md 1000000007)
 
 (defn gen (x i acc)
