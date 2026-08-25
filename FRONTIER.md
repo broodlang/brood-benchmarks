@@ -13,7 +13,8 @@ The tier-1 JIT covers integer self-tail loops (`loop`, `collatz`), float-compari
 (`mandelbrot`), indexed array reads (`matmul`'s inner `dot`, via loop-invariant hoisting —
 sound without alias analysis because Brood data is immutable), non-tail and tail-position
 recursion (`fib`, `ackermann`), inline small-vector reads (`bintree`), and the JIT-lowered
-`table-*` ops (`sieve`). Int/float recursion uses an unboxed i64/f64 register calling
+`table-*` ops (`sieve` — but see KI-58: the namespacing silently retired that inline for two
+years' worth of a release cycle, and `sieve` ran 11.6x slower until 2026-08-25). Int/float recursion uses an unboxed i64/f64 register calling
 convention with an overflow deopt. A JIT'd caller links straight to a JIT'd callee through
 an epoch-guarded in-IR fast-link; processes of a runtime share one compiled copy of an
 arm's native code *and* its bytecode — compiled once per runtime, not once per process; a
@@ -53,7 +54,8 @@ old denominator is the more useful one it is named explicitly below.
   every `sqrt` now pays a closure call plus the wrapper's two `cond` comparisons. Measured, pinned:
   **0.38–0.40 s with the inlined native vs 0.66–0.74 s through `math/sqrt`** (microbench: 406 vs
   754 ms). So **an `nbody` figure measured now is ~1.8× off its pre-2026-08-14 self and is NOT a
-  runtime regression** — see brood `docs/known-issues.md` KI-44, whose performance half is open.
+  runtime regression** — see brood `docs/known-issues.md` KI-44, whose performance half was **fixed 2026-08-17** — an
+  `nbody` figure measured after that date is no longer the 1.8x-off one this paragraph warns about.
   Was ~23×/~54× until 2026-07-30; then 4/7, within 1.3× of
   Elixir. The 2026-08-13 harness read it **−7.1%, which an A/B did not confirm** (−0.9%, verdict
   noise) — a reminder that a single harness row is one best-of-3 sample, not a result; do not
@@ -220,6 +222,29 @@ old denominator is the more useful one it is named explicitly below.
 **Memory is not a frontier row.** Base RSS ~23 MB: 4th-lightest of the eight and the lightest of
 the *managed* runtimes. C's 1.6 MB is the new floor and is not a target — it is a process with no
 runtime in it; the meaningful comparison stays Python 9.8, Ruby 19.0, .NET 25.9, Node 42.7.
+
+## Measurement traps found the hard way (2026-08-25)
+
+Three ways to get a confident wrong number on this runtime, each of which produced one:
+
+- **Pinning charges you for the JIT.** `taskset` puts the background compiler on the benchmark's
+  core, so anything that increases compilation volume reads as a slowdown. The same loop measured
+  **+68% pinned and +28% unpinned**; both sides inflate, so the *regression* inflates too. The
+  `make ab` note says this; it applies to any hand-rolled measurement.
+- **First-run timing measures tiering, not the code.** A 20M loop reads ~50 ms on its first run in
+  a process and ~24 ms on its second, regardless of anything else. Run it once and discard before
+  timing. Not doing this produced a whole retracted finding (brood KI-63) — including a clean
+  "threshold at 2000 functions" that does not exist. First-run timing is not even stable against
+  program *shape*: the identical loop read 25 ms as the only statement in a file and 40–51 ms as
+  the first of three call sites.
+- **Differencing two programs breaks when the non-loop part is big.** `wall(with) − wall(without)`
+  cancels setup cost exactly, and then reports the loop taking 4 ms once both walls are dominated
+  by compiling 2000 `defn`s.
+
+And one about this repo specifically: **`compute = wall − startup` under-subtracts.** The
+`startup` row is `(io/puts 0)`, which loads `io` but not `os`/`string`, and it has no hot function
+to tier — so it does not carry the per-run module-load or JIT-warm-up cost that every real row
+pays. Rows in the tens of milliseconds are substantially measuring those.
 
 ## Levers (rough priority)
 
