@@ -1,6 +1,6 @@
 ;; N-body sim; canonical formulation shared by all 7 langs (see node/nbody.js).
 ;; Idiomatic-fast Clojure = primitive double-arrays. Checksum = floor(energy*1e9+0.5).
-(let [n (Long/parseLong (or (System/getenv "BENCH_N") "50000"))
+(let [n (long (Long/parseLong (or (System/getenv "BENCH_N") "50000")))
       pi 3.141592653589793
       sm (* 4.0 pi pi)
       dpy 365.24
