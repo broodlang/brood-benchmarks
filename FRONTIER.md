@@ -75,7 +75,25 @@ reference, so these read "vs roughly the hardware", not "vs the fastest managed 
   **Do not extend this to `latency`** — that row was never per-message cost (a send + receive is
   1.1 µs); it was spawn placement.
 - **Text codecs (`json`, `regex`, `base64`)** — pure-Brood `std/` libraries against native codecs,
-  by design. The next structural lever is a bytes/codepoint fast path shared by all three.
+  by design. **The shared-fast-path lever was taken on 2026-08-26 and it was two of the three,
+  not all three** (in tree, not yet in a published run):
+  - `json` **−20.8%** (0.7% floor). `string/->codepoints` is a native that had **no native
+    inverse**, so every parser rebuilt its result with `(apply str (map int->char cs))` — a
+    closure call and a one-character string per code point, then an N-way concat.
+    `%codepoints->string` is that inverse (brood ADR-249); parse ~85 → ~45 ms.
+  - `base64` **−9.5%** (0.0% floor). Decode read a CHAMP map for the reverse alphabet and
+    indexed through `nth`, a closure that re-checks `int?`/`vector?`/length before reaching
+    `%vector-ref` — eight per output triple. A dense codepoint-indexed vector plus direct
+    `%vector-ref`: 29.4 → 15.5 ms, of which the dense vector was only ~7%.
+  - `regex` **unchanged, and it has no such gap** — its hot path is a memoised DFA whose steady
+    state is one `table/get`, not string assembly. The "shared by all three" framing was wrong
+    about which rows shared the problem.
+
+  **Split a codec row before optimising it.** Both movers are two-directional and the halves are
+  nowhere near equal — `base64` decode was 4× its encode, `json` parse 2.4× its encode — so
+  optimising the wrong half is invisible at the row level. The *encoders* are deliberately
+  untouched: the symmetric change needs a range check per element, and a call per element in
+  these loops cost `base64` encode **4×**.
 - **`sort`** — do not re-optimise the comparator (already unboxed). The suite's heaviest row for
   memory; the allocation volume is the cost, not collection.
 - **`primes`, `pipeline` regressions — both CLOSED.** Kept only for the methodology below.
@@ -99,7 +117,18 @@ image plus a registration replay is exactly the lever for it.
 
 ## Measurement traps found the hard way
 
-Four ways to get a confident wrong number on this runtime, each of which produced one:
+Six ways to get a confident wrong number on this runtime, each of which produced one:
+
+- **A stale binary reports the old code and does not fail.** `std/*.blsp` is `include_str!`'d
+  into the binary, so editing a module and re-running the existing build measures nothing —
+  silently. That produced three "results" (40.2 → 37.5 → 44.1 ms) around an unchanged build in
+  2026-08-26's codec session. One command settles it: append garbage to the module and see
+  whether the run still succeeds.
+- **A row that errors fast looks exactly like a row that is fast.** `persistent-map` died at
+  compile when a namespace wave renamed `map-int-add`, and kept appearing in `ab-bench` sweeps
+  with plausible times *and plausible deltas* until someone ran it by hand. A harness that
+  times a column should assert the column's answer, which the published harness does and
+  `ab-bench` does not.
 
 - **Pinning charges you for the JIT.** `taskset` puts the background compiler on the benchmark's
   core, so anything that increases compilation volume reads as a slowdown. The same loop measured
