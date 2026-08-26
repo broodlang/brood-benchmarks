@@ -1,4 +1,4 @@
-(let [n (Long/parseLong (or (System/getenv "BENCH_N") "175"))
+(let [n (long (Long/parseLong (or (System/getenv "BENCH_N") "175")))
       md 1000000007
       a (object-array (for [i (range n)] (long-array (for [j (range n)] (rem (+ i j) 100)))))
       b (object-array (for [i (range n)] (long-array (for [j (range n)] (rem (* i j) 100)))))]

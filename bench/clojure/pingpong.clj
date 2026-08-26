@@ -1,6 +1,6 @@
 ;; Two threads bounce a token N round trips via blocking queues. Checksum = N.
 (import '[java.util.concurrent LinkedBlockingQueue])
-(let [n (Long/parseLong (or (System/getenv "BENCH_N") "100000"))
+(let [n (long (Long/parseLong (or (System/getenv "BENCH_N") "100000")))
       q-to (LinkedBlockingQueue.)
       q-from (LinkedBlockingQueue.)
       worker (Thread. (fn [] (loop [] (let [m (.take q-to)] (when (>= (long m) 0) (.put q-from m) (recur))))))]
