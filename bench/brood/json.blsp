@@ -2,7 +2,7 @@
 ;; structure. The checksum is format-independent (sum of the "v" field mod 2^31),
 ;; so encoder whitespace/key-order differences across langs don't matter.
 ;; Brood's json is pure-Brood (std/json) vs the native parsers elsewhere.
-(def n (let (e (getenv "BENCH_N")) (if e (string/->number e) 2000)))
+(def n (let (e (os/getenv "BENCH_N")) (if e (string/->number e) 2000)))
 
 (defn build (i x acc)
   (if (>= i n)

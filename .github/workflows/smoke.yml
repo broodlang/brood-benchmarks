@@ -1,0 +1,108 @@
+name: smoke
+
+# The gate KI-44 asked for: every benchmark row still RUNS, at the harness's own
+# quick sizes, in seconds rather than the tens of minutes a timing run costs.
+#
+# Why this repo needs its own CI at all. Rows here have died twice from renames made
+# in the *brood* repo — ADR-227's `sqrt` move (KI-42, three days dead) and the
+# v0.9.0/v0.10.0 namespacing waves (KI-44, 30 of 31 rows dead). Neither was visible to
+# brood's own migration sweep, which cannot see this checkout. Nothing here runs these
+# programs for correctness: the harness runs them for *timing*, by hand.
+#
+# So the trigger that matters is `schedule`, not `push`. A push-triggered gate never
+# fires when the breakage is a commit in the *other* repository — which is how both
+# incidents happened. The daily run builds brood from `broodlang/brood@main` and points
+# the smoke check at it, so a rename that breaks a row is reported the next morning
+# instead of at the next hand-run benchmark.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+  schedule:
+    # 05:17 UTC daily — the run that catches a rename landing in broodlang/brood.
+    - cron: "17 5 * * *"
+
+concurrency:
+  group: smoke-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  brood-rows:
+    name: every brood row runs
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Both repos are public, so the default token is enough. `main` on purpose:
+      # the point of the scheduled run is to catch a rename the moment it lands
+      # upstream, not to pin this repo to a known-good brood.
+      - name: Check out broodlang/brood
+        uses: actions/checkout@v4
+        with:
+          repository: broodlang/brood
+          ref: main
+          path: brood-src
+
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: brood-src
+
+      # `--bin brood`, never `-p brood`: the binary is the `crates/cli` package, and
+      # `-p brood` builds only the lib and leaves a stale binary behind (brood's own
+      # CLAUDE.md records the bogus A/B that came from exactly this).
+      - name: Build brood
+        working-directory: brood-src
+        run: cargo build --release --bin brood
+
+      - name: Report the brood under test
+        run: |
+          brood-src/target/release/brood --version
+          git -C brood-src log -1 --format='brood %h %s'
+
+      - name: Smoke — every brood row runs at a tiny BENCH_N
+        run: python3 bench/smoke.py --brood brood-src/target/release/brood
+
+  # The other ports do not rot from a brood change, but they do rot from a system
+  # upgrade (a Python/Node/Ruby release removing something a row uses), and a row that
+  # runs everywhere but computes a different answer is invisible to the check above.
+  # So this job runs the interpreted ports too and compares their printed checksums —
+  # the harness's cross-language correctness check, without the timing. Clojure/.NET/C
+  # are left out only because their build steps cost more than this job is worth; the
+  # scheduled full harness run still covers them.
+  cross-language:
+    name: interpreted ports agree on checksums
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check out broodlang/brood
+        uses: actions/checkout@v4
+        with:
+          repository: broodlang/brood
+          ref: main
+          path: brood-src
+
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: brood-src
+
+      - name: Build brood
+        working-directory: brood-src
+        run: cargo build --release --bin brood
+
+      - uses: erlef/setup-beam@v1
+        with:
+          otp-version: "27"
+          elixir-version: "1.17"
+
+      - name: Smoke — brood + the interpreted ports, checksums compared
+        run: |
+          python3 bench/smoke.py --brood brood-src/target/release/brood \
+            --langs brood,python,node,ruby,elixir
