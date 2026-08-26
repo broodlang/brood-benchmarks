@@ -4,7 +4,7 @@
 ;; Checksum = count of primes <= N.
 ;; `composites` where the other six say `comp`: `comp` is function composition in
 ;; Brood's prelude, and ADR-166 reserves every name that ships in the binary.
-(def n (let (e (getenv "BENCH_N")) (if e (string->number e) 1000000)))
+(def n (let (e (getenv "BENCH_N")) (if e (string/->number e) 1000000)))
 (def composites (table))
 
 (defn mark (p j) (if (> j n) nil (do (table-put composites j true) (mark p (+ j p)))))
@@ -18,4 +18,4 @@
   (if (> k n) acc (count-primes (+ k 1) (if (table-has? composites k) acc (+ acc 1)))))
 
 (sieve 2)
-(println (count-primes 2 0))
+(io/puts (count-primes 2 0))

@@ -1,4 +1,4 @@
-(def n (let (e (getenv "BENCH_N")) (if e (string->number e) 540)))
+(def n (let (e (getenv "BENCH_N")) (if e (string/->number e) 540)))
 (def maxi 100)
 
 ;; carry xx=x*x and yy=y*y so each is computed once per iteration, not ~5×
@@ -38,4 +38,4 @@
     (let (y0 (- (* (/ (->float py) n) 3.0) 1.5))
       (grid-sum (+ py 1) (+ acc (row-sum 0 py y0 0))))))
 
-(println (grid-sum 0 0))
+(io/puts (grid-sum 0 0))
