@@ -1,4 +1,4 @@
-(defn prime? [n]
+(defn prime? [^long n]
   (if (< n 2)
     false
     (loop [d 2]
