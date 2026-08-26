@@ -20,7 +20,7 @@
 ;; the same 16 integers (measured: 2.83 s / 1.76 GB as a list vs 2.24 s / 1.19 GB as a vector).
 ;;
 ;; Checksum = N * (sum of the payload + 1).
-(def n (let (e (getenv "BENCH_N")) (if e (string/->number e) 300000)))
+(def n (let (e (os/getenv "BENCH_N")) (if e (string/->number e) 300000)))
 (def payload (into [] (range 16))) ; 0..15, sum 120 — contiguous, like every other port
 (def me (self))
 

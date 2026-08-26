@@ -1,7 +1,7 @@
 ;; Fan out N processes; each computes fib(15) and sends the result back.
 ;; Tests green-process spawn + messaging under real CPU work per unit.
 ;; Checksum = N * fib(15) = N * 610.
-(def n (let (e (getenv "BENCH_N")) (if e (string/->number e) 10000)))
+(def n (let (e (os/getenv "BENCH_N")) (if e (string/->number e) 10000)))
 (def me (self))
 
 (defn fib (m) (if (< m 2) m (+ (fib (- m 1)) (fib (- m 2)))))

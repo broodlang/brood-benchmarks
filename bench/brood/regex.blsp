@@ -5,7 +5,7 @@
 ;; NFA once and memoises it (Erlang re:compile-style), so this row measures the
 ;; pure-Brood MATCHER — per-call codepoint-vector build + the DFA loop — against
 ;; native engines.
-(def n (let (e (getenv "BENCH_N")) (if e (string/->number e) 20000)))
+(def n (let (e (os/getenv "BENCH_N")) (if e (string/->number e) 20000)))
 
 (defn go (i x acc)
   (if (>= i n)

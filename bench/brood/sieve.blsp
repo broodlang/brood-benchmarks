@@ -4,18 +4,21 @@
 ;; Checksum = count of primes <= N.
 ;; `composites` where the other six say `comp`: `comp` is function composition in
 ;; Brood's prelude, and ADR-166 reserves every name that ships in the binary.
-(def n (let (e (getenv "BENCH_N")) (if e (string/->number e) 1000000)))
-(def composites (table))
+;; The constructor is `table/new` — the v0.9/v0.10 namespacing waves took the whole
+;; table API into the `table` module, and the bare `(table)` constructor with it. A
+;; qualified std name auto-loads its module, so there is nothing to require.
+(def n (let (e (os/getenv "BENCH_N")) (if e (string/->number e) 1000000)))
+(def composites (table/new))
 
-(defn mark (p j) (if (> j n) nil (do (table-put composites j true) (mark p (+ j p)))))
+(defn mark (p j) (if (> j n) nil (do (table/put composites j true) (mark p (+ j p)))))
 
 (defn sieve (p)
   (if (> (* p p) n)
     nil
-    (do (if (table-has? composites p) nil (mark p (* p p))) (sieve (+ p 1)))))
+    (do (if (table/has? composites p) nil (mark p (* p p))) (sieve (+ p 1)))))
 
 (defn count-primes (k acc)
-  (if (> k n) acc (count-primes (+ k 1) (if (table-has? composites k) acc (+ acc 1)))))
+  (if (> k n) acc (count-primes (+ k 1) (if (table/has? composites k) acc (+ acc 1)))))
 
 (sieve 2)
 (io/puts (count-primes 2 0))

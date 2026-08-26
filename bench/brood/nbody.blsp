@@ -4,7 +4,7 @@
 ;; equivalent of the tuple/array every other port uses (Node arrays, Elixir tuple),
 ;; so `(nth b i)` is O(1) like their `b[i]`/`elem(b,i)` rather than an O(i) list walk.
 ;; Each step rebuilds the bodies. Checksum = floor(energy*1e9 + 0.5).
-(def n (let (e (getenv "BENCH_N")) (if e (string/->number e) 50000)))
+(def n (let (e (os/getenv "BENCH_N")) (if e (string/->number e) 50000)))
 ;; `sqrt` moved to the `math` module (brood ADR-227), so it is referenced qualified;
 ;; the module loads by inference from that reference (ADR-229 removed `require`).
 (def dt 0.01)
