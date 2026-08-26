@@ -80,11 +80,22 @@ reference, so these read "vs roughly the hardware", not "vs the fastest managed 
   memory; the allocation volume is the cost, not collection.
 - **`primes`, `pipeline` regressions — both CLOSED.** Kept only for the methodology below.
 
-**Memory and startup ARE now a frontier item.** Base RSS **56 MB** (6th of eight) and startup
-**31 ms** (5th) are both well above where they sat at 0.3.11 (~19–22 MB, 13.6 ms). Cause is
-diagnosed: **KI-61**, a per-wave namespacing tax — each wave that moves prelude names into a module
-forces that module to load from source at every boot. Not fixed; the fix is the std-image
-registration replay. It also deflates every other row, since `compute = wall − startup`.
+**Memory and startup were a frontier item; KI-61 is now FIXED (2026-08-26, not yet in a published
+run).** The published Base RSS **56 MB** (6th of eight) and startup **31 ms** (5th) are pre-fix. The
+cause was a per-wave namespacing tax — each wave that moves prelude names into a module forced that
+module to load from source at every boot — and the fix was not the std-image registration replay
+recorded here, it was to stop loading them at boot: the prelude's references are **autoload stubs**
+that load on first call (brood ADR-246), plus moving prelude def-sites into the boot cache instead
+of a second positioned read of the prelude (ADR-247). In tree: prelude boot **22.8 → 11.6 ms**, base
+RSS **55.6 → 50.7 MB**, `startup` **−28.9%**, every other row ~11–13 ms faster in absolute wall.
+Because `compute = wall − startup` most of that will not read as a compute win next run — it is the
+runtime starting sooner, which is what every invocation pays. The std image is still the right way
+to make the now-*lazy* load fast when it happens; the two compose.
+
+What is left here on startup: a program that touches `io` pays `io`'s own dependency chain
+(`string`, `file`, `path`) — 15.4 ms measured, against a 15 ms bare boot — so the `startup` row is
+now mostly module loading, not prelude building. That is the next thing to look at, and the std
+image plus a registration replay is exactly the lever for it.
 
 ## Measurement traps found the hard way
 

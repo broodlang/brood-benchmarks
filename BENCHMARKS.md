@@ -330,13 +330,24 @@ GB is not the messages — it is the process floor (~5.5 KB × 300,000).
 - **Startup**: Brood **31 ms** — 5th of eight (C 2, Python 11, Node 19, .NET 26, Brood 31,
   Ruby 39, Elixir 185, Clojure 336).
 
-**Both went the wrong way and it is a known, diagnosed regression, not drift.** Startup was
-13.6 ms at 0.3.11 and base RSS ~19–22 MB. The cause is **KI-61**: each namespacing wave that moves
-prelude names into a module forces that module to be loaded *from source* at every boot, because
-the prelude's qualified refs are late-bound and boot's namespace-resolve does not auto-require for
-the root prelude. Two steps are counted — `(require-one 'string)` +4.0 ms and `(require-one 'seq)`
-+7.5 ms. It is diagnosed and **not fixed**; the fix is the std-image registration replay, not
-reverting a wave. It also **deflates every other row**, since `compute = wall − startup`.
+**Both figures above are pre-fix, and the fix has since landed.** They read the wrong way for a
+known reason: startup was 13.6 ms at 0.3.11 and base RSS ~19–22 MB, and **KI-61** was the cause —
+each namespacing wave that moves prelude names into a module forced that module to be loaded *from
+source* at every boot, because the prelude's qualified refs are late-bound and boot's
+namespace-resolve does not auto-require for the root prelude. Two steps were counted,
+`(require-one 'string)` +4.0 ms and `(require-one 'seq)` +7.5 ms.
+
+**KI-61 is fixed in the Brood tree as of 2026-08-26 and is not yet in a published run** — the
+numbers in this file are the last harness run, so read them as the *before*. The fix was not the
+std-image registration replay this file previously named: the prelude's references into those
+modules are now **autoload stubs** that load on first call, so boot loads nothing at all and a
+future wave costs one declaration rather than more milliseconds forever (brood ADR-246). A second
+half went with it — the warm boot also read the prelude a *second* time, positioned, purely to
+recover def-sites for editor navigation; those now travel in the boot cache (ADR-247). Measured in
+tree, warm and pinned: prelude boot **22.8 → 11.6 ms**, base RSS **55.6 → 50.7 MB**, the `startup`
+row **−28.9%**, and every other row ~11–13 ms faster in absolute wall time. Since `compute = wall −
+startup`, most of that will *not* show up as a compute improvement in the next published run — it
+shows up as the runtime starting sooner, which is what every invocation actually pays.
 
 Both figures are the warm steady state — the build-id-keyed boot cache is populated (a fresh
 binary's first run costs more), which the harness's warmup keeps out of both columns.
