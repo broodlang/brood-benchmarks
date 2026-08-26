@@ -1,10 +1,7 @@
-// Generate N bytes, base64 encode+decode. Checksum = (sum enc char codes + sum
-// decoded bytes) mod 2^31.
 const N = parseInt(process.env.BENCH_N || "50000", 10);
-const A = 1103515245n, C = 12345n, MASK = 0x7FFFFFFFn;
-let x = 123456789n;
+let x = 123456789;
 const bytes = Buffer.alloc(N);
-for (let i = 0; i < N; i++) { x = (x * A + C) & MASK; bytes[i] = Number(x % 256n); }
+for (let i = 0; i < N; i++) { x = (Math.imul(x, 1103515245) + 12345) & 0x7FFFFFFF; bytes[i] = x % 256; }
 const enc = bytes.toString("base64");
 const dec = Buffer.from(enc, "base64");
 let encSum = 0;
