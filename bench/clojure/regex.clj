@@ -1,6 +1,6 @@
 ;; Generate N decimal strings; count full matches of [0-9]+ (re-matches is
 ;; anchored). Checksum = count.
-(let [n (Long/parseLong (or (System/getenv "BENCH_N") "20000"))
+(let [n (long (Long/parseLong (or (System/getenv "BENCH_N") "20000")))
       re #"[0-9]+"]
   (loop [i 0 x 123456789 count 0]
     (if (< i n)
