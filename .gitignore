@@ -29,3 +29,6 @@ bench/clojure/.cpcache/
 # Compiled C benches (regenerable; the harness rebuilds via build_c()). The .c
 # sources ARE committed — only the binaries are ignored.
 bench/c/build/
+
+# Startup-image cache — a build artifact, rebuilt on demand
+.brood/
