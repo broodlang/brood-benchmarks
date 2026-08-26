@@ -41,6 +41,15 @@ python3 bench/harness.py --langs brood,node
 python3 bench/chart.py                # regenerate results/overview.svg from results.json
 ```
 
+- **Run the cross-language gate ONCE per code change, then iterate Brood-only.** After
+  editing benchmark programs, run `python3 bench/smoke.py --langs all` **once** to establish
+  that every port still runs and the checksums agree. After that, while iterating, run
+  `python3 bench/smoke.py` (Brood only) — the other columns cannot have changed if you have
+  not touched them, and each cross-language pass spawns a JVM, a BEAM and a .NET host per
+  row, which costs minutes for information you already have. The same holds for the full
+  harness: `bench/harness.py` across all seven languages is a *publishing* step, not an
+  iteration step. Use `--langs brood` while working.
+
 - **`bench/smoke.py` is the gate; run it before anything else and after any brood
   upgrade.** The rows in this repo have now died wholesale *three* times from renames
   made in the brood repo — ADR-227's `sqrt` move (KI-42, two rows, three days

@@ -1,11 +1,13 @@
+using System.Linq;
 namespace Bench;
 static class Strings
 {
     public static void Run(int n)
     {
-        var parts = new string[n];
-        for (int i = 0; i < n; i++) parts[i] = i.ToString();
-        string s = string.Join(",", parts);
+        // `string.Join`'s IEnumerable<T> overload formats each element itself, so this
+        // neither materialises a string[] nor calls ToString() explicitly — the same
+        // lazy shape the other ports use.
+        string s = string.Join(",", Enumerable.Range(0, n));
         Console.WriteLine(s.Length);
     }
 }

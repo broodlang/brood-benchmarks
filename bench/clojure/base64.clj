@@ -1,7 +1,7 @@
 ;; Generate N bytes, base64 encode+decode (java.util.Base64). Checksum =
 ;; (sum enc char codes + sum decoded bytes) mod 2^31.
 (import '[java.util Base64])
-(let [n (Long/parseLong (or (System/getenv "BENCH_N") "50000"))
+(let [n (long (Long/parseLong (or (System/getenv "BENCH_N") "50000")))
       ^bytes ba (byte-array n)]
   (loop [i 0 x 123456789]
     (when (< i n)

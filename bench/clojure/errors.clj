@@ -1,4 +1,4 @@
-(let [n (Long/parseLong (or (System/getenv "BENCH_N") "200000")) md 1000000007]
+(let [n (long (Long/parseLong (or (System/getenv "BENCH_N") "200000"))) md 1000000007]
   (println (rem (loop [i 0 acc 0]
                   (if (< i n)
                     (recur (inc i)

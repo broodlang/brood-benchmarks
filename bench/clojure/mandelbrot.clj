@@ -1,4 +1,4 @@
-(let [n (Long/parseLong (or (System/getenv "BENCH_N") "540")) maxiter 100]
+(let [n (long (Long/parseLong (or (System/getenv "BENCH_N") "540"))) maxiter 100]
   (println
     (loop [py 0 total 0]
       (if (< py n)

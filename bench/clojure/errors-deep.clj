@@ -1,9 +1,9 @@
 (def depth 50)
-(defn descend [d i]
+(defn descend ^long [^long d ^long i]
   (if (= d 0)
     (throw (ex-info "" {:v (rem i 100)}))
     (+ 1 (descend (- d 1) i))))
-(let [n (Long/parseLong (or (System/getenv "BENCH_N") "50000")) md 1000000007]
+(let [n (long (Long/parseLong (or (System/getenv "BENCH_N") "50000"))) md 1000000007]
   (println (rem (loop [i 0 acc 0]
                   (if (< i n)
                     (recur (inc i)

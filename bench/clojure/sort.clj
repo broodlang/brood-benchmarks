@@ -1,4 +1,4 @@
-(let [n (Long/parseLong (or (System/getenv "BENCH_N") "375000"))
+(let [n (long (Long/parseLong (or (System/getenv "BENCH_N") "375000")))
       md 1000000007
       data (loop [i 0 x 123456789 acc (transient [])]
              (if (< i n)
