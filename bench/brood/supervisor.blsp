@@ -27,7 +27,7 @@
 ;; announces again when the supervisor brings it back.
 (defmodule bench-supervisor (:use supervisor))
 
-(def n (let (e (getenv "BENCH_N")) (if e (string->number e) 20000)))
+(def n (let (e (getenv "BENCH_N")) (if e (string/->number e) 20000)))
 ;; `quot`, not `/`: this is a COUNT. Brood's `/` is exact (ADR-196), so `(/ n 4)` on an
 ;; N that is not a multiple of 4 yields a rational, which then flows into `take` and the
 ;; retire loop as an iteration count. Harmless at the default N=20000 (exactly 5000) and
@@ -83,4 +83,4 @@
 (retire-each (victims retire) retire)
 (def total (await-count (+ n retire)))
 (stop-supervisor sup)
-(println total)
+(io/puts total)
