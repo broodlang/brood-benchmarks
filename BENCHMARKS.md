@@ -123,6 +123,16 @@ native columns finish in single-digit ms and the ordering *among them* is meanin
 | `regex` <sup>n</sup> | 5ms | 13ms | 14ms | 16ms | 34ms | **134ms** | 214ms | 6/7 |
 | `base64` <sup>n</sup> | 4ms | 3ms | 15ms | 15ms | 35ms | **91ms** | 245ms | 6/7 |
 
+**Two of these three moved on 2026-08-26 and the numbers above are the *before*** (in the Brood
+tree, not yet in a published run): `json` **−20.8%** and `base64` **−9.5%**, both against a
+sub-1% floor. `string/->codepoints` is a native that had **no native inverse**, so every parser
+in `std/` rebuilt its result with `(apply str (map int->char cs))` — a closure call and a
+one-character string per code point; `%codepoints->string` is that inverse (brood ADR-249).
+`base64`'s decoder additionally stopped reading a CHAMP map and indexing through `nth` for
+every character. `regex` did **not** move and does not have the problem: its hot path is a
+memoised DFA, not string assembly. These are still in-language codecs against native ones, so
+the shape of this table does not change — the gap just got smaller for two of its rows.
+
 **<sup>n</sup> Denominator at the noise floor.** Read Brood's absolute number, not the ratio.
 This is the one ordered table with **no `vs best` column**, deliberately: a rating here would be
 Brood-in-Brood against a C/JVM/.NET library, which says nothing about the VM. The denominator is
