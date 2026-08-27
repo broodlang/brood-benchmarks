@@ -76,7 +76,7 @@ reference, so these read "vs roughly the hardware", not "vs the fastest managed 
   1.1 µs); it was spawn placement.
 - **Text codecs (`json`, `regex`, `base64`)** — pure-Brood `std/` libraries against native codecs,
   by design. **The shared-fast-path lever was taken on 2026-08-26 and it was two of the three,
-  not all three** (in tree, not yet in a published run):
+  not all three** (published 2026-08-27):
   - `json` **−20.8%** (0.7% floor). `string/->codepoints` is a native that had **no native
     inverse**, so every parser rebuilt its result with `(apply str (map int->char cs))` — a
     closure call and a one-character string per code point, then an N-way concat.
@@ -98,22 +98,25 @@ reference, so these read "vs roughly the hardware", not "vs the fastest managed 
   memory; the allocation volume is the cost, not collection.
 - **`primes`, `pipeline` regressions — both CLOSED.** Kept only for the methodology below.
 
-**Memory and startup were a frontier item; KI-61 is now FIXED (2026-08-26, not yet in a published
-run).** The published Base RSS **56 MB** (6th of eight) and startup **31 ms** (5th) are pre-fix. The
-cause was a per-wave namespacing tax — each wave that moves prelude names into a module forced that
-module to load from source at every boot — and the fix was not the std-image registration replay
-recorded here, it was to stop loading them at boot: the prelude's references are **autoload stubs**
-that load on first call (brood ADR-246), plus moving prelude def-sites into the boot cache instead
-of a second positioned read of the prelude (ADR-247). In tree: prelude boot **22.8 → 11.6 ms**, base
-RSS **55.6 → 50.7 MB**, `startup` **−28.9%**, every other row ~11–13 ms faster in absolute wall.
-Because `compute = wall − startup` most of that will not read as a compute win next run — it is the
-runtime starting sooner, which is what every invocation pays. The std image is still the right way
-to make the now-*lazy* load fast when it happens; the two compose.
+**Memory and startup: KI-61 is FIXED and published (2026-08-27).** Startup **31 → 18 ms** (5th of
+eight to 4th, within 0.5 ms of Node) and base RSS **56 → 52 MB**; prelude boot itself is ~7.5 ms
+against 22.8 ms. The cause was a per-wave namespacing tax — each wave that moved prelude names into
+a module forced that module to load from source at every boot — and the fix was not the std-image
+registration replay recorded here, it was to stop loading them at boot: the prelude's references are
+**autoload stubs** that load on first call (brood ADR-246), plus moving prelude def-sites into the
+boot cache instead of a second positioned read of the prelude (ADR-247).
 
-What is left here on startup: a program that touches `io` pays `io`'s own dependency chain
-(`string`, `file`, `path`) — 15.4 ms measured, against a 15 ms bare boot — so the `startup` row is
-now mostly module loading, not prelude building. That is the next thing to look at, and the std
-image plus a registration replay is exactly the lever for it.
+**It also moved almost every compute row −12% to −20%, and that needs saying plainly because the
+obvious prediction was wrong.** `compute = wall − startup` should cancel a saving that appears in
+both — but the `startup` row is `(io/puts 0)`, which loads `io` and through it `string`, while most
+rows load neither. Those rows keep the whole lazy-load saving while only ~13 ms is subtracted away
+(`fib`'s wall fell 29 ms against `startup`'s 13). So the broad improvement is **one boot change
+counted once per row**, not twenty wins — and the under-subtraction already recorded at the end of
+this section is the reason.
+
+**What is left on startup** is no longer prelude building: a program that touches `io` pays `io`'s
+own dependency chain (`string`, `file`, `path`) — 15.4 ms measured, against a ~15 ms bare boot. The
+std image plus a registration replay is exactly the lever for that, and it is now purely additive.
 
 ## Measurement traps found the hard way
 
