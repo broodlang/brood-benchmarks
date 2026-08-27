@@ -6,7 +6,7 @@
 (defn divides-none? (m d)
   (cond
     (> (* d d) m) true
-    (= (rem m d) 0) false
+    (= (math/rem m d) 0) false
     else (divides-none? m (+ d 1))))
 
 (defn prime? (m) (if (< m 2) false (divides-none? m 2)))

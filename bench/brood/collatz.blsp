@@ -3,12 +3,12 @@
 (defn steps (m s)
   (cond
     (= m 1) s
-    (= (rem m 2) 0) (steps (quot m 2) (+ s 1))
+    (= (math/rem m 2) 0) (steps (math/quot m 2) (+ s 1))
     else (steps (+ (* 3 m) 1) (+ s 1))))
 
 (defn sweep (k best)
   (if (>= k n)
     best
-    (sweep (+ k 1) (max best (steps k 0)))))
+    (sweep (+ k 1) (math/max best (steps k 0)))))
 
 (io/puts (sweep 1 0))
