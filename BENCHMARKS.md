@@ -90,14 +90,19 @@ subtracted, because the `startup` row loads only `io`. Against this run's comput
 on the codec rows and ~1% elsewhere — so it does not change any ordering here, but it is a real
 handicap and the direction is always against Brood.
 
-**The mechanism to close it now works, and is deliberately not switched on for these numbers.**
-The stdlib image (brood ADR-218/256) materialises a module's bindings instead of re-evaluating its
-source: `json` 6.5 → 1.7 ms, `http` 12.0 → 3.6 ms, `regex` 4.7 → 1.1 ms, `datetime` 3.2 → 1.0 ms,
-and the `json` row measures **−5.6%** end to end. Brood's suite is 4917/4917 with it installed at
-boot. It stays off here (`BROOD_STDIMAGE=1` opts in) because enabling it is a change to the
-published methodology — the fair analog of Elixir's `elixirc` step — and belongs in its own run
-rather than folded into a correctness fix. So every number above still carries the per-run library
-cost described in the paragraph before this one.
+**Closed as of the next run: the Brood column now gets the stdlib image, the way Elixir gets
+`elixirc`.** The image (brood ADR-218/256) materialises a `require`d module's bindings instead of
+re-evaluating its source — `json` 6.5 → 1.7 ms, `http` 12.0 → 3.6 ms, `regex` 4.7 → 1.1 ms,
+`datetime` 3.2 → 1.0 ms — and the `json` row measures **−5.6%** end to end.
+
+This is not a thumb on the scale, and the distinction is worth stating: Brood installs the image
+**by default**, so it is what every user's `require` already does. What the runtime deliberately
+does not do is *build* it (~1 s, which would land on exactly the short-lived runs it exists to help);
+`nest` writes it during ordinary project work. A benchmark host might never have run `nest`, so
+without a build step the column would measure the source path on one machine and the image on
+another. `build_brood()` in the harness removes that split — the same reason `build_beam()` exists,
+and the same reason the note above says Elixir is precompiled. Numbers published *before* this
+change still carry the per-run library cost described above.
 
 *Correction, 2026-08-27:* an earlier revision of this note said the image left `datetime/now`
 **unbound** and failed 150 of ~4900 tests. Both are withdrawn. `datetime/now` has never existed —
