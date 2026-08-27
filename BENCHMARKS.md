@@ -77,7 +77,37 @@ recomputed per pixel), not from the runtime. Both fixed; history in the brood de
 hot loop; a long-running service would beat every number in its column.
 
 **<sup>p</sup> Precompiled.** Elixir and .NET run as prebuilt artifacts; the rest compile from
-source each run. Favours Elixir/.NET, and is the fair analog of `node app.js`.
+source each run. Favours Elixir/.NET, and is the fair analog of `node app.js`. Elixir is
+precompiled to `_build` for a specific reason worth knowing: `elixir file.exs` recompiles the
+module every run, ~100 ms that lands in *compute* because the `startup` baseline compiles nothing
+and so does not subtract it.
+
+**Brood is on the compile-from-source side of that line, and pays it twice.** It compiles the
+benchmark program (~1.7 ms, measured) *and* re-evaluates every `std/` module the program
+`require`s, on every run — measured per run at `json` **4.6 ms**, `regex` **4.9 ms**, `seq`
+**3.2 ms**, `encoding` **2.1 ms**, `os` **0.8 ms**. Like Elixir's ~100 ms, none of it is
+subtracted, because the `startup` row loads only `io`. Against this run's compute that is ~2–4%
+on the codec rows and ~1% elsewhere — so it does not change any ordering here, but it is a real
+handicap and the direction is always against Brood.
+
+**The mechanism to close it exists and is not switched on, because it is not yet correct.** The
+stdlib image (brood ADR-218) materialises a module's bindings instead of re-evaluating its source,
+and measured on this machine it makes those loads **5–8× cheaper** (`json` 4.6 → 0.88 ms, `regex`
+4.9 → 0.64 ms, `encoding` 2.1 → 0.24 ms). But materialising defines bindings and evaluates
+*nothing*, so every registration a module's load would have performed is skipped: with the image
+installed, `datetime/now` comes back **unbound**, and brood's suite fails 150 of ~4900. That is
+KI-61's recorded registration-replay gap. Publishing from that configuration would mean publishing
+numbers from a runtime the test suite rejects, so the Brood column stays honest-and-slower until
+the replay lands — at which point this footnote should shrink and the codec rows should drop
+another ~3%.
+
+**Warming the JIT across runs is deliberately *not* done, for Brood or anyone.** Every JIT column
+here cold-starts per process — V8, RyuJIT, BeamAsm and HotSpot all re-tier in each new process, and
+Clojure carries a caveat (<sup>c</sup>) rather than a warm-up for exactly that reason. The harness's
+one discarded run per language warms only what genuinely carries across processes; for Brood that is
+the build-id-keyed boot cache, without which a first run costs ~1.2 s instead of ~18 ms. Warming
+Brood's *tiering* between measured runs would favour Brood alone, since no other column can be
+warmed the same way.
 
 ### Immutable structures vs mutable buffers
 
