@@ -123,4 +123,4 @@
 
 (def final (run 0 (offset init)))
 (def e (potential final 0 1 (kinetic final 0 0.0)))
-(io/puts (floor (+ (* e 1e9) 0.5)))
+(io/puts (math/floor (+ (* e 1e9) 0.5)))

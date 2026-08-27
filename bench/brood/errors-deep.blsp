@@ -7,9 +7,9 @@
 
 (defn descend (d i)
   (if (= d 0)
-    (throw (rem i 100))
+    (throw (math/rem i 100))
     (+ 1 (descend (- d 1) i)))) ; non-tail → builds `depth` frames; throw unwinds them
 (defn loop (i acc)
   (if (>= i n) acc (loop (+ i 1) (+ acc (try (descend depth i) (catch e e))))))
 
-(io/puts (rem (loop 0 0) md))
+(io/puts (math/rem (loop 0 0) md))

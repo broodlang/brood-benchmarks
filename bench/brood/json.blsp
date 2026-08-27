@@ -8,7 +8,7 @@
   (if (>= i n)
     acc
     (let (x2 (bit/and (+ (* x 1103515245) 12345) 2147483647))
-      (build (+ i 1) x2 (cons {:id i :v x2 :name "item" :ok (= (rem x2 2) 0)} acc)))))
+      (build (+ i 1) x2 (cons {:id i :v x2 :name "item" :ok (= (math/rem x2 2) 0)} acc)))))
 
 (def parsed (json/parse (json/encode (build 0 123456789 (list)))))
-(io/puts (reduce (fn (acc o) (rem (+ acc (get o :v)) 2147483647)) 0 parsed))
+(io/puts (reduce (fn (acc o) (math/rem (+ acc (get o :v)) 2147483647)) 0 parsed))
