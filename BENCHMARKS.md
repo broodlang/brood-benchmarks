@@ -90,16 +90,23 @@ subtracted, because the `startup` row loads only `io`. Against this run's comput
 on the codec rows and ~1% elsewhere — so it does not change any ordering here, but it is a real
 handicap and the direction is always against Brood.
 
-**The mechanism to close it exists and is not switched on, because it is not yet correct.** The
-stdlib image (brood ADR-218) materialises a module's bindings instead of re-evaluating its source,
-and measured on this machine it makes those loads **5–8× cheaper** (`json` 4.6 → 0.88 ms, `regex`
-4.9 → 0.64 ms, `encoding` 2.1 → 0.24 ms). But materialising defines bindings and evaluates
-*nothing*, so every registration a module's load would have performed is skipped: with the image
-installed, `datetime/now` comes back **unbound**, and brood's suite fails 150 of ~4900. That is
-KI-61's recorded registration-replay gap. Publishing from that configuration would mean publishing
-numbers from a runtime the test suite rejects, so the Brood column stays honest-and-slower until
-the replay lands — at which point this footnote should shrink and the codec rows should drop
-another ~3%.
+**The mechanism to close it now works, and is deliberately not switched on for these numbers.**
+The stdlib image (brood ADR-218/256) materialises a module's bindings instead of re-evaluating its
+source: `json` 6.5 → 1.7 ms, `http` 12.0 → 3.6 ms, `regex` 4.7 → 1.1 ms, `datetime` 3.2 → 1.0 ms,
+and the `json` row measures **−5.6%** end to end. Brood's suite is 4917/4917 with it installed at
+boot. It stays off here (`BROOD_STDIMAGE=1` opts in) because enabling it is a change to the
+published methodology — the fair analog of Elixir's `elixirc` step — and belongs in its own run
+rather than folded into a correctness fix. So every number above still carries the per-run library
+cost described in the paragraph before this one.
+
+*Correction, 2026-08-27:* an earlier revision of this note said the image left `datetime/now`
+**unbound** and failed 150 of ~4900 tests. Both are withdrawn. `datetime/now` has never existed —
+the module defines `utc-now` — and the failure counts (150 of 4920, and 170 of 4888 before it) were
+measured by installing the image from a *program*, which cannot exercise it: a qualified name
+auto-requires its module at compile time, so the test framework loads the library from source before
+the first line runs. That configuration materialises **zero** modules while reporting 99 sections
+installed. Measured at boot the gap was 157 of 4917, and 112 of those were a concurrency race in the
+loader rather than a registration gap.
 
 **Warming the JIT across runs is deliberately *not* done, for Brood or anyone.** Every JIT column
 here cold-starts per process — V8, RyuJIT, BeamAsm and HotSpot all re-tier in each new process, and
