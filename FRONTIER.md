@@ -129,13 +129,25 @@ None of it is subtracted, because `compute = wall − startup` and the `startup`
 Against the 2026-08-27 compute figures that is **~2–4% on the codec rows, ~1% elsewhere** — never
 enough to move an ordering, always in the same direction.
 
-**The fix is already specified and its payoff is now measured.** The stdlib image (ADR-218) makes
-those loads **5–8× cheaper** — `json` 4.6 → 0.88 ms, `regex` 4.9 → 0.64 ms, `encoding` 2.1 → 0.24 ms
-— but it cannot be switched on: materialising a module defines its bindings and evaluates *nothing*,
-so its registrations are skipped. With it installed `datetime/now` is **unbound** and brood's suite
-fails 150 of ~4900. That is KI-61's registration-replay gap, and this is the second reason to close
-it (the first being every user's `require`). Sequence: land the replay, then enable the image for the
-Brood column, then this section goes away and the codec rows drop another ~3%.
+**The fix landed 2026-08-27 (brood ADR-256) and the handicap is now optional rather than
+structural.** The stdlib image restores a module's bindings instead of re-evaluating its source:
+`json` 6.5 → 1.7 ms, `http` 12.0 → 3.6 ms, `regex` 4.7 → 1.1 ms, `datetime` 3.2 → 1.0 ms, and the
+`json` row measures **−5.6% end to end**. Brood's suite is 4917/4917 with it installed at boot,
+against 4917/4917 without.
+
+**Two claims made here on 2026-08-27 were wrong and are withdrawn.** That `datetime/now` came back
+unbound: that name has never existed — the module defines `utc-now`, which works. And that the suite
+"fails 150 of ~4900": that figure, and the 170-of-4888 and 131-of-4873 before it, were all taken by
+installing the image from a *program*, which cannot exercise it — a qualified name auto-requires its
+module at compile time, so the test framework loads the whole library from source before the first
+line runs. Instrumented, that configuration materialises **zero** modules while reporting 99 sections
+installed. Measured properly (installed at boot) the gap was 157 of 4917, and its largest part — 112
+of them — was not a registration gap at all but a concurrency race in the loader.
+
+The image is opt-in (`BROOD_STDIMAGE=1`) and is **not** enabled for the published Brood column, so
+every number in BENCHMARKS.md still carries the per-run library cost described above. Enabling it
+would be the fair analog of Elixir's `elixirc` step; that is a decision about the published
+methodology, taken separately.
 
 **Warming the JIT across runs is not the answer and should not be attempted.** Every JIT column
 cold-starts per process — V8, RyuJIT, BeamAsm, HotSpot — which is why Clojure carries a caveat
