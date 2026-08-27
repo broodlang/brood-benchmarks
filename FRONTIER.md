@@ -144,10 +144,12 @@ line runs. Instrumented, that configuration materialises **zero** modules while 
 installed. Measured properly (installed at boot) the gap was 157 of 4917, and its largest part — 112
 of them — was not a registration gap at all but a concurrency race in the loader.
 
-The image is opt-in (`BROOD_STDIMAGE=1`) and is **not** enabled for the published Brood column, so
-every number in BENCHMARKS.md still carries the per-run library cost described above. Enabling it
-would be the fair analog of Elixir's `elixirc` step; that is a decision about the published
-methodology, taken separately.
+The image is now **on by default** in the runtime (`BROOD_NO_STDIMAGE=1` opts out), and the harness
+builds it in `build_brood()` — the fair analog of Elixir's `elixirc` step, and for the same reason:
+the runtime installs an image whenever one exists but never spends ~1 s *building* one, so a
+benchmark host that had never run `nest` would have measured the source path while a developer's
+machine measured the image. Numbers published before 2026-08-27 still carry the per-run library
+cost described above.
 
 **Warming the JIT across runs is not the answer and should not be attempted.** Every JIT column
 cold-starts per process — V8, RyuJIT, BeamAsm, HotSpot — which is why Clojure carries a caveat

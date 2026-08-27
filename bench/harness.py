@@ -179,6 +179,35 @@ def build_c():
             print(f"  warning ({src.name}): {r.stderr.strip().splitlines()[0]}")
 
 
+def build_brood():
+    """Write the stdlib startup image once, so the Brood column measures the configuration
+    users actually get.
+
+    Brood installs this image at boot by default (brood ADR-256): a `require`d std module
+    restores its bindings from a ~2 MB snapshot instead of re-evaluating its source — `json`
+    6.5 -> 1.7 ms, `http` 12.0 -> 3.6 ms. What the runtime does NOT do is build it, because
+    that costs ~1 s and `brood app.blsp` is exactly the short-lived run it would land on;
+    `nest` writes it during ordinary project work instead. A benchmark host may never have run
+    `nest`, so the column would silently measure the source path on one machine and the image
+    on another — the same class of split as `elixir file.exs` recompiling per run, which is why
+    `build_beam` exists two functions below.
+
+    Best-effort: if this fails, every row still runs, just from source. It is a fair-comparison
+    step, not a correctness one."""
+    print("writing the Brood stdlib image (nest stdimage)…")
+    if shutil.which("nest") is None:
+        print("warning: `nest` not found on PATH — the Brood column will load std from source,\n"
+              "         which costs a few percent on the codec rows. Install it or run "
+              "`nest stdimage`.", file=sys.stderr)
+        return
+    r = subprocess.run(["nest", "stdimage"], capture_output=True, text=True)
+    if r.returncode != 0:
+        print("warning: `nest stdimage` failed — the Brood column falls back to loading std\n"
+              "         from source:\n" + (r.stdout + r.stderr).strip(), file=sys.stderr)
+        return
+    print("  " + r.stdout.strip())
+
+
 def build_beam():
     """Precompile every Elixir bench module to BEAM_DIR once (mirrors build_dotnet).
     Each run then loads the `.beam` via `-pa BEAM_DIR` instead of recompiling the
@@ -618,6 +647,8 @@ def main():
         build_dotnet()
     if "c" in langs:
         build_c()
+    if "brood" in langs:
+        build_brood()
     if "elixir" in langs:
         build_beam()
     if "clojure" in langs:
