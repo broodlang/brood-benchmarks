@@ -118,6 +118,31 @@ this section is the reason.
 own dependency chain (`string`, `file`, `path`) — 15.4 ms measured, against a ~15 ms bare boot. The
 std image plus a registration replay is exactly the lever for that, and it is now purely additive.
 
+## The Brood column pays a per-run cost no other compiled column pays
+
+Measured 2026-08-27, and it is the one standing *methodology* handicap rather than a runtime gap.
+
+Elixir and .NET run as prebuilt artifacts; C is a binary. Brood runs from source, and pays for it
+twice per run: compiling the benchmark program (~1.7 ms) and **re-evaluating every `std/` module the
+program requires** — `json` 4.6 ms, `regex` 4.9 ms, `seq` 3.2 ms, `encoding` 2.1 ms, `os` 0.8 ms.
+None of it is subtracted, because `compute = wall − startup` and the `startup` row loads only `io`.
+Against the 2026-08-27 compute figures that is **~2–4% on the codec rows, ~1% elsewhere** — never
+enough to move an ordering, always in the same direction.
+
+**The fix is already specified and its payoff is now measured.** The stdlib image (ADR-218) makes
+those loads **5–8× cheaper** — `json` 4.6 → 0.88 ms, `regex` 4.9 → 0.64 ms, `encoding` 2.1 → 0.24 ms
+— but it cannot be switched on: materialising a module defines its bindings and evaluates *nothing*,
+so its registrations are skipped. With it installed `datetime/now` is **unbound** and brood's suite
+fails 150 of ~4900. That is KI-61's registration-replay gap, and this is the second reason to close
+it (the first being every user's `require`). Sequence: land the replay, then enable the image for the
+Brood column, then this section goes away and the codec rows drop another ~3%.
+
+**Warming the JIT across runs is not the answer and should not be attempted.** Every JIT column
+cold-starts per process — V8, RyuJIT, BeamAsm, HotSpot — which is why Clojure carries a caveat
+instead of a warm-up. The harness's discarded run per language already warms what carries across
+processes; for Brood that is the build-id-keyed boot cache (~1.2 s cold vs ~18 ms warm). Warming
+Brood's tiering between measured runs would favour Brood alone.
+
 ## Measurement traps found the hard way
 
 Six ways to get a confident wrong number on this runtime, each of which produced one:
