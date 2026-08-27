@@ -27,7 +27,7 @@
 ;; announces again when the supervisor brings it back.
 (defmodule bench-supervisor (:use supervisor))
 
-(def n (let (e (os/getenv "BENCH_N")) (if e (string/->number e) 20000)))
+(def n (let (e (os/env "BENCH_N")) (if e (string/->number e) 20000)))
 ;; `quot`, not `/`: this is a COUNT. Brood's `/` is exact (ADR-196), so `(/ n 4)` on an
 ;; N that is not a multiple of 4 yields a rational, which then flows into `take` and the
 ;; retire loop as an iteration count. Harmless at the default N=20000 (exactly 5000) and
@@ -44,12 +44,12 @@
                                    (do (send from [:reached k]) (collector pids k))
                                    (do (send (self) [:count-at-least want from]) (collector pids k))))))
 
-(register :bench-collector (spawn (collector () 0)))
+(proc/register :bench-collector (spawn (collector () 0)))
 
 ;; Announce, then park until retired. The `whereis` guard keeps a child that restarts
 ;; during teardown from sending to a deregistered name.
 (defn child ()
-  (let (c (whereis :bench-collector))
+  (let (c (proc/whereis :bench-collector))
     (do
       (when c (send c [:up (self)]))
       (receive (:retire :ok)))))
@@ -74,12 +74,12 @@
 ;; Block until the collector has seen at least `want` announcements.
 (defn await-count (want)
   (do
-    (send (whereis :bench-collector) [:count-at-least want (self)])
+    (send (proc/whereis :bench-collector) [:count-at-least want (self)])
     (receive ([:reached k] k))))
 
 (defn victims (want)
   (do
-    (send (whereis :bench-collector) [:take want (self)])
+    (send (proc/whereis :bench-collector) [:take want (self)])
     (receive ([:pids ps _] ps))))
 
 (fill 0)
