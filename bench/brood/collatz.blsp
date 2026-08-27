@@ -1,4 +1,4 @@
-(def n (let (e (os/getenv "BENCH_N")) (if e (string/->number e) 250000)))
+(def n (let (e (os/env "BENCH_N")) (if e (string/->number e) 250000)))
 
 (defn steps (m s)
   (cond
