@@ -1,12 +1,12 @@
 ;; error handling — raise a value-carrying error and recover it, N times.
 ;; Exercises the runtime's throw/catch path (not happy-path compute). The thrown
 ;; value is data-dependent (i % 100) so the checksum is real work, not foldable.
-(def n (let (e (os/getenv "BENCH_N")) (if e (string/->number e) 200000)))
+(def n (let (e (os/env "BENCH_N")) (if e (string/->number e) 200000)))
 (def md 1000000007)
 
 (defn loop (i acc)
   (if (>= i n)
     acc
-    (loop (+ i 1) (+ acc (try (throw (rem i 100)) (catch e e))))))
+    (loop (+ i 1) (+ acc (try (throw (math/rem i 100)) (catch e e))))))
 
-(io/puts (rem (loop 0 0) md))
+(io/puts (math/rem (loop 0 0) md))

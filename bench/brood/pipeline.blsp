@@ -1,4 +1,4 @@
-(def n (let (e (os/getenv "BENCH_N")) (if e (string/->number e) 100000)))
+(def n (let (e (os/env "BENCH_N")) (if e (string/->number e) 100000)))
 
 ;; map / filter / reduce pipeline over a range: keep the multiples of 3 or 5,
 ;; square them, sum the squares. Checksum = that sum.
@@ -10,7 +10,7 @@
 ;; range flows through filter → map → reduce one element at a time (no fully
 ;; materialized intermediate lists). The eager `(->> (range n) (filter …) (map …)
 ;; (reduce …))` is still idiomatic Brood and would build a cons list per stage.
-(defn mult35? (i) (or (= 0 (rem i 3)) (= 0 (rem i 5))))
+(defn mult35? (i) (or (= 0 (math/rem i 3)) (= 0 (math/rem i 5))))
 
 (io/puts (->> (range n)
            (lfilter mult35?)

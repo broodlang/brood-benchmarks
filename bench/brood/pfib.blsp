@@ -1,7 +1,7 @@
 ;; Parallel fib: compute fib(N) in 100 independent green processes at once and
 ;; sum the results. Brood spawns 100 lightweight processes; the scheduler runs
 ;; them across all cores. Checksum = 100 * fib(N).
-(def n (let (e (os/getenv "BENCH_N")) (if e (string/->number e) 31)))
+(def n (let (e (os/env "BENCH_N")) (if e (string/->number e) 31)))
 (def tasks 100)
 
 (defn fib (m) (if (< m 2) m (+ (fib (- m 1)) (fib (- m 2)))))

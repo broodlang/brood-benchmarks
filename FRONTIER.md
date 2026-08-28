@@ -47,8 +47,14 @@ reference, so these read "vs roughly the hardware", not "vs the fastest managed 
   .NET here, so the row is close to its arithmetic limit for everyone.
 - **`matmul` (59× C)** — inner loop is native; residual is the one read LICM can't hoist plus boxed
   `Value` array storage. Both denominators are ~2–4 ms, so read the absolute, not the multiple.
-- **`pipeline` (8.7×)** — lazy-seq/transducer composition the JIT doesn't cover; allocation churn
-  dominates. Re-profiled at N=10M (self time):
+- **`pipeline` (8.7×)** — lazy-seq/transducer composition the JIT doesn't cover. **The
+  "allocation churn dominates" half of this entry was withdrawn 2026-08-28: it does not.**
+  Scoped counters (`perf/measure`, size-swept 100k → 1M so only work-proportional counters
+  count) put `alloc` at **15, flat** — `alloc_slot!` is the one macro behind every LOCAL heap
+  allocation, so the lazy `lfilter`/`lmap` form really does stream without allocating per
+  element. What scales is **1.48 `jit-link-done` and 1.40 `env-get` per element**: the cost is
+  the call path, ~1.5 fast-linked calls an element. The profile below (call plumbing ~50%) is
+  the half that stands. Re-profiled at N=10M (self time):
 
   | share | symbol | what it is |
   |---|---|---|
@@ -75,31 +81,131 @@ reference, so these read "vs roughly the hardware", not "vs the fastest managed 
   **Do not extend this to `latency`** — that row was never per-message cost (a send + receive is
   1.1 µs); it was spawn placement.
 - **Text codecs (`json`, `regex`, `base64`)** — pure-Brood `std/` libraries against native codecs,
-  by design. The next structural lever is a bytes/codepoint fast path shared by all three.
+  by design. **The shared-fast-path lever was taken on 2026-08-26 and it was two of the three,
+  not all three** (published 2026-08-27):
+  - `json` **−20.8%** (0.7% floor). `string/->codepoints` is a native that had **no native
+    inverse**, so every parser rebuilt its result with `(apply str (map int->char cs))` — a
+    closure call and a one-character string per code point, then an N-way concat.
+    `%codepoints->string` is that inverse (brood ADR-249); parse ~85 → ~45 ms.
+  - `base64` **−9.5%** (0.0% floor). Decode read a CHAMP map for the reverse alphabet and
+    indexed through `nth`, a closure that re-checks `int?`/`vector?`/length before reaching
+    `%vector-ref` — eight per output triple. A dense codepoint-indexed vector plus direct
+    `%vector-ref`: 29.4 → 15.5 ms, of which the dense vector was only ~7%.
+  - `regex` **unchanged, and it has no such gap** — its hot path is a memoised DFA whose steady
+    state is one `table/get`, not string assembly. The "shared by all three" framing was wrong
+    about which rows shared the problem.
+
+  **Split a codec row before optimising it.** Both movers are two-directional and the halves are
+  nowhere near equal — `base64` decode was 4× its encode, `json` parse 2.4× its encode — so
+  optimising the wrong half is invisible at the row level. The *encoders* are deliberately
+  untouched: the symmetric change needs a range check per element, and a call per element in
+  these loops cost `base64` encode **4×**.
+- **A variadic wrapper called in a loop costs ~36%; the fixed-arity ones cost nothing.** Isolated
+  on `collatz`, one binary, same program shape:
+
+  | variant | time |
+  |---|---|
+  | `math/rem`, `math/quot`, `math/max` all qualified | 223 ms |
+  | the same, but `%max` called directly | **142 ms** |
+  | all three primitives directly | **142 ms** |
+
+  The middle row equals the bottom row, which settles it: **`math/rem` and `math/quot` are free**
+  and the whole delta is **`math/max`**, called once per `sweep` iteration. The reason is visible
+  in the JIT dump — `steps` lowers to native with **no `Call` instruction at all**
+  (`Prim2SlotInt JumpIfFalse … SelfCall`), because a fixed-arity one-primitive body is inlined
+  into its caller and disappears. `math/max` lowers to `GlobalIc Local Call`: it is
+  `(apply %max xs)` over `& xs`, so it allocates an argument list and cannot be inlined.
+
+  So the lever is **variadic dispatch, not wrappers in general** — which is precisely the worked
+  example in brood's CLAUDE.md ("variadic `+`/`-`/`=` … cost ~40× a direct call") and its
+  prescribed fix: efficient **multi-arity dispatch in the evaluator**, keeping the functions in
+  Brood. `math/max`/`math/min` are the two `math` entries in that shape; `collatz` and `latency`
+  are the rows that call them in a loop.
+
+  Qualification itself is free: `math/rem` bare via `(:use math)` measured 204 ms against 205 ms
+  qualified, so the module system costs nothing at a call site.
+
+  **`collatz` 95 → 185 ms between the 2026-08-27 and 2026-08-28 published runs is this**, not a
+  runtime regression: the port had to migrate off the retired bare names, and one of the three it
+  moved to is variadic.
+
 - **`sort`** — do not re-optimise the comparator (already unboxed). The suite's heaviest row for
   memory; the allocation volume is the cost, not collection.
 - **`primes`, `pipeline` regressions — both CLOSED.** Kept only for the methodology below.
 
-**Memory and startup were a frontier item; KI-61 is now FIXED (2026-08-26, not yet in a published
-run).** The published Base RSS **56 MB** (6th of eight) and startup **31 ms** (5th) are pre-fix. The
-cause was a per-wave namespacing tax — each wave that moves prelude names into a module forced that
-module to load from source at every boot — and the fix was not the std-image registration replay
-recorded here, it was to stop loading them at boot: the prelude's references are **autoload stubs**
-that load on first call (brood ADR-246), plus moving prelude def-sites into the boot cache instead
-of a second positioned read of the prelude (ADR-247). In tree: prelude boot **22.8 → 11.6 ms**, base
-RSS **55.6 → 50.7 MB**, `startup` **−28.9%**, every other row ~11–13 ms faster in absolute wall.
-Because `compute = wall − startup` most of that will not read as a compute win next run — it is the
-runtime starting sooner, which is what every invocation pays. The std image is still the right way
-to make the now-*lazy* load fast when it happens; the two compose.
+**Memory and startup: KI-61 is FIXED and published (2026-08-27).** Startup **31 → 18 ms** (5th of
+eight to 4th, within 0.5 ms of Node) and base RSS **56 → 52 MB**; prelude boot itself is ~7.5 ms
+against 22.8 ms. The cause was a per-wave namespacing tax — each wave that moved prelude names into
+a module forced that module to load from source at every boot — and the fix was not the std-image
+registration replay recorded here, it was to stop loading them at boot: the prelude's references are
+**autoload stubs** that load on first call (brood ADR-246), plus moving prelude def-sites into the
+boot cache instead of a second positioned read of the prelude (ADR-247).
 
-What is left here on startup: a program that touches `io` pays `io`'s own dependency chain
-(`string`, `file`, `path`) — 15.4 ms measured, against a 15 ms bare boot — so the `startup` row is
-now mostly module loading, not prelude building. That is the next thing to look at, and the std
-image plus a registration replay is exactly the lever for it.
+**It also moved almost every compute row −12% to −20%, and that needs saying plainly because the
+obvious prediction was wrong.** `compute = wall − startup` should cancel a saving that appears in
+both — but the `startup` row is `(io/puts 0)`, which loads `io` and through it `string`, while most
+rows load neither. Those rows keep the whole lazy-load saving while only ~13 ms is subtracted away
+(`fib`'s wall fell 29 ms against `startup`'s 13). So the broad improvement is **one boot change
+counted once per row**, not twenty wins — and the under-subtraction already recorded at the end of
+this section is the reason.
+
+**What is left on startup** is no longer prelude building: a program that touches `io` pays `io`'s
+own dependency chain (`string`, `file`, `path`) — 15.4 ms measured, against a ~15 ms bare boot. The
+std image plus a registration replay is exactly the lever for that, and it is now purely additive.
+
+## The Brood column pays a per-run cost no other compiled column pays
+
+Measured 2026-08-27, and it is the one standing *methodology* handicap rather than a runtime gap.
+
+Elixir and .NET run as prebuilt artifacts; C is a binary. Brood runs from source, and pays for it
+twice per run: compiling the benchmark program (~1.7 ms) and **re-evaluating every `std/` module the
+program requires** — `json` 4.6 ms, `regex` 4.9 ms, `seq` 3.2 ms, `encoding` 2.1 ms, `os` 0.8 ms.
+None of it is subtracted, because `compute = wall − startup` and the `startup` row loads only `io`.
+Against the 2026-08-27 compute figures that is **~2–4% on the codec rows, ~1% elsewhere** — never
+enough to move an ordering, always in the same direction.
+
+**The fix landed 2026-08-27 (brood ADR-256) and the handicap is now optional rather than
+structural.** The stdlib image restores a module's bindings instead of re-evaluating its source:
+`json` 6.5 → 1.7 ms, `http` 12.0 → 3.6 ms, `regex` 4.7 → 1.1 ms, `datetime` 3.2 → 1.0 ms, and the
+`json` row measures **−5.6% end to end**. Brood's suite is 4917/4917 with it installed at boot,
+against 4917/4917 without.
+
+**Two claims made here on 2026-08-27 were wrong and are withdrawn.** That `datetime/now` came back
+unbound: that name has never existed — the module defines `utc-now`, which works. And that the suite
+"fails 150 of ~4900": that figure, and the 170-of-4888 and 131-of-4873 before it, were all taken by
+installing the image from a *program*, which cannot exercise it — a qualified name auto-requires its
+module at compile time, so the test framework loads the whole library from source before the first
+line runs. Instrumented, that configuration materialises **zero** modules while reporting 99 sections
+installed. Measured properly (installed at boot) the gap was 157 of 4917, and its largest part — 112
+of them — was not a registration gap at all but a concurrency race in the loader.
+
+The image is now **on by default** in the runtime (`BROOD_NO_STDIMAGE=1` opts out), and the harness
+builds it in `build_brood()` — the fair analog of Elixir's `elixirc` step, and for the same reason:
+the runtime installs an image whenever one exists but never spends ~1 s *building* one, so a
+benchmark host that had never run `nest` would have measured the source path while a developer's
+machine measured the image. Numbers published before 2026-08-27 still carry the per-run library
+cost described above.
+
+**Warming the JIT across runs is not the answer and should not be attempted.** Every JIT column
+cold-starts per process — V8, RyuJIT, BeamAsm, HotSpot — which is why Clojure carries a caveat
+instead of a warm-up. The harness's discarded run per language already warms what carries across
+processes; for Brood that is the build-id-keyed boot cache (~1.2 s cold vs ~18 ms warm). Warming
+Brood's tiering between measured runs would favour Brood alone.
 
 ## Measurement traps found the hard way
 
-Four ways to get a confident wrong number on this runtime, each of which produced one:
+Six ways to get a confident wrong number on this runtime, each of which produced one:
+
+- **A stale binary reports the old code and does not fail.** `std/*.blsp` is `include_str!`'d
+  into the binary, so editing a module and re-running the existing build measures nothing —
+  silently. That produced three "results" (40.2 → 37.5 → 44.1 ms) around an unchanged build in
+  2026-08-26's codec session. One command settles it: append garbage to the module and see
+  whether the run still succeeds.
+- **A row that errors fast looks exactly like a row that is fast.** `persistent-map` died at
+  compile when a namespace wave renamed `map-int-add`, and kept appearing in `ab-bench` sweeps
+  with plausible times *and plausible deltas* until someone ran it by hand. A harness that
+  times a column should assert the column's answer, which the published harness does and
+  `ab-bench` does not.
 
 - **Pinning charges you for the JIT.** `taskset` puts the background compiler on the benchmark's
   core, so anything that increases compilation volume reads as a slowdown. The same loop measured
