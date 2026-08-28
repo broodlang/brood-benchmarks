@@ -2,28 +2,28 @@
 <rect width="760" height="364" fill="#ffffff"/>
 <text x="92" y="26" font-size="17" font-weight="700" fill="#222">Overall speed — geomean across the rows every language runs</text>
 <text x="92" y="44" font-size="12" fill="#777">lower is faster · 1.0× = the leader on this set · C is a machine-floor reference, not a peer</text>
-<rect x="92" y="58" width="11.0" height="22" rx="4" fill="#b7950b"/>
+<rect x="92" y="58" width="11.1" height="22" rx="4" fill="#b7950b"/>
 <text x="82" y="74" text-anchor="end" font-size="13" font-weight="500" fill="#555">C</text>
-<text x="111.0" y="74" font-size="13" font-weight="400" fill="#444">1.0×</text>
-<rect x="92" y="92" width="33.8" height="22" rx="4" fill="#b3bac1"/>
+<text x="111.1" y="74" font-size="13" font-weight="400" fill="#444">1.0×</text>
+<rect x="92" y="92" width="33.9" height="22" rx="4" fill="#b3bac1"/>
 <text x="82" y="108" text-anchor="end" font-size="13" font-weight="500" fill="#555">.NET</text>
-<text x="133.8" y="108" font-size="13" font-weight="400" fill="#444">3.1×</text>
-<rect x="92" y="126" width="56.9" height="22" rx="4" fill="#b3bac1"/>
+<text x="133.9" y="108" font-size="13" font-weight="400" fill="#444">3.1×</text>
+<rect x="92" y="126" width="57.5" height="22" rx="4" fill="#b3bac1"/>
 <text x="82" y="142" text-anchor="end" font-size="13" font-weight="500" fill="#555">Node</text>
-<text x="156.9" y="142" font-size="13" font-weight="400" fill="#444">5.2×</text>
-<rect x="92" y="160" width="115.9" height="22" rx="4" fill="#c0392b"/>
-<text x="82" y="176" text-anchor="end" font-size="13" font-weight="700" fill="#222">Brood</text>
-<text x="215.9" y="176" font-size="13" font-weight="700" fill="#444">10.6×</text>
-<rect x="92" y="194" width="118.4" height="22" rx="4" fill="#b3bac1"/>
-<text x="82" y="210" text-anchor="end" font-size="13" font-weight="500" fill="#555">Elixir</text>
-<text x="218.4" y="210" font-size="13" font-weight="400" fill="#444">10.8×</text>
-<rect x="92" y="228" width="341.9" height="22" rx="4" fill="#b3bac1"/>
+<text x="157.5" y="142" font-size="13" font-weight="400" fill="#444">5.2×</text>
+<rect x="92" y="160" width="115.4" height="22" rx="4" fill="#b3bac1"/>
+<text x="82" y="176" text-anchor="end" font-size="13" font-weight="500" fill="#555">Elixir</text>
+<text x="215.4" y="176" font-size="13" font-weight="400" fill="#444">10.4×</text>
+<rect x="92" y="194" width="123.6" height="22" rx="4" fill="#c0392b"/>
+<text x="82" y="210" text-anchor="end" font-size="13" font-weight="700" fill="#222">Brood</text>
+<text x="223.6" y="210" font-size="13" font-weight="700" fill="#444">11.2×</text>
+<rect x="92" y="228" width="342.8" height="22" rx="4" fill="#b3bac1"/>
 <text x="82" y="244" text-anchor="end" font-size="13" font-weight="500" fill="#555">Clojure</text>
-<text x="441.9" y="244" font-size="13" font-weight="400" fill="#444">31.2×</text>
-<rect x="92" y="262" width="399.3" height="22" rx="4" fill="#b3bac1"/>
+<text x="442.8" y="244" font-size="13" font-weight="400" fill="#444">31.0×</text>
+<rect x="92" y="262" width="400.8" height="22" rx="4" fill="#b3bac1"/>
 <text x="82" y="278" text-anchor="end" font-size="13" font-weight="500" fill="#555">Ruby</text>
-<text x="499.3" y="278" font-size="13" font-weight="400" fill="#444">36.4×</text>
+<text x="500.8" y="278" font-size="13" font-weight="400" fill="#444">36.2×</text>
 <rect x="92" y="296" width="572.0" height="22" rx="4" fill="#b3bac1"/>
 <text x="82" y="312" text-anchor="end" font-size="13" font-weight="500" fill="#555">Python</text>
-<text x="672.0" y="312" font-size="13" font-weight="400" fill="#444">52.1×</text>
+<text x="672.0" y="312" font-size="13" font-weight="400" fill="#444">51.7×</text>
 </svg>

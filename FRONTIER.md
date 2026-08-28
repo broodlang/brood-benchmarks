@@ -94,6 +94,33 @@ reference, so these read "vs roughly the hardware", not "vs the fastest managed 
   optimising the wrong half is invisible at the row level. The *encoders* are deliberately
   untouched: the symmetric change needs a range check per element, and a call per element in
   these loops cost `base64` encode **4×**.
+- **The `math/*` wrappers are a suite-wide floor, new since the namespacing waves.** Fifteen of
+  the 31 rows call `math/*`, and the bare `rem`/`quot`/`max`/`min` they replaced resolved straight
+  to primitives. `math/rem` and `math/quot` are Brood functions wrapping one primitive;
+  **`math/max` and `math/min` are variadic over `apply`**, which is the shape brood's own CLAUDE.md
+  measures at ~40× a direct call. Measured on `collatz` (one binary, same program shape):
+
+  | form | time |
+  |---|---|
+  | qualified `math/rem`/`math/quot`/`math/max` | 205 ms |
+  | the same names bare via `(:use math)` | 204 ms |
+  | the primitives `%rem`/`%quot`/`%max` | **121 ms** |
+
+  So **qualification itself costs nothing** — the compiler resolves it — and the wrapper call
+  costs ~40% on an integer-arithmetic row. `collatz` went 95 → 185 ms between the 2026-08-27 and
+  2026-08-28 runs for exactly this reason, with a brood-side A/B reading `v0.14.1..HEAD` flat.
+
+  **The fix is not to make them Rust builtins**, and brood's CLAUDE.md names this exact case as
+  the worked example of the wrong move: it would reverse "write the language in the language" and
+  teach nothing. The right lever is efficient **multi-arity dispatch in the evaluator** — which
+  keeps `max`/`min` in Brood, removes the `apply`, and speeds up *every* multi-arity function
+  rather than these two. The fixed-arity wrappers (`rem`, `quot`, `mod`) are a thinner problem and
+  want either inlining of a one-call body or the same dispatch work.
+
+  Worth knowing before optimising a compute row: this floor is under 15 of them, so a row-specific
+  win of a few percent may be sitting on top of a ~40% call-protocol cost that one change removes
+  everywhere.
+
 - **`sort`** — do not re-optimise the comparator (already unboxed). The suite's heaviest row for
   memory; the allocation volume is the cost, not collection.
 - **`primes`, `pipeline` regressions — both CLOSED.** Kept only for the methodology below.
