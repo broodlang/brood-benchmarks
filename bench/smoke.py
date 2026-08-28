@@ -48,6 +48,7 @@ import os
 import pathlib
 import shutil
 import subprocess
+import re
 import sys
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
@@ -138,10 +139,24 @@ def run_row(h, lang, row, n, brood_bin, extra_env):
             line = next((ln.strip() for ln in blob.splitlines() if bad in ln), bad)
             return (False, line, None)
     if p.returncode != 0:
-        # The last stderr line is the useful one — brood's error text names the symbol.
-        detail = next((ln for ln in reversed((p.stderr or p.stdout).splitlines()) if ln.strip()),
-                      f"exit {p.returncode}")
-        return (False, detail.strip(), None)
+        # brood puts the useful text (the unbound symbol) on its LAST stderr line, which is
+        # why this used to read only that. Other runtimes do the opposite: an Elixir failure
+        # ends with a stack FRAME, so `json/elixir` reported
+        #   (elixir 1.17.3) lib/code.ex:572: Code.validated_eval_string/3
+        # and threw away the line that said `JSON.encode!/1 is undefined`. The message is the
+        # part you act on, so keep a window and let the reader see both ends.
+        lines = [ln.strip() for ln in (p.stderr or p.stdout).splitlines() if ln.strip()]
+        if not lines:
+            return (False, f"exit {p.returncode}", None)
+        # Prefer a line that looks like a diagnosis over one that looks like a frame.
+        blame = next((ln for ln in lines
+                      if re.search(r"(undefined|unbound|no function|not available|"
+                                   r"cannot|Error|error:)", ln)
+                      and not re.match(r"^\s*\(", ln)), None)
+        detail = blame or lines[-1]
+        if blame and blame != lines[-1]:
+            detail = f"{blame}  [at: {lines[-1]}]"
+        return (False, detail, None)
     _metrics, checksum = h.split_metrics(h.ANSI_RE.sub("", p.stdout).strip())
     return (True, "", checksum)
 
