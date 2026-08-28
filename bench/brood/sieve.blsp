@@ -7,7 +7,7 @@
 ;; The constructor is `table/new` — the v0.9/v0.10 namespacing waves took the whole
 ;; table API into the `table` module, and the bare `(table)` constructor with it. A
 ;; qualified std name auto-loads its module, so there is nothing to require.
-(def n (let (e (os/getenv "BENCH_N")) (if e (string/->number e) 1000000)))
+(def n (let (e (os/env "BENCH_N")) (if e (string/->number e) 1000000)))
 (def composites (table/new))
 
 (defn mark (p j) (if (> j n) nil (do (table/put composites j true) (mark p (+ j p)))))

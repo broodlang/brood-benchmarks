@@ -32,9 +32,9 @@
 ;;
 ;; Reported as percentiles, because the mean is exactly the statistic that hides this.
 ;; Checksum = the summed work result, identical in every port.
-(def n (let (e (os/getenv "BENCH_N")) (if e (string/->number e) 50000)))
+(def n (let (e (os/env "BENCH_N")) (if e (string/->number e) 50000)))
 (def rate 20000) ; requests/second, open loop
-(def gap-ns (quot 1000000000 rate))
+(def gap-ns (math/quot 1000000000 rate))
 (def cheap 40) ; work units in an ordinary request
 (def fat-ns 500000) ; every 20th request occupies ~this long (500us)
 ;; Busy-wait until a given instant. Used twice: to hit each request's scheduled arrival
@@ -53,14 +53,14 @@
 ;; core for `fat-ns` (a CPU-bound request); the rest just do their arithmetic.
 (defn handle (i sched to)
   (let (r (work cheap 0 0)
-        fat? (= 0 (mod i 20))
+        fat? (= 0 (math/mod i 20))
         _ (when fat? (work fat-units 0 0)))
     ; ~500us of real work, result discarded
     ;; A fat request reports -1: its own latency is >=500us by construction, so including it
     ;; would put fat requests in every high percentile and hide the only thing worth knowing —
     ;; what the fat request did to the ORDINARY requests queued behind it. Percentiles below
     ;; therefore cover the 95% that are ordinary.
-    (send to [:done (if fat? -1 (quot (- (os/now-ns) sched) 1000)) r])))
+    (send to [:done (if fat? -1 (math/quot (- (os/now-ns) sched) 1000)) r])))
 
 (defn collector (to left lats sum)
   (if (= left 0)
@@ -81,7 +81,7 @@
         (dispatch (+ i 1) start to)))))
 
 (defn pct (v p)
-  (nth v (min (- (count v) 1) (quot (* p (count v)) 100))))
+  (nth v (math/min (- (count v) 1) (math/quot (* p (count v)) 100))))
 
 ;; How many rounds of `work` take `fat-ns` in THIS runtime? Double `k` until a sample is long
 ;; enough to time reliably, then scale. Takes the BEST of several samples, which is what makes
@@ -100,7 +100,7 @@
   (let (dt (best-work-ns 9 k 0))
     (if (< dt 200000)
       (calibrate (* k 2))
-      (quot (* k fat-ns) dt))))
+      (math/quot (* k fat-ns) dt))))
 
 ;; Warm first, THEN calibrate. Brood tiers on a background thread, so a calibration that
 ;; starts cold measures the interpreter and under-sizes the fat request by ~25x. Every port
@@ -110,7 +110,7 @@
 (warm 60 5000)
 
 (def fat-units (calibrate 1000))
-(def fat-measured-us (quot (best-work-ns 5 fat-units 0) 1000))
+(def fat-measured-us (math/quot (best-work-ns 5 fat-units 0) 1000))
 
 (def me (self))
 (def coll (spawn (collector me n () 0)))
@@ -126,7 +126,7 @@
 (io/puts (str "#metric p50_us=" (pct lats 50)))
 (io/puts (str "#metric p99_us=" (pct lats 99)))
 (io/puts (str "#metric p999_us="
-           (nth lats (min (- (count lats) 1) (quot (* 999 (count lats)) 1000)))))
+           (nth lats (math/min (- (count lats) 1) (math/quot (* 999 (count lats)) 1000)))))
 (io/puts (str "#metric max_us=" (nth lats (- (count lats) 1))))
-(io/puts (str "#metric sustained_rps=" (quot (* n 1000000000) elapsed-ns)))
+(io/puts (str "#metric sustained_rps=" (math/quot (* n 1000000000) elapsed-ns)))
 (io/puts (nth res 1))
