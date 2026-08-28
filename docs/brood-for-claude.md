@@ -217,7 +217,7 @@ your code will read like the standard library.
 ```
 foo?         ; predicate — returns a boolean (int? empty? starts-with?)
 *foo*         ; dynamic var or module-level config/state (defdyn *log-level*)
-foo->bar      ; conversion (string->number, int->char); a module-rooted
+foo->bar      ; conversion (string/->number, string/int->char); a module-rooted
               ; conversion drops the source: string/->bytes, string/bytes->
 ```
 
@@ -228,7 +228,7 @@ private is a compile error without `(:use-internals mod)`; call it bare (same mo
 or `mod/name` (granted). There is no marker to spell and none to read, so ask the
 image: `(private? 'mod/name)`. The old `--`-in-name convention (`append--onto`) was
 **deleted** in favour of this — if you meet it in older code or a stale doc, it no
-longer means anything. There is no `defmacro-`/`defprocess-`: private macros and
+longer means anything. There is no `defmacro-`/`defserver-`: private macros and
 processes were rare enough that they simply stay public.
 
 A trailing `!` is **rare and not a mutation warning** — nothing mutates, so the
@@ -259,7 +259,7 @@ Symbols are kebab-case (`out-of-range?`, not `outOfRange`/`out_of_range`).
 recursion with an accumulator:
 
 ```lisp
-(defn reverse (coll) "The items of `coll` in reverse order." (fold flip-cons nil coll))
+(defn reverse (coll) "The items of `coll` in reverse order." (fold %flip-cons nil coll))
 
 ;; longer recursions split into a public shell + a private -at helper
 (defn- count-newlines-at (s i acc) …)              ; private worker
@@ -351,7 +351,7 @@ record's use; deriving an ability with no recipe is a clean error.
 ```lisp
 (defability Columns
   (columns [self] :-> vector)
-  :derive-record (fn (fs) (list `(columns [r] [~@(map (fn (f) `(get r ~(keyword (name f)))) fs)]))))
+  :derive-record (fn (fs) (list `(columns [r] [~@(map (fn (f) `(get r ~(keyword (->string f)))) fs)]))))
 (defrecord point (x y) :derives [Columns])
 (columns (point 3 4))          ;=> [3 4]   — synthesized, no impl written
 ```
@@ -388,16 +388,17 @@ Other things worth knowing:
 - `(satisfies? 'Shape x)` to branch instead of letting a missing op raise.
 - **Register at load time.** Top-level `impl` forms are safe; two *processes* calling
   `impl` concurrently can lose an update (it is a `def` under the hood).
-- `defbehaviour` (`(:use protocol)`) is the *other* seam — a contract a **module**
-  satisfies by defining plain functions, claimed with `(:implements Name)` in the
-  header. No value dispatch. Use it when the implementor is a namespace, not a value.
+- `defbehaviour` is the *other* seam — a contract a **module** satisfies by defining
+  plain functions, claimed with `(:implements Name)` in the header. It is core (bare,
+  no `require`/`:use`). No value dispatch. Use it when the implementor is a namespace,
+  not a value.
 - **`defprotocol`/`defimpl` no longer exist** (retired, ADR-168). If you were about to
   write one, write an ability.
 
 ### The abilities `std/` already ships (ADR-177)
 
 `impl` one of these for your own record and that library accepts your type — you don't
-edit the library. Beyond the core `Display` (`->string`, what `println` shows) and `Inspect`
+edit the library. Beyond the core `Display` (`->string`, what `io/puts` shows) and `Inspect`
 (`inspect`, the debug form):
 
 | `impl` this | to get |
@@ -524,6 +525,22 @@ it never appends; `conj` does that); `(update v i f)` and `(get v i)` likewise.
 lists); `(remove-nth coll i)` drops one element, keeping the type. So an
 immutable single-element vector edit is just `(assoc buf i x)`, never a manual
 rebuild.
+
+⚠️ **But `assoc` on a *vector* is O(n), not an O(1) indexed replace** — it copies
+the vector. Only the *map* `assoc` is cheap (a CHAMP trie, effectively flat).
+Measured, 20 000 `assoc`s at increasing sizes:
+
+| length | vector `assoc` | map `assoc` |
+|---|---|---|
+| 1 000 | 486 ms | 28 ms |
+| 4 000 | 2 386 ms | — |
+| 16 000 | 7 523 ms | 17 ms |
+
+One edit is fine; an edit **per element** is quadratic. This is not hypothetical —
+`shuffle` was written as a textbook Fisher–Yates over a vector on the assumption
+that indexed replace was cheap, and ran 16 seconds at n=8 000. Rewritten over a
+CHAMP map index→item it is 206 ms (~78×). **If you are updating in a loop, use a
+map keyed by index and convert once at the end.**
 
 **`catch` takes ONE bare binder** — `(catch e body…)`, never Clojure's
 `(catch Type e body…)`, which is rejected with a hint. (Reading it Brood's way
@@ -658,7 +675,7 @@ and registers the new pid. The name is auto-reaped on death.
     (receive
       ([:down ^ref _ :normal] :ok)
       ([:down ^ref _ reason]
-        (println "child died: " (pr-str reason) " — restarting")
+        (io/puts "child died: " (pr-str reason) " — restarting")
         (supervise worker-fn)))))
 ```
 
@@ -679,8 +696,8 @@ named form.
 ```
 
 Use it for anything supervised — `std/proc/supervisor.blsp`'s `:start` thunks are
-`(fn () (spawn-link (worker …)))`, and `gen`'s `spawn-server-link` is the
-same idea for a `defprocess` server.
+`(fn () (spawn-link (worker …)))`, and `gen/start-link` is the
+same idea for a `defserver` server.
 
 ## Distributed nodes — named processes & cross-node addressing
 
@@ -690,40 +707,40 @@ a node link (ADR-073). The whole model in one example:
 
 ```lisp
 ;; --- on node "alice" ---------------------------------------------------------
-(node-start "alice")                  ; this runtime is now :alice@host (a keyword)
-(register :inbox (self))              ; bind a LOCAL name -> this pid
+(node/start "alice")                  ; this runtime is now :alice@host (a keyword)
+(proc/register :inbox (self))              ; bind a LOCAL name -> this pid
 (let (bob (connect "bob"))            ; dial peer "bob"; returns its :bob@host name
-  (monitor-node bob)                  ; get [:nodedown :bob@host] when the link drops
-  (send {:name :inbox :node bob} [:hi (node-name)]))   ; reach bob's :inbox
+  (node/monitor bob)                  ; get [:nodedown :bob@host] when the link drops
+  (send {:name :inbox :node bob} [:hi (node/name)]))   ; reach bob's :inbox
 
 ;; --- on node "bob" -----------------------------------------------------------
-(node-start "bob")
-(register :inbox (self))
-(receive ([:hi from] (println "hi from " from)))       ; => hi from :alice@host
+(node/start "bob")
+(proc/register :inbox (self))
+(receive ([:hi from] (io/puts "hi from " from)))       ; => hi from :alice@host
 ```
 
 The three pieces and how they relate:
 
-- **`(register name pid)`** binds `name` → `pid` in *this node's* local registry;
-  **`(whereis name)`** resolves it — **locally only** (`(whereis :inbox)` on alice
-  never sees bob's `:inbox`). Both ends usually `register` the same local name.
+- **`(proc/register name pid)`** binds `name` → `pid` in *this node's* local registry;
+  **`(proc/whereis name)`** resolves it — **locally only** (`(proc/whereis :inbox)` on alice
+  never sees bob's `:inbox`). Both ends usually `proc/register` the same local name.
 - **`{:name :inbox :node :bob@host}`** is the cross-node address — a send-map naming
   a registered process *on a specific node*. `(send {:name … :node …} msg)` is the
-  remote analogue of `(send (whereis name) msg)`: it's how you reach a peer's
+  remote analogue of `(send (proc/whereis name) msg)`: it's how you reach a peer's
   registered process.
-- **`node-start` / `connect` / `node-name` return keywords** (`:bob@host`), not
+- **`node/start` / `connect` / `node/name` return keywords** (`:bob@host`), not
   strings — use them directly as the `:node` value; `(str …)` only for display.
 
-`(nodes)` lists currently-connected peers. `(monitor-node name)` fires
+`(node/list)` lists currently-connected peers. `(node/monitor name)` fires
 `[:nodedown name]` on a clean socket close *or* a heartbeat timeout, so a peer that
 quits or crashes is detected without any app-level goodbye message.
-`(disconnect name)` is the deliberate counterpart: it drops the link to `name`
+`(node/disconnect name)` is the deliberate counterpart: it drops the link to `name`
 **now, without exiting your process** (Erlang's `disconnect_node`), firing
-`[:nodedown]` on both sides and pruning `(nodes)`. Use it to leave a node/cluster
+`[:nodedown]` on both sides and pruning `(node/list)`. Use it to leave a node cluster
 cleanly — no need for an ad-hoc `[:bye]` broadcast. Returns `true` if a link
 existed.
 
-## Stateful servers — the `gen` framework (`(:use gen)`)
+## Stateful servers — the `gen` framework (core, bare)
 
 Raw `spawn`/`receive` is the substrate; for a process that **holds state and
 answers messages** (a gen_server / actor), use `gen`. State is immutable —
@@ -731,35 +748,40 @@ each clause *returns the next state* to carry through the loop. Two message
 kinds:
 
 - **cast** — fire-and-forget; the clause body is the **next state**. Send with
-  `(! pid payload)`.
+  `(cast pid payload)`.
 - **call** — synchronous; the clause body is `[reply next-state]` and the caller
-  blocks for `reply`. Send with `(gen-call pid payload)`.
+  blocks for `reply`. Send with `(call pid payload)`.
 - **query** — synchronous read-only; the body is just the reply, state unchanged.
   Use this for "just read a field" cases to avoid the `[x s]` boilerplate.
 
 ```lisp
-(defmodule my-counter "…" (:use gen))   ; (:use gen) to write
-                                          ; defprocess/cast/gen-call bare
+;; `gen` is an ordinary module: `(:use gen)` refers defserver / start /
+;; cast / call / stop bare. Without it, qualify: `gen/start`, `gen/call`, …
+;; (`call`/`cast`/`stop` are NOT global names — `(def call …)` is yours.)
+(defmodule my-counter "…" (:use gen))
 
-(defprocess counter (n)                 ; n is the state
+(defserver counter (n)                 ; n is the state
   (cast  :inc       (+ n 1))            ; new state = n+1
   (cast  [:add k]   (+ n k))            ; payloads can carry data (pattern binds k)
-  (cast  :ping      (do (println "pong") n))  ; side effect, state unchanged
+  (cast  :ping      (do (io/puts "pong") n))  ; side effect, state unchanged
   (call  :value     [n n])              ; reply n, keep state n
   (query :double    (* n 2)))           ; reply n*2; state untouched
 
-(def c (spawn-server counter 0))        ; spawn with initial state 0 → pid
-(! c :inc)                              ; cast (returns immediately)
-(! c [:add 10])
-(gen-call c :value)                     ; => 11  (synchronous; blocks for reply)
-(gen-call c :double)                    ; => 22  (query — read-only)
+(def c (start counter 0))        ; spawn with initial state 0 → pid
+(cast c :inc)                           ; cast (returns immediately)
+(cast c [:add 10])
+(call c :value)                         ; => 11  (synchronous; blocks for reply)
+(call c :double)                        ; => 22  (query — read-only)
 (stop c)                                ; graceful shutdown; ends the loop
 ```
 
 Other primitives: `(sleep ms)` parks the current process without touching its
-mailbox (it does *not* block a worker thread). `(stop pid)` ends a server
-process's receive loop cleanly — every `gen` process automatically handles
-the stop envelope, no `:stop` clause needed.
+mailbox (it does *not* block a worker thread). `(stop pid)` (i.e. `gen/stop`)
+ends a server process's receive loop cleanly — every `gen` process automatically
+handles the stop envelope, no `:stop` clause needed. `(call pid payload)` blocks
+up to 5 s and `(call-timeout pid payload ms)` sets a custom deadline; a call that
+times out leaves **nothing** in your mailbox — it deactivates its reply ref, and
+the kernel drops a later reply carrying it at delivery (OTP 24's process alias).
 
 **Worker pool — fan out work, fan in results** (plain `spawn`/`receive`, the
 pattern most demos want):
@@ -838,7 +860,7 @@ Writing a live script: just write a normal Brood file. The
 ```lisp
 ;; live.blsp — run with: nest run --watch live.blsp
 (defn my-loop (n)
-  (do (println "iter:" n) (sleep 1000) (my-loop (+ n 1))))
+  (do (io/puts "iter:" n) (sleep 1000) (my-loop (+ n 1))))
 
 (my-loop 0)
 ```
@@ -846,7 +868,7 @@ Writing a live script: just write a normal Brood file. The
 What happens when you save:
 
 - `(defn my-loop …)` re-evaluates — the global rebinds.
-- `(my-loop 0)` is **not** re-run — `reload-defs` skips non-`def*` top-level
+- `(my-loop 0)` is **not** re-run — `system/reload-defs` skips non-`def*` top-level
   forms, so each save doesn't fork a duplicate loop.
 - The running process's next call to `my-loop` late-binds to the new
   closure, picks up your edit on the next iteration (ADR-013).
@@ -891,7 +913,7 @@ To run a one-off entry point without editing the manifest's `:main`, pass
 (try
   (work)
   (catch e
-    (println "failed: " e)))
+    (io/puts "failed: " e)))
 
 (throw [:my-error :reason])              ; throwable values are arbitrary
 (error "x out of range: " x)             ; convenience: throw with a built string
@@ -935,21 +957,22 @@ in the REPL. (`nest doc <module>` does the same for an opt-in module like
   `string/starts-with?` `string/ends-with?` `string/->list` `string/list->`
   `string/->bytes` `string/bytes->`.
   **Bare (core, not in the module):** `str` `pr-str` `index-of` `includes?`
-  `string->number` `->string` (the polymorphic Display op) `name`.
-  There is no `symbol->string`/`number->string` — use `str`, `->string` or `name`
+  `string/->number` `->string` (the polymorphic Display op — on a symbol or keyword it
+  yields the bare spelling, so `(->string :foo)` is `"foo"` while `(str :foo)` is `":foo"`).
+  There is no `symbol->string`/`number->string`/`name` — use `str` or `->string`
   (ADR-239 removed both as redundant).
 - **unicode**: `string/->graphemes` (extended grapheme clusters as a vector of
   strings — the unit a human calls "a character", and what a cursor must step by;
   `"e\u{301}"` is 2 codepoints but 1 cluster) · `string/->codepoints` ·
   `string/normalize` (`(string/normalize s :nfc)`, also `:nfd` `:nfkc` `:nfkd` — `=` is
   byte-structural, so `"é"` written two ways compares unequal until you normalise) ·
-  `display-width` (terminal cells, bare)
+  `string/display-width` (terminal cells, bare)
 - **string formatting**: `string/repeat` `string/pad-left` `string/pad-right`
-  `->fixed` (number → string with fixed decimals, e.g. `(->fixed 3.14159 2)`
+  `->fixed` (number → string with fixed decimals, e.g. `(math/->fixed 3.14159 2)`
   → `"3.14"` — `str` prints full f64 precision, so reach for this for output) ·
   `format` (small printf, e.g. `(format "x=%d y=%.2f" 42 3.14)` → `"x=42 y=3.14"`;
   specifiers `%s %d %f %.Nf %%`; width via `string/pad-left`/`string/pad-right`)
-- **map**: `assoc` `dissoc` `get` `keys` `vals` `contains?` `into` `map-pairs`
+- **map**: `assoc` `dissoc` `get` `keys` `vals` `contains?` `into` `%map-pairs`
   (a map's `[k v]` pairs) `seq` (universal list-view — coerces a map to its
   `[k v]` pairs; lists, vectors, strings, nil pass through). **Maps are seqable**:
   `(map f m)` / `(filter f m)` / `(fold f acc m)` / `(reduce f acc m)` /
@@ -979,7 +1002,7 @@ in the REPL. (`nest doc <module>` does the same for an opt-in module like
   **`/` is exact** (ADR-196): `(/ 1 2)` → `1/2` (a **ratio**, not a float),
   `(/ 6 3)` → `2` (divides evenly → int). `1/2` is a literal; ratios do the full
   tower (ratio+decimal is exact, ratio+float contagion). Reach for `->float`
-  (or `->decimal`) for an inexact result; `numerator`/`denominator` read the parts.
+  (or `decimal/number->`) for an inexact result; `math/numerator`/`math/denominator` read the parts.
   Number types: `int` (bignum on overflow) · `float` · `decimal` (`1.50M`, exact
   base-10) · `ratio` (`1/2`, exact rational). `number?`/`ratio?`/`decimal?` test them.
 - **`math` module** (`math/…`, or `(:use math)`; a qualified `math/sqrt` auto-loads
@@ -987,8 +1010,8 @@ in the REPL. (`nest doc <module>` does the same for an opt-in module like
   `pow` `sqrt` `clamp` `sum` `product`, the sign/parity predicates `positive?`
   `negative?` `even?` `odd?`, and the constants `pi` `e`. **No bare-name magic** — a bare
   `sqrt` with neither a `math/` prefix nor `(:use math)` stays unbound.
-- **bitwise**: `bit-and` `bit-or` `bit-xor` `bit-not` `bit-shift-left`
-  `bit-shift-right` (64-bit, arithmetic right shift; shift amount in `[0,64)`).
+- **bitwise**: `bit/and` `bit/or` `bit/xor` `bit/not` `bit/shift-left`
+  `bit/shift-right` (64-bit, arithmetic right shift; shift amount in `[0,64)`).
 - **randomness** (pure & seedable — there is *no* global RNG; thread the seed):
   every step takes a seed and returns `[value next-seed]`. `rng` (→ a 32-bit
   int), `rand-int` `(seed n)` → `[i next]` in `[0,n)`, `rand-float` `(seed)` →
@@ -996,7 +1019,7 @@ in the REPL. (`nest doc <module>` does the same for an opt-in module like
   stream from any int (e.g. `(now)`) with `rand-seed`. Carry `next-seed` in your
   loop/process state like any other value.
 - **meta / eval**: `apply` (call a fn with a list of args — the only way to
-  splat) `eval` `read-string` `eval-string` `gensym` (fresh symbol, for macros)
+  splat) `eval` `reflect/read-string` `eval-string` `gensym` (fresh symbol, for macros)
 - **discovery / introspection**: `doc` `arglist` `bound?` `source-location`;
   and to *find* what exists rather than guess names — `global-names`,
   `apropos` (name substring, e.g. `(apropos "rand")`), `doc-search` (matches
@@ -1005,26 +1028,29 @@ in the REPL. (`nest doc <module>` does the same for an opt-in module like
   probing names one at a time.
 - **timing**: `now` (ms since epoch) `now-ns` (ns since epoch) `bench`
   (macro: `(bench "label" expr)` prints `label: N ms`, returns `expr`)
-- **I/O**: `print` `println` `file/slurp` `file/spit` `load` `eval-string` `read-string`.
-  `print`/`println` **space-join** their args (Python-style, via `%render`) —
+- **I/O**: `io/write` `io/puts` `io/inspect` `file/slurp` `file/spit` `load` `eval-string`
+  `reflect/read-string`. `io/puts` is the everyday one (newline); `io/write` omits it and
+  `io/inspect` prints the re-readable form. Each takes an optional trailing `:to <port>`
+  (`(io/puts "boom" :to *err*)`), which is how stderr is written — there is no separate
+  `eprint` family. They **space-join** their args (Python-style, via `%render`) —
   distinct from `str`, which concatenates. A **record** defines how it prints on screen
   (Elixir's `String.Chars`) via the core, always-on `Display` ability: just
   `(impl Display my/rec (->string [r] …))` and the screen printers honor it — no import,
   no activation step; built-ins unchanged (ADR-171/172).
-  `print`/`println` **flush stdout every call** — there's no separate flush, so
+  These **flush stdout every call** — there's no separate flush, so
   an animation frame paints immediately. For raw terminal control without the
   full display protocol, `(:use editor/ansi)` in your `defmodule` header (or a
   qualified `editor/ansi/ansi-clear`, which auto-loads) gives
   `(ansi-clear)`/`(ansi-home)`/
   `(ansi-cursor r c)`/`(ansi-hide-cursor)` — **zero-arg functions you call**, each
-  *returning* an escape string. Call them: `(print (ansi-clear))`, **never**
-  `(print ansi-clear)` (a bare symbol prints `#<fn …>` and emits no escape). The
+  *returning* an escape string. Call them: `(io/write (ansi-clear))`, **never**
+  `(io/write ansi-clear)` (a bare symbol prints `#<fn …>` and emits no escape). The
   ESC byte is the `\e` string escape. (For a render-op frame buffer, use
   `std/display`.)
 - **Filesystem (stat-class)**: `file/exists?` `file/dir?` `file/ls` `file/mtime` `file/stat`
 - **processes**: `spawn` (incl. named-spawn `(spawn :name expr)`) `spawn-link`
   `send` `receive` `self` `ref` `monitor` `demonitor` `link` `unlink` `trap-exit`
-  `register` `whereis`
+  `proc/register` `proc/whereis`
   — plus the **`gen`** framework below
 - **lazy fusing views**: `lmap` `lfilter` `lkeep` `lremove` (thread with `->>`;
   realise with `seq`/`into`) plus `comp` for function composition
@@ -1037,11 +1063,24 @@ in the REPL. (`nest doc <module>` does the same for an opt-in module like
   `fold` / `map` / `filter` / `reduce`.
 - **Calls are `(f x)`, never `f(x)`.** Brood has no C-style call syntax: `f(x)`
   reads as *two* forms — `f`, then `(x)` — so the `(x)` tries to *call the value
-  of* `x` and you get `cannot call non-function`. Write `(println "hi")`, not
-  `println("hi")`. (The evaluator now hints this when the mis-called head is a
+  of* `x` and you get `cannot call non-function`. Write `(io/puts "hi")`, not
+  `io/puts("hi")`. (The evaluator now hints this when the mis-called head is a
   literal.)
 - **Bare symbols in patterns *bind*.** Match a literal symbol with `'foo`;
   match a runtime value with `~expr`.
+- **A wrong `(sig …)` is a warning, not a shrug** (ADR-259). A misspelled type or
+  constructor (`strng`, `(tupel int)`), a sig whose arity contradicts its `defn`,
+  and a sig for a name the file never defines are all reported — a declaration used
+  to be dropped in silence, which quietly widened the position it was meant to pin.
+  The **definition** owns the arity, so a sig cannot make a wrong call look right.
+  Type grammar beyond the basics: `(or A B)`, `(and A B)`, `(not T)` — so "anything
+  but nil" is `(and any (not nil))` — `(vector E)`, `(map K V)`, `(tuple A B)`,
+  `(record :k T)`, and bare literals (`:ok`, `5`, `true`, `"GET"`).
+- **A `(record …)` is CLOSED** (ADR-264) — it names every key, and one it doesn't
+  declare reads as `nil`. Write `(record &open :k T)` when a value may carry more,
+  which is what a *parameter* usually wants. Closedness is what makes a tagged union
+  work: `(get r :ok)` over `(or (record :ok int) (record :error string))` is
+  `int | nil`, since the other alternative says `:ok` is absent.
 - **`=` is structural** and recursive — two unrelated structures that look the
   same compare equal.
 - **Variadic operators**: `(+ a b c)` works. The fast 2-arg primitives, when
@@ -1126,7 +1165,7 @@ apps* above; needs a `--features gui` build).
 
 (defn main ()
   "Entry point: print the project's greeting."
-  (println (greeting)))
+  (io/puts (greeting)))
 ```
 
 ```lisp
