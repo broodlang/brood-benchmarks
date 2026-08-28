@@ -74,16 +74,15 @@ range directly.
 recomputed per pixel), not from the runtime. Both fixed; history in the brood devlog.
 
 **`collatz` nearly doubled between the 2026-08-27 and 2026-08-28 runs (95 → 185 ms), and the
-runtime did not regress.** The port moved from bare `rem`/`quot`/`max` to qualified `math/*`,
-because the namespacing waves retired the bare names — the row had to change to keep running at
-all. Those are the *public* API and the port is right to call them, but `math/rem` and
-`math/quot` are Brood functions wrapping a primitive and `math/max` is **variadic over `apply`**,
-where the bare names it replaced resolved straight to primitives. Measured on one binary, same
-program shape: qualified **205 ms**, the same names referred bare via `(:use math)` **204 ms**,
-the primitives directly **121 ms**. So qualification costs nothing and the wrappers cost ~40%; a
-brood-side A/B across `v0.14.1..HEAD` reads `collatz` flat, which is the other half of the
-evidence. Fifteen of the 31 rows call `math/*`, so this is a suite-wide floor rather than one
-row's story — see [`FRONTIER.md`](FRONTIER.md).
+runtime did not regress.** The port had to move off bare `rem`/`quot`/`max`, which the namespacing
+waves retired, onto qualified `math/*` — and one of the three it moved to is **variadic**. Isolated
+on one binary: all three qualified **223 ms**; the same with `%max` called directly **142 ms**; all
+three primitives **142 ms**. The middle equals the bottom, so `math/rem` and `math/quot` are free
+(a fixed-arity one-primitive body is inlined into its caller — `steps` lowers to native with no
+`Call` instruction at all) and the whole delta is `math/max`, which is `(apply %max xs)` and cannot
+be. Qualification itself costs nothing: bare via `(:use math)` measured 204 ms against 205 ms.
+A brood-side A/B across `v0.14.1..HEAD` reads `collatz` flat. See [`FRONTIER.md`](FRONTIER.md) —
+the lever is variadic dispatch, not wrappers in general.
 
 **<sup>c</sup> Clojure runs cold.** A fresh JVM per run (~0.34 s) never fully JIT-compiles the
 hot loop; a long-running service would beat every number in its column.
