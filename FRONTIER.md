@@ -47,8 +47,14 @@ reference, so these read "vs roughly the hardware", not "vs the fastest managed 
   .NET here, so the row is close to its arithmetic limit for everyone.
 - **`matmul` (59× C)** — inner loop is native; residual is the one read LICM can't hoist plus boxed
   `Value` array storage. Both denominators are ~2–4 ms, so read the absolute, not the multiple.
-- **`pipeline` (8.7×)** — lazy-seq/transducer composition the JIT doesn't cover; allocation churn
-  dominates. Re-profiled at N=10M (self time):
+- **`pipeline` (8.7×)** — lazy-seq/transducer composition the JIT doesn't cover. **The
+  "allocation churn dominates" half of this entry was withdrawn 2026-08-28: it does not.**
+  Scoped counters (`perf/measure`, size-swept 100k → 1M so only work-proportional counters
+  count) put `alloc` at **15, flat** — `alloc_slot!` is the one macro behind every LOCAL heap
+  allocation, so the lazy `lfilter`/`lmap` form really does stream without allocating per
+  element. What scales is **1.48 `jit-link-done` and 1.40 `env-get` per element**: the cost is
+  the call path, ~1.5 fast-linked calls an element. The profile below (call plumbing ~50%) is
+  the half that stands. Re-profiled at N=10M (self time):
 
   | share | symbol | what it is |
   |---|---|---|
