@@ -97,10 +97,15 @@ jobs:
         working-directory: brood-src
         run: cargo build --release --bin brood
 
+      # Elixir >= 1.18: `bench/elixir/json.ex` uses the **built-in `JSON` module**, which
+      # landed in 1.18. Pinned at "1.17" this job failed on `json/elixir` alone — CI was
+      # testing an Elixir older than the one the published numbers are measured on
+      # (1.21.0-dev / OTP 28), so the only thing it proved was that the pin was stale.
+      # A pin below the measured environment can only produce failures nobody can act on.
       - uses: erlef/setup-beam@v1
         with:
           otp-version: "27"
-          elixir-version: "1.17"
+          elixir-version: "1.18"
 
       - name: Smoke — brood + the interpreted ports, checksums compared
         run: |
