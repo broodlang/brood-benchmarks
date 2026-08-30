@@ -252,14 +252,21 @@ against warm. Binary size does not imply footprint either: brotli added 1.2 MB o
 [Memory and startup](#memory-peak-rss-and-startup).)
 
 **Brood vs Elixir** is the one end-to-end like-for-like column — the only other runtime here with
-both persistent structures and isolated preemptive processes. Brood leads `pfib` (1.5×) and `http`
-(3.4×) and ties `spawn`; Elixir leads `pingpong` (3.0×), `ring` (2.5×) and `supervisor` (2.9×).
+both persistent structures and isolated preemptive processes. Brood leads `pfib` (1.4×) and `http`
+(3.1×); Elixir leads `spawn` (2.1×), `ring` (2.9×), `supervisor` (3.1×) and `pingpong` (3.3×).
 
-**Those three gaps are not per-message cost.** Measured directly in Brood, a `send` + `receive`
-costs **1.1 µs** and a full round trip **4.3 µs** — nowhere near what those rows imply. What
-`latency` was actually paying was the interval between `spawn` and the handler's first instruction,
-which is scheduling; fixing that moved p50 27 → 16 µs without touching the message path at all. The
-remaining gap is open — re-derive it rather than attributing it to messaging.
+**The `pingpong`/`ring` gap IS per-message fixed cost, decomposed 2026-08-30** (an earlier
+version of this paragraph claimed otherwise from a stale micro-measurement — the row itself is
+the honest meter: `pingpong`'s compute over its 100k round trips is ~865 ns/message against
+BEAM's ~265). Two mechanical slices came out that day — an unconditional futex wake per
+delivery (−19.7%) and a quasiquote that kept `receive` expansion on the tree-walker (−4%) —
+and the profiled remainder splits three ways: the receive loop is structurally *interpreted*
+(a `receive` suspends, so its arm can never JIT — the `%receive` fence; ~16% of the row), a
+full capture-park/wake/matcher-reactivation cycle per message (~16% across `run_one` +
+`receive_match` + enqueue), and the copying send. The recorded levers are brood's
+compute-frontier §7.3 (receive as a native exit) and runtime-frontier's per-message list.
+`latency`'s tail was a different animal — spawn-to-first-instruction scheduling; fixing that
+moved p50 27 → 16 µs without touching the message path.
 
 The mailbox-backlog cliff underneath is **closed**: a `receive` pinned on a fresh `ref` starts its
 scan past every message that predates the ref, making request/reply O(1) in the backlog rather than
