@@ -129,6 +129,12 @@ reference, so these read "vs roughly the hardware", not "vs the fastest managed 
   runtime regression: the port had to migrate off the retired bare names, and one of the three it
   moved to is variadic.
 
+  **Closed at 0.18.1 (2026-08-30 Brood-column refresh): `collatz` is back to 92 ms** — the
+  variadic call-shape cost above was fixed in the brood runtime during the 0.16–0.18 window,
+  so the row recovered without the port changing. The multi-arity-dispatch prescription this
+  entry pointed at is no longer collatz's gap; what remains of the row is the tier-1 JIT's
+  ordinary integer-loop story (3/8, +2.8× vs C).
+
 - **`sort`** — do not re-optimise the comparator (already unboxed). The suite's heaviest row for
   memory; the allocation volume is the cost, not collection.
 - **`primes`, `pipeline` regressions — both CLOSED.** Kept only for the methodology below.
