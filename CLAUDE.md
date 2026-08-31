@@ -41,6 +41,21 @@ python3 bench/harness.py --langs brood,node
 python3 bench/chart.py                # regenerate results/overview.svg from results.json
 ```
 
+- **A Brood-only column refresh MUST be the min over ≥3 interleaved harness
+  invocations — one invocation is a coin flip.** This box's `powersave` governor
+  parks cores at 800 MHz and boosts to ~4.2 GHz, and a harness invocation lands on
+  one of (at least) two turbo plateaus and STAYS there for all of its runs — so
+  best-of-N inside one invocation hides nothing, while two invocations minutes apart
+  read the same row 17% apart (`regex` 119.5 vs 139.3 ms, same binary, same box,
+  2026-08-31). A single-invocation refresh published exactly that coin flip as a
+  "regression" and cost a multi-hour forensic chase; the code span measured +0.0%
+  under `ab-bench` the whole time. Min-of-3 is the stable measurand (both binaries'
+  min-of-3 agreed to 0.2%). When a row still looks moved after min-of-3, verify with
+  the SAME treatment on the previous column's commit (rebuild it, PATH-override the
+  harness) or brood's `scripts/ab-bench.sh --floor` — never against the published
+  number alone, which was itself one sample. Concurrency rows (`NOISY`) drift several
+  percent beyond even that.
+
 - **Run the cross-language gate ONCE per code change, then iterate Brood-only.** After
   editing benchmark programs, run `python3 bench/smoke.py --langs all` **once** to establish
   that every port still runs and the checksums agree. After that, while iterating, run
