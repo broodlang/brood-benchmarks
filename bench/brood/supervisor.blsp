@@ -39,7 +39,7 @@
 (defn collector (pids k)
   (receive
     ([:up p] (collector (cons p pids) (+ k 1)))
-    ([:take want from] (do (send from [:pids (take want pids) k]) (collector pids k)))
+    ([:take want from] (do (send from [:pids (take pids want) k]) (collector pids k)))
     ([:count-at-least want from] (if (>= k want)
                                    (do (send from [:reached k]) (collector pids k))
                                    (do (send (self) [:count-at-least want from]) (collector pids k))))))
