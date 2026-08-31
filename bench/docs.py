@@ -138,11 +138,21 @@ def machine_line(res):
     brood = brood_version(res)
     elixir = re.sub(r" \(compiled with Erlang/OTP (\d+)\)", r" / OTP \1", v["elixir"])
     elixir = elixir.replace("Elixir ", "").replace(" (", " (")
+    # A Brood-only refresh (harness --langs brood merged over the field) updates the
+    # Brood column without re-measuring the others. The bare field date then reads as
+    # "this page is stale" even though the Brood numbers are fresh — surface the
+    # refresh date the merge records in `_meta.brood_refresh`.
+    refresh = ""
+    br = m.get("brood_refresh", "")
+    mdate = re.search(r"re-measured (\d{4}-\d{2}-\d{2})", br)
+    if mdate and mdate.group(1) != date:
+        refresh = f" **Brood column re-measured {mdate.group(1)}** (other columns from the field run)."
     return (
         f"Machine: `{m['host']}`, {m['cores']}-core x86-64, "
         f"Linux {m['platform'].split('-')[1]}, **{date}** · Brood {brood} · "
         f"{v['clojure']} · Elixir {elixir} · {v['python']} · Node {v['node']} · "
         f"Ruby {v['ruby'].split(' (')[0].replace('ruby ', '')} · .NET {v['dotnet']}."
+        f"{refresh}"
     )
 
 
