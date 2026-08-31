@@ -7,4 +7,4 @@
 ;; strings + a 500k-element list that `%string-join` then re-rendered anyway.
 ;; Native `%string-join` streams an int range straight into one buffer (no
 ;; intermediate collection) — all immutable, no string builder.
-(io/puts (string/length (string/join "," (range n))))
+(io/puts (string/length (string/join (range n) ",")))

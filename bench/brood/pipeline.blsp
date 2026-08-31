@@ -8,11 +8,11 @@
 ;; Python generator expression, and .NET LINQ all stream without building
 ;; intermediate collections. Brood's `seq/lfilter`/`seq/lmap` build lazy sequences, so the
 ;; range flows through filter → map → reduce one element at a time (no fully
-;; materialized intermediate lists). The eager `(->> (range n) (filter …) (map …)
+;; materialized intermediate lists). The eager `(-> (range n) (filter …) (map …)
 ;; (reduce …))` is still idiomatic Brood and would build a cons list per stage.
 (defn mult35? (i) (or (= 0 (math/rem i 3)) (= 0 (math/rem i 5))))
 
-(io/puts (->> (range n)
+(io/puts (-> (range n)
            (seq/lfilter mult35?)
            (seq/lmap (fn (i) (* i i)))
-           (reduce + 0)))
+           (reduce 0 +)))

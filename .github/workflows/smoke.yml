@@ -58,12 +58,27 @@ jobs:
       # CLAUDE.md records the bogus A/B that came from exactly this).
       - name: Build brood
         working-directory: brood-src
-        run: cargo build --release --bin brood
+        # `nest` too: the static check step below needs it, and it shares the whole
+        # dependency graph with `brood`, so it is nearly free once brood is built.
+        run: cargo build --release --bin brood --bin nest
 
       - name: Report the brood under test
         run: |
           brood-src/target/release/brood --version
           git -C brood-src log -1 --format='brood %h %s'
+
+      # STATIC check before the run, because a run only proves the paths it takes.
+      # `bench/` is outside `:source-paths`, so a plain `nest check` never saw these
+      # files: the brood 0.20.0 rename wave left `(string/join "," (range n))`,
+      # `(->> …)` and `(take want pids)` in three rows, and `nest check` on the repo
+      # reported ZERO. The last of those did not even fail loudly — it killed the
+      # collector process, so the row hung for the full 180s timeout instead of
+      # naming a line. `nest check` exits 1 on all three; the non-tail-recursion
+      # lint the benchmarks trip on purpose (fib, ackermann, bintree) is advisory
+      # and does not gate, so this step is quiet until something is really wrong.
+      - name: nest check the bench rows (they live outside :source-paths)
+        run: |
+          brood-src/target/release/nest check bench/brood/*.blsp
 
       - name: Smoke — every brood row runs at a tiny BENCH_N
         run: python3 bench/smoke.py --brood brood-src/target/release/brood
