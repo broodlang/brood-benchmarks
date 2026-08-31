@@ -17,4 +17,4 @@
       (go (+ i 1) x2 (%map-int-add acc key (+ 1 (math/rem key 7)))))))
 
 (def final (go 0 123456789 {}))
-(io/puts (reduce (fn (a kv) (let ([k v] kv) (+ a (* k v)))) 0 final))
+(io/puts (reduce final 0 (fn (a kv) (let ([k v] kv) (+ a (* k v))))))

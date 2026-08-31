@@ -4,5 +4,5 @@
 (project
   :name "benchmark"
   :version "0.1.0"
-  :brood ">= 0.14.1"
+  :brood ">= 0.20.0"
   :source-paths ["src"])
