@@ -15,6 +15,6 @@
 (def bs (reverse (gen 0 123456789 (list))))
 (def enc (encoding/base64-encode-bytes bs))
 (def decoded (encoding/base64-decode-bytes enc))
-(def enc-sum (reduce (fn (a c) (math/rem (+ a c) 2147483647)) 0 (string/->codepoints enc)))
-(def dec-sum (reduce (fn (a b) (math/rem (+ a b) 2147483647)) 0 decoded))
+(def enc-sum (reduce (string/->codepoints enc) 0 (fn (a c) (math/rem (+ a c) 2147483647))))
+(def dec-sum (reduce decoded 0 (fn (a b) (math/rem (+ a b) 2147483647))))
 (io/puts (math/rem (+ enc-sum dec-sum) 2147483647))

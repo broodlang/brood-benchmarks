@@ -2,8 +2,8 @@
 (def md 1000000007)
 
 ;; vectors of vectors — O(1) indexing via nth
-(def a (into [] (map (fn (i) (into [] (map (fn (j) (math/rem (+ i j) 100)) (range n)))) (range n))))
-(def b (into [] (map (fn (i) (into [] (map (fn (j) (math/rem (* i j) 100)) (range n)))) (range n))))
+(def a (into [] (map (range n) (fn (i) (into [] (map (range n) (fn (j) (math/rem (+ i j) 100))))))))
+(def b (into [] (map (range n) (fn (i) (into [] (map (range n) (fn (j) (math/rem (* i j) 100))))))))
 
 (defn dot (rowa j k acc)
   (if (>= k n)

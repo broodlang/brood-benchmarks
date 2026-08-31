@@ -11,4 +11,4 @@
 
 (def counts (gen 123456789 {} 0))
 
-(io/puts (reduce (fn (acc kv) (let ([k v] kv) (+ acc (* k v)))) 0 counts))
+(io/puts (reduce counts 0 (fn (acc kv) (let ([k v] kv) (+ acc (* k v))))))
