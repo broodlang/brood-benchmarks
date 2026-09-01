@@ -56,6 +56,16 @@ python3 bench/chart.py                # regenerate results/overview.svg from res
   number alone, which was itself one sample. Concurrency rows (`NOISY`) drift several
   percent beyond even that.
 
+- **A published column that has stopped describing the runtime hides regressions, and no
+  other gate here can see that.** `smoke.py` proves the rows *run* and that their checksums
+  *agree*; both stay green through an arbitrarily large slowdown. On 2026-09-01 the Brood
+  column was three releases stale and had a real 4–10% compute regression in it (see
+  FRONTIER.md). `python3 bench/staleness.py --brood <path>` compares the commit the column
+  was measured at against the binary under test; the daily workflow runs it with
+  `--fail-on-version`, so a release boundary nags and ordinary pushes do not. It measures
+  nothing on purpose — a timing gate on a shared CI runner cannot tell a 7% regression from
+  a turbo plateau, and a gate that cries wolf gets ignored.
+
 - **Run the cross-language gate ONCE per code change, then iterate Brood-only.** After
   editing benchmark programs, run `python3 bench/smoke.py --langs all` **once** to establish
   that every port still runs and the checksums agree. After that, while iterating, run
