@@ -1,7 +1,7 @@
 # Brood vs Clojure vs Elixir vs Python vs Node vs Ruby vs .NET vs C — benchmark results
 
 > **Machine:** `whklat` (12 cores), Linux-7.0.0-30-generic-x86_64-with-glibc2.43 — 2026-08-28 15:24.
-> **Runtimes:** Brood brood 0.22.0 (60a2f6ec); Clojure Clojure 1.12.5 / JDK 25.0.4; Elixir Elixir 1.21.0-dev (b82c44a) (compiled with Erlang/OTP 28); Python Python 3.14.4; Node v22.21.0; Ruby ruby 3.3.8 (2025-04-09 revision b200bad6cd) [x86_64-linux-gnu]; .NET 10.0.111; C gcc (Ubuntu 15.2.0-16ubuntu1) 15.2.0.
+> **Runtimes:** Brood brood 0.23.1 (67ee0621); Clojure Clojure 1.12.5 / JDK 25.0.4; Elixir Elixir 1.21.0-dev (b82c44a) (compiled with Erlang/OTP 28); Python Python 3.14.4; Node v22.21.0; Ruby ruby 3.3.8 (2025-04-09 revision b200bad6cd) [x86_64-linux-gnu]; .NET 10.0.111; C gcc (Ubuntu 15.2.0-16ubuntu1) 15.2.0.
 > **Isolation:** taskset pin (compute→cores 8-11, concurrency→0-11); 0.25s settle.
 > **Warmup:** one discarded startup run per language.
 
@@ -11,7 +11,7 @@ _best of 3 runs; startup best of 9; spawn/pfib/http best of 7 per program; full 
 
 | lang | compute | vs fastest | pos | wall | startup | peak RSS | mem | cores | CPU·s | vs best CPU | checksum |
 |------|---------|------------|-----|------|---------|----------|-----|-------|-------|-------------|----------|
-| brood | 22.2ms | 11.7× | 5/8 | 22.2ms | — | 72.0 MB | 7/8 | 1.4× | 0.03 | 18.6× | 0 |
+| brood | 22.5ms | 11.8× | 5/8 | 22.5ms | — | 72.6 MB | 7/8 | 1.4× | 0.03 | 19.5× | 0 |
 | clojure | 340.3ms | 179.1× | 8/8 | 340.3ms | — | 103.9 MB | 8/8 | 2.4× | 0.80 | 480.3× | 0 |
 | elixir | 183.4ms | 96.5× | 7/8 | 183.4ms | — | 71.7 MB | 6/8 | 1.8× | 0.33 | 199.6× | 0 |
 | python | 10.1ms | 5.3× | 2/8 | 10.1ms | — | 9.6 MB | 2/8 | 1.0× | 0.01 | 6.0× | 0 |
@@ -24,7 +24,7 @@ _best of 3 runs; startup best of 9; spawn/pfib/http best of 7 per program; full 
 
 | lang | compute | vs fastest | pos | wall | startup | peak RSS | mem | cores | CPU·s | vs best CPU | checksum |
 |------|---------|------------|-----|------|---------|----------|-----|-------|-------|-------------|----------|
-| brood | 74.6ms | 6.2× | 3/8 | 96.8ms | 22.2ms | 86.2 MB | 7/8 | 1.3× | 0.12 | 8.8× | 9227465 |
+| brood | 74.7ms | 6.2× | 3/8 | 97.2ms | 22.5ms | 82.3 MB | 7/8 | 1.3× | 0.12 | 8.9× | 9227465 |
 | clojure | 163.3ms | 13.5× | 6/8 | 503.6ms | 340.3ms | 108.8 MB | 8/8 | 2.5× | 1.24 | 88.5× | 9227465 |
 | elixir | 75.8ms | 6.3× | 4/8 | 259.2ms | 183.4ms | 70.6 MB | 6/8 | 1.6× | 0.40 | 28.9× | 9227465 |
 | python | 802.4ms | 66.3× | 8/8 | 812.5ms | 10.1ms | 9.8 MB | 2/8 | 1.0× | 0.80 | 57.5× | 9227465 |
@@ -37,9 +37,9 @@ _best of 3 runs; startup best of 9; spawn/pfib/http best of 7 per program; full 
 
 | lang | compute | vs fastest | pos | wall | startup | peak RSS | mem | cores | CPU·s | vs best CPU | checksum |
 |------|---------|------------|-----|------|---------|----------|-----|-------|-------|-------------|----------|
-| brood | 50.1ms | 8.9× | 4/8 | 72.3ms | 22.2ms | 90.3 MB | 7/8 | 1.4× | 0.10 | 15.7× | 449999985000000 |
+| brood | 51.0ms | 9.1× | 5/8 | 73.5ms | 22.5ms | 88.6 MB | 7/8 | 1.4× | 0.10 | 15.9× | 449999985000000 |
 | clojure | 147.5ms | 26.3× | 6/8 | 487.8ms | 340.3ms | 110.0 MB | 8/8 | 2.5× | 1.22 | 195.9× | 449999985000000 |
-| elixir | 50.4ms | 9.0× | 5/8 | 233.8ms | 183.4ms | 72.4 MB | 6/8 | 1.6× | 0.39 | 62.0× | 449999985000000 |
+| elixir | 50.4ms | 9.0× | 4/8 | 233.8ms | 183.4ms | 72.4 MB | 6/8 | 1.6× | 0.39 | 62.0× | 449999985000000 |
 | python | 1.532s | 273.6× | 8/8 | 1.542s | 10.1ms | 9.6 MB | 2/8 | 1.0× | 1.53 | 245.3× | 449999985000000 |
 | node | 29.7ms | 5.3× | 3/8 | 47.7ms | 18.0ms | 50.0 MB | 5/8 | 1.0× | 0.05 | 7.8× | 449999985000000 |
 | ruby | 580.7ms | 103.7× | 7/8 | 619.3ms | 38.6ms | 19.0 MB | 3/8 | 1.0× | 0.61 | 98.5× | 449999985000000 |
@@ -50,7 +50,7 @@ _best of 3 runs; startup best of 9; spawn/pfib/http best of 7 per program; full 
 
 | lang | compute | vs fastest | pos | wall | startup | peak RSS | mem | cores | CPU·s | vs best CPU | checksum |
 |------|---------|------------|-----|------|---------|----------|-----|-------|-------|-------------|----------|
-| brood | 4.0ms | 4.0× | 2/8 | 26.2ms | 22.2ms | 81.7 MB | 7/8 | 1.5× | 0.04 | 14.0× | 12499997500000 |
+| brood | 4.0ms | 4.0× | 2/8 | 26.5ms | 22.5ms | 82.2 MB | 7/8 | 1.5× | 0.04 | 14.6× | 12499997500000 |
 | clojure | 188.2ms | 188.2× | 7/8 | 528.5ms | 340.3ms | 221.0 MB | 8/8 | 2.4× | 1.27 | 454.9× | 12499997500000 |
 | elixir | 33.2ms | 33.2× | 4/8 | 216.6ms | 183.4ms | 71.2 MB | 6/8 | 1.6× | 0.35 | 126.1× | 12499997500000 |
 | python | 105.0ms | 105.0× | 6/8 | 115.1ms | 10.1ms | 10.5 MB | 2/8 | 1.0× | 0.11 | 40.7× | 12499997500000 |
@@ -63,7 +63,7 @@ _best of 3 runs; startup best of 9; spawn/pfib/http best of 7 per program; full 
 
 | lang | compute | vs fastest | pos | wall | startup | peak RSS | mem | cores | CPU·s | vs best CPU | checksum |
 |------|---------|------------|-----|------|---------|----------|-----|-------|-------|-------------|----------|
-| brood | 57.6ms | 8.5× | 5/8 | 79.8ms | 22.2ms | 90.1 MB | 7/8 | 1.4× | 0.11 | 12.4× | 13848 |
+| brood | 57.2ms | 8.4× | 5/8 | 79.7ms | 22.5ms | 86.7 MB | 7/8 | 1.3× | 0.11 | 12.3× | 13848 |
 | clojure | 142.8ms | 21.0× | 8/8 | 483.1ms | 340.3ms | 109.3 MB | 8/8 | 2.5× | 1.23 | 141.0× | 13848 |
 | elixir | 20.2ms | 3.0× | 4/8 | 203.6ms | 183.4ms | 70.5 MB | 6/8 | 1.7× | 0.34 | 39.5× | 13848 |
 | python | 95.4ms | 14.0× | 6/8 | 105.5ms | 10.1ms | 9.9 MB | 2/8 | 1.0× | 0.10 | 12.0× | 13848 |
@@ -76,7 +76,7 @@ _best of 3 runs; startup best of 9; spawn/pfib/http best of 7 per program; full 
 
 | lang | compute | vs fastest | pos | wall | startup | peak RSS | mem | cores | CPU·s | vs best CPU | checksum |
 |------|---------|------------|-----|------|---------|----------|-----|-------|-------|-------------|----------|
-| brood | 93.7ms | 2.8× | 3/8 | 115.9ms | 22.2ms | 83.9 MB | 7/8 | 1.2× | 0.14 | 4.0× | 442 |
+| brood | 93.7ms | 2.8× | 3/8 | 116.2ms | 22.5ms | 82.4 MB | 7/8 | 1.2× | 0.14 | 4.0× | 442 |
 | clojure | 210.8ms | 6.3× | 6/8 | 551.1ms | 340.3ms | 109.1 MB | 8/8 | 2.3× | 1.28 | 36.4× | 442 |
 | elixir | 110.2ms | 3.3× | 4/8 | 293.6ms | 183.4ms | 71.3 MB | 6/8 | 1.5× | 0.45 | 12.6× | 442 |
 | python | 2.390s | 71.6× | 8/8 | 2.400s | 10.1ms | 9.8 MB | 2/8 | 1.0× | 2.38 | 67.3× | 442 |
@@ -89,7 +89,7 @@ _best of 3 runs; startup best of 9; spawn/pfib/http best of 7 per program; full 
 
 | lang | compute | vs fastest | pos | wall | startup | peak RSS | mem | cores | CPU·s | vs best CPU | checksum |
 |------|---------|------------|-----|------|---------|----------|-----|-------|-------|-------------|----------|
-| brood | 191.4ms | 11.3× | 5/8 | 213.6ms | 22.2ms | 80.3 MB | 7/8 | 1.1× | 0.24 | 13.0× | 6129302 |
+| brood | 192.4ms | 11.4× | 5/8 | 214.9ms | 22.5ms | 84.5 MB | 7/8 | 1.1× | 0.24 | 12.9× | 6129302 |
 | clojure | 162.7ms | 9.6× | 4/8 | 503.0ms | 340.3ms | 116.1 MB | 8/8 | 2.5× | 1.28 | 68.2× | 6129302 |
 | elixir | 250.1ms | 14.8× | 6/8 | 433.5ms | 183.4ms | 70.1 MB | 6/8 | 1.3× | 0.58 | 30.9× | 6129302 |
 | python | 1.493s | 88.3× | 8/8 | 1.503s | 10.1ms | 9.9 MB | 2/8 | 1.0× | 1.49 | 79.1× | 6129302 |
@@ -102,7 +102,7 @@ _best of 3 runs; startup best of 9; spawn/pfib/http best of 7 per program; full 
 
 | lang | compute | vs fastest | pos | wall | startup | peak RSS | mem | cores | CPU·s | vs best CPU | checksum |
 |------|---------|------------|-----|------|---------|----------|-----|-------|-------|-------------|----------|
-| brood | 131.6ms | 54.8× | 5/8 | 153.8ms | 22.2ms | 112.1 MB | 7/8 | 1.2× | 0.19 | 88.0× | 654353666 |
+| brood | 131.0ms | 54.6× | 5/8 | 153.5ms | 22.5ms | 110.1 MB | 7/8 | 1.2× | 0.19 | 89.2× | 654353666 |
 | clojure | 205.9ms | 85.8× | 6/8 | 546.2ms | 340.3ms | 118.3 MB | 8/8 | 2.6× | 1.43 | 663.1× | 654353666 |
 | elixir | 61.5ms | 25.6× | 4/8 | 244.9ms | 183.4ms | 76.7 MB | 6/8 | 1.6× | 0.39 | 183.4× | 654353666 |
 | python | 447.4ms | 186.4× | 8/8 | 457.5ms | 10.1ms | 10.3 MB | 2/8 | 1.0× | 0.45 | 210.7× | 654353666 |
@@ -115,7 +115,7 @@ _best of 3 runs; startup best of 9; spawn/pfib/http best of 7 per program; full 
 
 | lang | compute | vs fastest | pos | wall | startup | peak RSS | mem | cores | CPU·s | vs best CPU | checksum |
 |------|---------|------------|-----|------|---------|----------|-----|-------|-------|-------------|----------|
-| brood | 11.0ms | 2.6× | 2/8 | 33.2ms | 22.2ms | 94.0 MB | 6/8 | 1.6× | 0.05 | 11.3× | 3388889 |
+| brood | 10.3ms | 2.4× | 2/8 | 32.8ms | 22.5ms | 94.3 MB | 6/8 | 1.5× | 0.05 | 10.9× | 3388889 |
 | clojure | 171.8ms | 40.0× | 8/8 | 512.1ms | 340.3ms | 168.4 MB | 7/8 | 2.5× | 1.28 | 275.3× | 3388889 |
 | elixir | 121.6ms | 28.3× | 7/8 | 305.0ms | 183.4ms | 200.2 MB | 8/8 | 1.5× | 0.46 | 99.0× | 3388889 |
 | python | 44.3ms | 10.3× | 4/8 | 54.4ms | 10.1ms | 39.9 MB | 3/8 | 1.0× | 0.05 | 11.5× | 3388889 |
@@ -128,7 +128,7 @@ _best of 3 runs; startup best of 9; spawn/pfib/http best of 7 per program; full 
 
 | lang | compute | vs fastest | pos | wall | startup | peak RSS | mem | cores | CPU·s | vs best CPU | checksum |
 |------|---------|------------|-----|------|---------|----------|-----|-------|-------|-------------|----------|
-| brood | 41.9ms | 34.9× | 4/8 | 64.1ms | 22.2ms | 96.4 MB | 7/8 | 1.4× | 0.09 | 29.6× | 374854840 |
+| brood | 41.1ms | 34.2× | 4/8 | 63.6ms | 22.5ms | 92.6 MB | 7/8 | 1.5× | 0.09 | 30.0× | 374854840 |
 | clojure | 287.8ms | 239.8× | 8/8 | 628.1ms | 340.3ms | 303.3 MB | 8/8 | 2.3× | 1.42 | 457.9× | 374854840 |
 | elixir | 162.4ms | 135.3× | 6/8 | 345.8ms | 183.4ms | 72.6 MB | 6/8 | 1.4× | 0.49 | 158.4× | 374854840 |
 | python | 174.4ms | 145.3× | 7/8 | 184.5ms | 10.1ms | 9.9 MB | 2/8 | 1.0× | 0.18 | 58.9× | 374854840 |
@@ -141,7 +141,7 @@ _best of 3 runs; startup best of 9; spawn/pfib/http best of 7 per program; full 
 
 | lang | compute | vs fastest | pos | wall | startup | peak RSS | mem | cores | CPU·s | vs best CPU | checksum |
 |------|---------|------------|-----|------|---------|----------|-----|-------|-------|-------------|----------|
-| brood | 82.5ms | 10.9× | 5/8 | 104.7ms | 22.2ms | 134.2 MB | 7/8 | 1.3× | 0.14 | 7.1× | 1638200 |
+| brood | 81.6ms | 10.7× | 5/8 | 104.1ms | 22.5ms | 114.5 MB | 7/8 | 1.3× | 0.14 | 7.1× | 1638200 |
 | clojure | 165.2ms | 21.7× | 8/8 | 505.5ms | 340.3ms | 150.9 MB | 8/8 | 2.5× | 1.28 | 66.6× | 1638200 |
 | elixir | 7.6ms | 1.0× | 1/8 | 191.0ms | 183.4ms | 72.1 MB | 6/8 | 1.8× | 0.34 | 17.6× | 1638200 |
 | python | 96.0ms | 12.6× | 6/8 | 106.1ms | 10.1ms | 10.0 MB | 2/8 | 1.0× | 0.11 | 5.5× | 1638200 |
@@ -154,7 +154,7 @@ _best of 3 runs; startup best of 9; spawn/pfib/http best of 7 per program; full 
 
 | lang | compute | vs fastest | pos | wall | startup | peak RSS | mem | cores | CPU·s | vs best CPU | checksum |
 |------|---------|------------|-----|------|---------|----------|-----|-------|-------|-------------|----------|
-| brood | 93.7ms | 2.5× | 4/8 | 115.9ms | 22.2ms | 248.3 MB | 8/8 | 1.2× | 0.14 | 3.7× | 46468819 |
+| brood | 95.2ms | 2.6× | 4/8 | 117.7ms | 22.5ms | 240.4 MB | 8/8 | 1.2× | 0.15 | 3.8× | 46468819 |
 | clojure | 254.6ms | 6.9× | 8/8 | 594.9ms | 340.3ms | 123.7 MB | 6/8 | 2.4× | 1.45 | 37.2× | 46468819 |
 | elixir | 113.0ms | 3.1× | 6/8 | 296.4ms | 183.4ms | 157.9 MB | 7/8 | 1.6× | 0.46 | 11.8× | 46468819 |
 | python | 191.5ms | 5.2× | 7/8 | 201.6ms | 10.1ms | 25.8 MB | 3/8 | 1.0× | 0.20 | 5.1× | 46468819 |
@@ -167,7 +167,7 @@ _best of 3 runs; startup best of 9; spawn/pfib/http best of 7 per program; full 
 
 | lang | compute | vs fastest | pos | wall | startup | peak RSS | mem | cores | CPU·s | vs best CPU | checksum |
 |------|---------|------------|-----|------|---------|----------|-----|-------|-------|-------------|----------|
-| brood | 90.1ms | 34.7× | 6/8 | 112.3ms | 22.2ms | 108.2 MB | 7/8 | 1.3× | 0.14 | 97.6× | 724 |
+| brood | 90.7ms | 34.9× | 6/8 | 113.2ms | 22.5ms | 104.7 MB | 7/8 | 1.3× | 0.14 | 96.8× | 724 |
 | clojure | 228.6ms | 87.9× | 8/8 | 568.9ms | 340.3ms | 145.9 MB | 8/8 | 2.6× | 1.49 | 1003.7× | 724 |
 | elixir | 10.9ms | 4.2× | 3/8 | 194.3ms | 183.4ms | 70.3 MB | 6/8 | 1.8× | 0.34 | 231.6× | 724 |
 | python | 56.1ms | 21.6× | 5/8 | 66.2ms | 10.1ms | 9.7 MB | 2/8 | 1.0× | 0.07 | 44.6× | 724 |
@@ -180,7 +180,7 @@ _best of 3 runs; startup best of 9; spawn/pfib/http best of 7 per program; full 
 
 | lang | compute | vs fastest | pos | wall | startup | peak RSS | mem | cores | CPU·s | vs best CPU | checksum |
 |------|---------|------------|-----|------|---------|----------|-----|-------|-------|-------------|----------|
-| brood | 44.0ms | 1.9× | 2/7 | 66.2ms | 22.2ms | 90.3 MB | 6/7 | 1.4× | 0.09 | 1.6× | 9900000 |
+| brood | 47.2ms | 2.1× | 2/7 | 69.7ms | 22.5ms | 84.6 MB | 6/7 | 1.4× | 0.10 | 1.7× | 9900000 |
 | clojure | 1.085s | 47.8× | 7/7 | 1.425s | 340.3ms | 370.8 MB | 7/7 | 1.6× | 2.21 | 38.2× | 9900000 |
 | elixir | 22.7ms | 1.0× | 1/7 | 206.1ms | 183.4ms | 71.6 MB | 5/7 | 1.8× | 0.36 | 6.2× | 9900000 |
 | python | 47.8ms | 2.1× | 3/7 | 57.9ms | 10.1ms | 9.8 MB | 1/7 | 1.0× | 0.06 | 1.0× | 9900000 |
@@ -192,8 +192,8 @@ _best of 3 runs; startup best of 9; spawn/pfib/http best of 7 per program; full 
 
 | lang | compute | vs fastest | pos | wall | startup | peak RSS | mem | cores | CPU·s | vs best CPU | checksum |
 |------|---------|------------|-----|------|---------|----------|-----|-------|-------|-------------|----------|
-| brood | 57.8ms | 14.8× | 2/7 | 80.0ms | 22.2ms | 84.2 MB | 6/7 | 1.3× | 0.11 | 1.0× | 2475000 |
-| clojure | 1.385s | 355.2× | 7/7 | 1.726s | 340.3ms | 374.6 MB | 7/7 | 1.5× | 2.55 | 24.0× | 2475000 |
+| brood | 58.4ms | 15.0× | 2/7 | 80.9ms | 22.5ms | 82.6 MB | 6/7 | 1.3× | 0.11 | 1.0× | 2475000 |
+| clojure | 1.385s | 355.2× | 7/7 | 1.726s | 340.3ms | 374.6 MB | 7/7 | 1.5× | 2.55 | 24.1× | 2475000 |
 | elixir | 3.9ms | 1.0× | 1/7 | 187.3ms | 183.4ms | 72.7 MB | 5/7 | 1.8× | 0.34 | 3.2× | 2475000 |
 | python | 228.5ms | 58.6× | 5/7 | 238.6ms | 10.1ms | 9.8 MB | 1/7 | 1.0× | 0.24 | 2.2× | 2475000 |
 | node | 205.5ms | 52.7× | 4/7 | 223.5ms | 18.0ms | 49.9 MB | 4/7 | 1.0× | 0.22 | 2.1× | 2475000 |
@@ -204,7 +204,7 @@ _best of 3 runs; startup best of 9; spawn/pfib/http best of 7 per program; full 
 
 | lang | compute | vs fastest | pos | wall | startup | peak RSS | mem | cores | CPU·s | vs best CPU | checksum |
 |------|---------|------------|-----|------|---------|----------|-----|-------|-------|-------------|----------|
-| brood | 39.6ms | 9.0× | 6/7 | 61.8ms | 22.2ms | 82.2 MB | 6/7 | 1.5× | 0.09 | 6.9× | 155553889038886 |
+| brood | 39.0ms | 8.9× | 6/7 | 61.5ms | 22.5ms | 85.9 MB | 6/7 | 1.5× | 0.09 | 6.9× | 155553889038886 |
 | clojure | 146.3ms | 33.2× | 7/7 | 486.6ms | 340.3ms | 109.4 MB | 7/7 | 2.6× | 1.25 | 94.8× | 155553889038886 |
 | elixir | 9.8ms | 2.2× | 5/7 | 193.2ms | 183.4ms | 72.2 MB | 5/7 | 1.8× | 0.35 | 26.2× | 155553889038886 |
 | python | 4.4ms | 1.0× | 1/7 | 14.5ms | 10.1ms | 9.8 MB | 1/7 | 0.9× | 0.01 | 1.0× | 155553889038886 |
@@ -216,7 +216,7 @@ _best of 3 runs; startup best of 9; spawn/pfib/http best of 7 per program; full 
 
 | lang | compute | vs fastest | pos | wall | startup | peak RSS | mem | cores | CPU·s | vs best CPU | checksum |
 |------|---------|------------|-----|------|---------|----------|-----|-------|-------|-------------|----------|
-| brood | 370.0ms | 9.0× | 5/8 | 392.2ms | 22.2ms | 86.3 MB | 7/8 | 1.1× | 0.42 | 9.8× | 24558 |
+| brood | 363.6ms | 8.9× | 5/8 | 386.1ms | 22.5ms | 90.3 MB | 7/8 | 1.1× | 0.42 | 9.7× | 24558 |
 | clojure | 327.4ms | 8.0× | 4/8 | 667.7ms | 340.3ms | 108.6 MB | 8/8 | 2.1× | 1.42 | 33.2× | 24558 |
 | elixir | 285.1ms | 7.0× | 3/8 | 468.5ms | 183.4ms | 70.6 MB | 6/8 | 1.3× | 0.61 | 14.2× | 24558 |
 | python | 3.872s | 94.7× | 8/8 | 3.882s | 10.1ms | 11.0 MB | 2/8 | 1.0× | 3.84 | 89.8× | 24558 |
@@ -229,7 +229,7 @@ _best of 3 runs; startup best of 9; spawn/pfib/http best of 7 per program; full 
 
 | lang | compute | vs fastest | pos | wall | startup | peak RSS | mem | cores | CPU·s | vs best CPU | checksum |
 |------|---------|------------|-----|------|---------|----------|-----|-------|-------|-------------|----------|
-| brood | 36.7ms | 24.5× | 4/8 | 58.9ms | 22.2ms | 99.2 MB | 7/8 | 1.4× | 0.08 | 3.4× | 78498 |
+| brood | 35.2ms | 23.5× | 4/8 | 57.7ms | 22.5ms | 95.2 MB | 7/8 | 1.5× | 0.09 | 3.5× | 78498 |
 | clojure | 149.3ms | 99.5× | 8/8 | 489.6ms | 340.3ms | 108.8 MB | 8/8 | 2.5× | 1.22 | 49.6× | 78498 |
 | elixir | 54.9ms | 36.6× | 5/8 | 238.3ms | 183.4ms | 80.9 MB | 6/8 | 1.6× | 0.39 | 15.6× | 78498 |
 | python | 111.7ms | 74.5× | 7/8 | 121.8ms | 10.1ms | 10.8 MB | 2/8 | 1.0× | 0.12 | 4.9× | 78498 |
@@ -242,7 +242,7 @@ _best of 3 runs; startup best of 9; spawn/pfib/http best of 7 per program; full 
 
 | lang | compute | vs fastest | pos | wall | startup | peak RSS | mem | cores | CPU·s | vs best CPU | checksum |
 |------|---------|------------|-----|------|---------|----------|-----|-------|-------|-------------|----------|
-| brood | 54.9ms | 3.1× | 4/7 | 77.1ms | 22.2ms | 160.7 MB | 6/7 | 1.5× | 0.11 | 2.9× | 30039386344 |
+| brood | 53.2ms | 3.0× | 4/7 | 75.7ms | 22.5ms | 148.9 MB | 6/7 | 1.5× | 0.12 | 2.9× | 30039386344 |
 | clojure | 294.0ms | 16.4× | 7/7 | 634.3ms | 340.3ms | 291.1 MB | 7/7 | 2.2× | 1.42 | 35.7× | 30039386344 |
 | elixir | 124.0ms | 6.9× | 6/7 | 307.4ms | 183.4ms | 96.8 MB | 5/7 | 1.6× | 0.50 | 12.6× | 30039386344 |
 | python | 84.4ms | 4.7× | 5/7 | 94.5ms | 10.1ms | 14.8 MB | 1/7 | 1.0× | 0.09 | 2.4× | 30039386344 |
@@ -254,7 +254,7 @@ _best of 3 runs; startup best of 9; spawn/pfib/http best of 7 per program; full 
 
 | lang | compute | vs fastest | pos | wall | startup | peak RSS | mem | cores | CPU·s | vs best CPU | checksum |
 |------|---------|------------|-----|------|---------|----------|-----|-------|-------|-------------|----------|
-| brood | 194.4ms | 62.7× | 5/8 | 216.6ms | 22.2ms | 112.4 MB | 8/8 | 1.2× | 0.26 | 78.8× | -169078071 |
+| brood | 196.8ms | 63.5× | 5/8 | 219.3ms | 22.5ms | 113.7 MB | 8/8 | 1.2× | 0.26 | 79.7× | -169078071 |
 | clojure | 200.8ms | 64.8× | 6/8 | 541.1ms | 340.3ms | 108.8 MB | 7/8 | 2.5× | 1.36 | 411.6× | -169078071 |
 | elixir | 136.5ms | 44.0× | 4/8 | 319.9ms | 183.4ms | 70.3 MB | 6/8 | 1.5× | 0.48 | 145.4× | -169078071 |
 | python | 682.1ms | 220.0× | 8/8 | 692.2ms | 10.1ms | 10.4 MB | 2/8 | 1.0× | 0.69 | 209.8× | -169078071 |
@@ -267,8 +267,8 @@ _best of 3 runs; startup best of 9; spawn/pfib/http best of 7 per program; full 
 
 | lang | compute | vs fastest | pos | wall | startup | peak RSS | mem | cores | CPU·s | vs best CPU | checksum |
 |------|---------|------------|-----|------|---------|----------|-----|-------|-------|-------------|----------|
-| brood | 112.4ms | 74.9× | 6/7 | 134.6ms | 22.2ms | 156.4 MB | 6/7 | 1.5× | 0.21 | 11.0× | 1489952542 |
-| clojure | 404.9ms | 269.9× | 7/7 | 745.2ms | 340.3ms | 160.8 MB | 7/7 | 2.8× | 2.09 | 110.4× | 1489952542 |
+| brood | 114.1ms | 76.1× | 6/7 | 136.6ms | 22.5ms | 162.9 MB | 7/7 | 1.5× | 0.21 | 11.1× | 1489952542 |
+| clojure | 404.9ms | 269.9× | 7/7 | 745.2ms | 340.3ms | 160.8 MB | 6/7 | 2.8× | 2.09 | 110.4× | 1489952542 |
 | elixir | 3.3ms | 2.2× | 2/7 | 186.7ms | 183.4ms | 76.0 MB | 5/7 | 1.9× | 0.35 | 18.4× | 1489952542 |
 | python | 8.8ms | 5.9× | 4/7 | 18.9ms | 10.1ms | 12.3 MB | 1/7 | 1.0× | 0.02 | 1.0× | 1489952542 |
 | node | 1.5ms | 1.0× | 1/7 | 19.5ms | 18.0ms | 43.5 MB | 4/7 | 1.1× | 0.02 | 1.1× | 1489952542 |
@@ -279,7 +279,7 @@ _best of 3 runs; startup best of 9; spawn/pfib/http best of 7 per program; full 
 
 | lang | compute | vs fastest | pos | wall | startup | peak RSS | mem | cores | CPU·s | vs best CPU | checksum |
 |------|---------|------------|-----|------|---------|----------|-----|-------|-------|-------------|----------|
-| brood | 102.6ms | 24.4× | 6/7 | 124.8ms | 22.2ms | 119.4 MB | 7/7 | 1.3× | 0.17 | 7.2× | 10000 |
+| brood | 100.7ms | 24.0× | 6/7 | 123.2ms | 22.5ms | 116.1 MB | 7/7 | 1.3× | 0.16 | 7.0× | 10000 |
 | clojure | 139.4ms | 33.2× | 7/7 | 479.7ms | 340.3ms | 107.6 MB | 6/7 | 2.5× | 1.22 | 52.5× | 10000 |
 | elixir | 18.4ms | 4.4× | 5/7 | 201.8ms | 183.4ms | 71.7 MB | 5/7 | 1.8× | 0.36 | 15.4× | 10000 |
 | python | 13.1ms | 3.1× | 3/7 | 23.2ms | 10.1ms | 11.1 MB | 1/7 | 1.0× | 0.02 | 1.0× | 10000 |
@@ -291,7 +291,7 @@ _best of 3 runs; startup best of 9; spawn/pfib/http best of 7 per program; full 
 
 | lang | compute | vs fastest | pos | wall | startup | peak RSS | mem | cores | CPU·s | vs best CPU | checksum |
 |------|---------|------------|-----|------|---------|----------|-----|-------|-------|-------------|----------|
-| brood | 65.6ms | 18.7× | 6/7 | 87.8ms | 22.2ms | 152.0 MB | 7/7 | 1.3× | 0.11 | 5.2× | 12081249 |
+| brood | 65.3ms | 18.7× | 6/7 | 87.8ms | 22.5ms | 156.6 MB | 7/7 | 1.3× | 0.11 | 5.2× | 12081249 |
 | clojure | 178.9ms | 51.1× | 7/7 | 519.2ms | 340.3ms | 109.5 MB | 6/7 | 2.5× | 1.30 | 59.1× | 12081249 |
 | elixir | 14.1ms | 4.0× | 5/7 | 197.5ms | 183.4ms | 76.1 MB | 5/7 | 1.8× | 0.35 | 16.1× | 12081249 |
 | python | 13.0ms | 3.7× | 4/7 | 23.1ms | 10.1ms | 10.2 MB | 1/7 | 0.9× | 0.02 | 1.0× | 12081249 |
@@ -303,7 +303,7 @@ _best of 3 runs; startup best of 9; spawn/pfib/http best of 7 per program; full 
 
 | lang | compute | vs fastest | pos | wall | startup | peak RSS | mem | cores | CPU·s | vs best CPU | checksum |
 |------|---------|------------|-----|------|---------|----------|-----|-------|-------|-------------|----------|
-| brood | 54.1ms | 2.9× | 4/7 | 76.3ms | 22.2ms | 120.3 MB | 5/7 | 7.0× | 0.53 | 7.3× | 6100000 |
+| brood | 53.7ms | 2.9× | 4/7 | 76.2ms | 22.5ms | 114.1 MB | 5/7 | 6.8× | 0.52 | 7.1× | 6100000 |
 | clojure | 185.6ms | 10.0× | 5/7 | 525.9ms | 340.3ms | 134.1 MB | 7/7 | 3.2× | 1.69 | 23.2× | 6100000 |
 | elixir | 24.6ms | 1.3× | 2/7 | 208.0ms | 183.4ms | 78.7 MB | 4/7 | 2.0× | 0.43 | 5.8× | 6100000 |
 | python | 552.4ms | 29.9× | 6/7 | 562.5ms | 10.1ms | 27.9 MB | 1/7 | 1.0× | 0.56 | 7.6× | 6100000 |
@@ -315,7 +315,7 @@ _best of 3 runs; startup best of 9; spawn/pfib/http best of 7 per program; full 
 
 | lang | compute | vs fastest | pos | wall | startup | peak RSS | mem | cores | CPU·s | vs best CPU | checksum |
 |------|---------|------------|-----|------|---------|----------|-----|-------|-------|-------------|----------|
-| brood | 1.421s | 6.5× | 5/5 | 1.443s | 22.2ms | 1666.0 MB | 5/5 | 2.6× | 3.72 | 7.3× | 36300000 |
+| brood | 1.486s | 6.8× | 5/5 | 1.509s | 22.5ms | 1662.4 MB | 5/5 | 2.6× | 3.88 | 7.6× | 36300000 |
 | elixir | 708.8ms | 3.2× | 3/5 | 892.2ms | 183.4ms | 921.6 MB | 4/5 | 2.2× | 1.99 | 3.9× | 36300000 |
 | python | 1.272s | 5.8× | 4/5 | 1.282s | 10.1ms | 361.3 MB | 3/5 | 1.0× | 1.27 | 2.5× | 36300000 |
 | node | 218.8ms | 1.0× | 1/5 | 236.8ms | 18.0ms | 243.4 MB | 2/5 | 2.3× | 0.54 | 1.1× | 36300000 |
@@ -328,14 +328,14 @@ _best of 3 runs; startup best of 9; spawn/pfib/http best of 7 per program; full 
 | lang | p50 | **p99** | p99.9 | max | ordinary reqs | sustained |
 |------|-----|---------|-------|-----|---------------|-----------|
 | elixir | 8µs | **64µs** | 82µs | 261µs | 47500 | 19993/s |
-| brood | 17µs | **87µs** | 816µs | 1811µs | 47500 | 19931/s |
+| brood | 19µs | **86µs** | 770µs | 1897µs | 47500 | 19900/s |
 | node | 2µs | **454µs** | 517µs | 926µs | 47500 | 20000/s |
 | python | 25µs | **459µs** | 604µs | 670µs | 47500 | 20000/s |
 | dotnet | 4µs | **779µs** | 13185µs | 15622µs | 47500 | 19996/s |
 
 | lang | compute | vs fastest | pos | wall | startup | peak RSS | mem | cores | CPU·s | vs best CPU | checksum |
 |------|---------|------------|-----|------|---------|----------|-----|-------|-------|-------------|----------|
-| brood | 2.554s | 1.0× | 5/5 | 2.576s | 22.2ms | 380.1 MB | 5/5 | 3.4× | 8.84 | 3.5× | 168000000 |
+| brood | 2.562s | 1.0× | 5/5 | 2.585s | 22.5ms | 378.3 MB | 5/5 | 3.4× | 8.68 | 3.4× | 168000000 |
 | elixir | 2.531s | 1.0× | 1/5 | 2.714s | 183.4ms | 79.0 MB | 4/5 | 1.9× | 5.21 | 2.1× | 168000000 |
 | python | 2.539s | 1.0× | 4/5 | 2.549s | 10.1ms | 11.0 MB | 1/5 | 1.0× | 2.52 | 1.0× | 168000000 |
 | node | 2.531s | 1.0× | 2/5 | 2.549s | 18.0ms | 58.0 MB | 3/5 | 1.0× | 2.55 | 1.0× | 168000000 |
@@ -345,14 +345,14 @@ _best of 3 runs; startup best of 9; spawn/pfib/http best of 7 per program; full 
 
 | lang | compute | vs fastest | pos | wall | startup | peak RSS | mem | cores | CPU·s | vs best CPU | checksum |
 |------|---------|------------|-----|------|---------|----------|-----|-------|-------|-------------|----------|
-| brood | 878.7ms | 3.3× | 2/2 | 900.9ms | 22.2ms | 618.6 MB | 2/2 | 1.6× | 1.40 | 1.4× | 25000 |
+| brood | 895.0ms | 3.4× | 2/2 | 917.5ms | 22.5ms | 645.3 MB | 2/2 | 1.6× | 1.44 | 1.4× | 25000 |
 | elixir | 265.6ms | 1.0× | 1/2 | 449.0ms | 183.4ms | 156.9 MB | 1/2 | 2.3× | 1.02 | 1.0× | 25000 |
 
 ## pfib — parallel fib — 100 computed at once across cores  (N=31)
 
 | lang | compute | vs fastest | pos | wall | startup | peak RSS | mem | cores | CPU·s | vs best CPU | checksum |
 |------|---------|------------|-----|------|---------|----------|-----|-------|-------|-------------|----------|
-| brood | 208.8ms | 1.7× | 2/7 | 231.0ms | 22.2ms | 102.1 MB | 5/7 | 9.7× | 2.23 | 2.0× | 134626900 |
+| brood | 214.9ms | 1.7× | 2/7 | 237.4ms | 22.5ms | 96.6 MB | 5/7 | 9.6× | 2.28 | 2.0× | 134626900 |
 | clojure | 277.4ms | 2.2× | 3/7 | 617.7ms | 340.3ms | 134.1 MB | 6/7 | 4.3× | 2.66 | 2.4× | 134626900 |
 | elixir | 316.5ms | 2.6× | 4/7 | 499.9ms | 183.4ms | 73.2 MB | 4/7 | 3.2× | 1.60 | 1.4× | 134626900 |
 | python | 2.610s | 21.1× | 7/7 | 2.620s | 10.1ms | 16.8 MB | 1/7 | 10.6× | 27.83 | 24.6× | 134626900 |
@@ -364,7 +364,7 @@ _best of 3 runs; startup best of 9; spawn/pfib/http best of 7 per program; full 
 
 | lang | compute | vs fastest | pos | wall | startup | peak RSS | mem | cores | CPU·s | vs best CPU | checksum |
 |------|---------|------------|-----|------|---------|----------|-----|-------|-------|-------------|----------|
-| brood | 188.3ms | 1.5× | 4/7 | 210.5ms | 22.2ms | 691.2 MB | 7/7 | 2.6× | 0.54 | 3.8× | 500 |
+| brood | 189.5ms | 1.5× | 4/7 | 212.0ms | 22.5ms | 717.5 MB | 7/7 | 2.7× | 0.57 | 3.9× | 500 |
 | clojure | 804.0ms | 6.4× | 7/7 | 1.144s | 340.3ms | 314.3 MB | 5/7 | 3.1× | 3.52 | 24.4× | 500 |
 | elixir | 574.2ms | 4.5× | 6/7 | 757.6ms | 183.4ms | 490.7 MB | 6/7 | 3.6× | 2.70 | 18.7× | 500 |
 | python | 172.9ms | 1.4× | 3/7 | 183.0ms | 10.1ms | 45.8 MB | 1/7 | 1.7× | 0.30 | 2.1× | 500 |
@@ -376,7 +376,7 @@ _best of 3 runs; startup best of 9; spawn/pfib/http best of 7 per program; full 
 
 | lang | compute | vs fastest | pos | wall | startup | peak RSS | mem | cores | CPU·s | vs best CPU | checksum |
 |------|---------|------------|-----|------|---------|----------|-----|-------|-------|-------------|----------|
-| brood | 183.6ms | 3.5× | 3/7 | 205.8ms | 22.2ms | 119.6 MB | 6/7 | 1.2× | 0.25 | 1.0× | 100000 |
+| brood | 182.4ms | 3.5× | 3/7 | 204.9ms | 22.5ms | 118.3 MB | 6/7 | 1.2× | 0.25 | 1.0× | 100000 |
 | clojure | 599.1ms | 11.4× | 5/7 | 939.4ms | 340.3ms | 132.7 MB | 7/7 | 1.9× | 1.78 | 7.1× | 100000 |
 | elixir | 52.7ms | 1.0× | 1/7 | 236.1ms | 183.4ms | 70.3 MB | 5/7 | 1.7× | 0.41 | 1.6× | 100000 |
 | python | 816.3ms | 15.5× | 7/7 | 826.4ms | 10.1ms | 10.7 MB | 1/7 | 1.2× | 0.98 | 3.9× | 100000 |
@@ -388,7 +388,7 @@ _best of 3 runs; startup best of 9; spawn/pfib/http best of 7 per program; full 
 
 | lang | compute | vs fastest | pos | wall | startup | peak RSS | mem | cores | CPU·s | vs best CPU | checksum |
 |------|---------|------------|-----|------|---------|----------|-----|-------|-------|-------------|----------|
-| brood | 766.7ms | 6.6× | 3/7 | 788.9ms | 22.2ms | 128.4 MB | 6/7 | 1.1× | 0.88 | 6.2× | 1000000 |
+| brood | 760.2ms | 6.5× | 3/7 | 782.7ms | 22.5ms | 124.7 MB | 6/7 | 1.1× | 0.86 | 6.0× | 1000000 |
 | clojure | 3.025s | 26.0× | 5/7 | 3.365s | 340.3ms | 209.4 MB | 7/7 | 1.3× | 4.27 | 30.0× | 1000000 |
 | elixir | 262.6ms | 2.3× | 2/7 | 446.0ms | 183.4ms | 71.5 MB | 5/7 | 1.4× | 0.65 | 4.5× | 1000000 |
 | python | 4.667s | 40.1× | 7/7 | 4.678s | 10.1ms | 16.0 MB | 1/7 | 1.2× | 5.43 | 38.1× | 1000000 |
