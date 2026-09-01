@@ -56,6 +56,20 @@ python3 bench/chart.py                # regenerate results/overview.svg from res
   number alone, which was itself one sample. Concurrency rows (`NOISY`) drift several
   percent beyond even that.
 
+- **`regex` is the row that will not converge, and it has now cost two sessions.** Its
+  documented ~17% cross-invocation swing (119.5 vs 139.3, same binary, 2026-08-31) is *not*
+  fixed by min-of-3: on 2026-09-01 six full brood-only invocations of one binary all landed
+  137–140 while three of the *previous* binary landed 122.4 / 143.5 / 130.0, which reads as a
+  clean +11% regression and is not one. Four independent measurements said otherwise, and
+  they are the ones to trust: `ab-bench --floor` −1.8% against a 0.0% floor (build-parity,
+  interleaved); a direct unpinned best-of-11 with the new binary *faster* (122.1 vs 126.7);
+  an interleaved `--only regex,sieve,ring` pair, new 13.4% faster; and `perf stat`
+  **instructions**, 1.7434 G new vs 1.7535 G old — 0.6% *less* work, cycles overlapping.
+  **So: never conclude a `regex` movement from the harness alone.** Take instruction counts
+  first (nearly noise-free, minutes not tens of minutes); the wall number on this row carries
+  almost no signal about the code. The published figure is left as measured rather than
+  hand-picked, so expect the next refresh to swing it back.
+
 - **A published column that has stopped describing the runtime hides regressions, and no
   other gate here can see that.** `smoke.py` proves the rows *run* and that their checksums
   *agree*; both stay green through an arbitrarily large slowdown. On 2026-09-01 the Brood

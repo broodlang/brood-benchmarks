@@ -159,6 +159,21 @@ this section is the reason.
 own dependency chain (`string`, `file`, `path`) — 15.4 ms measured, against a ~15 ms bare boot. The
 std image plus a registration replay is exactly the lever for that, and it is now purely additive.
 
+**Startup and base RSS moved again 2026-09-01 (brood ADR-313): 22.5 → 20.2 ms and base RSS
+72.6 → 60.1 MB (−17%).** The default crash reporter was armed by calling into
+`std/proc/crash-report.blsp`, and by brood's load-by-inference that pulled ten stdlib modules
+into *every* run — `io/puts` bringing `io`/`file`/`path`/`string`/`reflect`/`math` behind it.
+Arming now happens in the prelude and the reporter loads on the first crash. The RSS figure is
+the striking one: 12.5 MB of this runtime's resident set was modules no program had asked for.
+
+It moved the compute rows too (`bintree` −4.6%, `fib` −4.5%, `primes` −4.1%, `loop` −5.2%), and
+for a reason worth recording beside the under-subtraction note above: nine fewer modules is
+**~13% fewer JIT-lowered arms** (bintree 108 → 94, fib 95 → 84), which is brood KI-100's
+instruction-fetch mechanism — fewer arms carrying native code means a smaller hot footprint.
+Note also that the `startup` row itself now loads **7 modules rather than 10**, so it subtracts
+*less* from every other row than it used to: the under-subtraction described above got slightly
+worse, and the compute improvements here are, if anything, understated.
+
 ## The Brood column pays a per-run cost no other compiled column pays
 
 Measured 2026-08-27, and it is the one standing *methodology* handicap rather than a runtime gap.
