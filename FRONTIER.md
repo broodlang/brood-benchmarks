@@ -198,6 +198,39 @@ instead of a warm-up. The harness's discarded run per language already warms wha
 processes; for Brood that is the build-id-keyed boot cache (~1.2 s cold vs ~18 ms warm). Warming
 Brood's tiering between measured runs would favour Brood alone.
 
+## An unmeasured column hides a real regression (2026-09-01)
+
+A refresh at 0.22.0 found **every compute row 4–10% slower** than the published 0.19.1
+column. It is real, not a coin flip — the whole chain was checked before it was believed:
+
+- min-of-3 interleaved harness invocations (the per-row minimum landed on all three
+  invocations, 18/9/4, which is what a healthy min-of-3 looks like);
+- build-parity A/B (`make ab`, both arms built by the same target, interleaved, pinned,
+  std-image **live on both arms**): mandelbrot **+8.1%** against a **0.9%** floor, solo
+  re-run at N=11;
+- **unpinned** re-measurement, because `make ab` pins to one core and would charge the
+  benchmark for background JIT compilation — and the new binary lowers *more* arms (97 vs
+  85). It survived: **+6.8%** unpinned, precisely timed and interleaved;
+- an output check: all three binaries print checksum `6129302`, so the arms do equal work.
+
+**Shape.** Boot **+2.8 ms (+14.5%)**, and JIT'd compute **~+5.5%** — at tier 1 compute
+moves only +1.1%, so the compute half lives on the native path, not the interpreter. The
+boot half tracks the stdlib growing (the startup image went 5199 → 5332 bindings), which is
+feature cost rather than a defect; the compute half is not explained.
+
+**Attribution so far** (mandelbrot, same treatment, base times): `8a2aaa01` 223 ms,
+`6589e74b` 221 ms, `2c822875` 226 ms — all still fast; `80bb25d8` (v0.21.0) 242 ms and
+`2210d922` (ADR-310) 242 ms — already slow. So it landed in **`2c822875..80bb25d8`**, and
+three plausible suspects are *excluded*: the Cranelift `*_imm` → `_s` migration, the JIT
+hot-admission commit, and ADR-310. Everything after v0.21.0 measures as noise (+0.8%).
+
+**Why it went unnoticed for three releases, and what now catches it.** Nothing in this repo
+measures timing except a hand-run harness. The daily gate checks that rows *run* and that
+checksums *agree* — both stayed green the whole time. `bench/staleness.py` (wired into the
+daily job) now compares the commit the column was measured at against the commit under test
+and fails on a version boundary. It deliberately measures nothing: a perf gate on a shared
+runner would be a flake generator, and a gate nobody trusts is worse than none.
+
 ## Measurement traps found the hard way
 
 Six ways to get a confident wrong number on this runtime, each of which produced one:

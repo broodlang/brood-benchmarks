@@ -83,6 +83,23 @@ jobs:
       - name: Smoke — every brood row runs at a tiny BENCH_N
         run: python3 bench/smoke.py --brood brood-src/target/release/brood
 
+      # The published NUMBERS rot too, and nothing here noticed. On 2026-09-01 a refresh
+      # found every compute row 4-10% slower than published — real under build-parity A/B
+      # (mandelbrot +8.1% vs a 0.9% floor), ridden in across three releases. Every gate
+      # above stayed green throughout: the rows ran, and their checksums matched. Only
+      # timing changed, and only a hand-run harness measures that.
+      #
+      # This step deliberately measures NOTHING — a perf gate on a shared runner would be
+      # a flake generator, and this repo's own rule is that even the dedicated box needs
+      # min-of-3 interleaved invocations before a number means anything. It compares two
+      # facts instead: the commit the column was measured at, and the commit under test.
+      # `--fail-on-version` fires on a release boundary rather than on every push, so it
+      # nags at a cadence someone will still read.
+      - name: Staleness — do the published numbers still describe this brood?
+        run: |
+          python3 bench/staleness.py \
+            --brood brood-src/target/release/brood --fail-on-version
+
   # The other ports do not rot from a brood change, but they do rot from a system
   # upgrade (a Python/Node/Ruby release removing something a row uses), and a row that
   # runs everywhere but computes a different answer is invisible to the check above.
