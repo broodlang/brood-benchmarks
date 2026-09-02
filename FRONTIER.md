@@ -174,6 +174,35 @@ Note also that the `startup` row itself now loads **7 modules rather than 10**, 
 *less* from every other row than it used to: the under-subtraction described above got slightly
 worse, and the compute improvements here are, if anything, understated.
 
+**Startup 20.2 -> 16.0 ms and base RSS 60.1 -> 57.3 MB, 2026-09-02 (brood ADR-314): the
+prelude is now materialised from an image rather than re-read and re-evaluated.** Boot went
+9.36 -> 5.32 ms and a whole empty `brood` run 13.5 -> 8.3 ms; the `startup` row shows less
+than that because it is `(io/puts 0)`, which still loads `io`'s module chain on top of boot.
+
+**Read the per-row `compute` column carefully this time, because it moves the wrong way.**
+Every row got faster in WALL — the number a user actually waits for — by 0.3% to 21%. But
+`compute = wall - startup`, and the subtracted constant just fell by 4.2 ms, so any row whose
+wall fell by *less* than that reports worse compute:
+
+| row | wall | compute |
+|---|---|---|
+| `loop` | +2.4% (inside its 3.9% spread) | **+11.9%** |
+| `sort` | +0.3% | +4.8% |
+| `fib` | -5.3% | -1.0% |
+| `mandelbrot` | -3.6% | -1.8% |
+
+That is arithmetic, not a regression: a 49 ms row cannot show the benefit of a 4.2 ms
+saving it also had subtracted from it. It carried through to the aggregate — the field-wide
+geomean reads 10.4x -> 10.6x and Brood's rank 4th -> 5th — so the published headline
+understates this release while the wall column overstates nothing.
+
+This is the **mirror image** of the effect recorded above for KI-61, where a boot saving the
+`startup` row did *not* fully absorb inflated every compute row instead. Same mechanism, same
+row, opposite sign, and worth deciding about rather than rediscovering a third time: as the
+runtime's fixed costs shrink, subtracting a `startup` row that itself loads modules
+over-corrects for rows that load none. Changing it is a methodology decision, not a bug fix,
+so nothing here has been adjusted.
+
 ## The Brood column pays a per-run cost no other compiled column pays
 
 Measured 2026-08-27, and it is the one standing *methodology* handicap rather than a runtime gap.
