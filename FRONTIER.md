@@ -174,8 +174,17 @@ Note also that the `startup` row itself now loads **7 modules rather than 10**, 
 *less* from every other row than it used to: the under-subtraction described above got slightly
 worse, and the compute improvements here are, if anything, understated.
 
-**Startup 20.2 -> 16.0 ms and base RSS 60.1 -> 57.3 MB, 2026-09-02 (brood ADR-314): the
-prelude is now materialised from an image rather than re-read and re-evaluated.** Boot went
+**RETRACTED 2026-09-02, same day: brood ADR-314 shipped default-on and was reverted to
+opt-in.** An imaged boot restored a stale stdlib-image section directory, and still does not
+carry the module-level names the prelude's own evaluation binds (`file/list-files` came back
+unbound). The column has been re-measured on the restored default: **startup is 19.6 ms**,
+not the 16.0 ms published for a few hours, and the short rows return with it —
+`reduce` +17.7%, `strings` +14.1%, `pipeline` +8.5% against that briefly-published column.
+Those are not regressions; they are the correction of numbers taken with a feature that is
+no longer on. Everything below about the *mechanism* still holds and is what ADR-314 will be
+worth once it is correct; the figures are the achievable ones, not the shipped ones.
+
+**Startup 20.2 -> 16.0 ms and base RSS 60.1 -> 57.3 MB (ACHIEVABLE, not currently on):** Boot went
 9.36 -> 5.32 ms and a whole empty `brood` run 13.5 -> 8.3 ms; the `startup` row shows less
 than that because it is `(io/puts 0)`, which still loads `io`'s module chain on top of boot.
 
