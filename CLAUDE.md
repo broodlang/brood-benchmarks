@@ -56,6 +56,11 @@ python3 bench/chart.py                # regenerate results/overview.svg from res
   number alone, which was itself one sample. Concurrency rows (`NOISY`) drift several
   percent beyond even that.
 
+- **`wordcount` is bimodal too** (2026-09-02): six invocations of one binary split cleanly
+  63.0 / 63.0 / 63.2 against 67.1 / 67.2 / 67.5 — a 7.1% spread with no middle. It read
+  +4.7% against the previous column and is not a regression. Same treatment as `regex`
+  below: do not conclude a `wordcount` movement from the harness alone.
+
 - **`regex` is the row that will not converge, and it has now cost two sessions.** Its
   documented ~17% cross-invocation swing (119.5 vs 139.3, same binary, 2026-08-31) is *not*
   fixed by min-of-3: on 2026-09-01 six full brood-only invocations of one binary all landed
