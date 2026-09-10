@@ -284,6 +284,43 @@ daily job) now compares the commit the column was measured at against the commit
 and fails on a version boundary. It deliberately measures nothing: a perf gate on a shared
 runner would be a flake generator, and a gate nobody trusts is worse than none.
 
+## The 0.27.0 refresh: a correctness fix that cost 61% on one row (2026-09-10)
+
+The column had been stale since 0.24.0 (`staleness.py` had been saying so for three
+versions). The refresh found the field moving the right way — `startup` −19%, `reduce`
+−18%, `http` −17%, `strings` −15%, `wordcount` −11% — and **one row that was not noise:
+`errors-deep` +72%**, three interleaved invocations agreeing to 0.6%.
+
+Two `make ab --floor` runs in the brood repo bracketed it to a single commit, `04e0fe36`
+(brood's KI-117): the fix that gave JIT'd code a stack trace called a per-native-frame
+callback that *built* a trace frame — allocating a copy of the arm's file name — and then
+handed it to a `push_trace` which discards everything past a 32-frame cap. 50 frames deep ×
+50,000 throws = 2.5M frames built, 1.6M kept, where the 0.24.0 binary built none.
+
+Fixed in brood (KI-123) by consulting `trace_full()` before building, and by making the
+frame's file field the `Arc<str>` every producer already holds: **+61% → +19%** against the
+pre-fix commit. This column reads **+30% against 0.24.0**, which is the same runtime measured
+against an older baseline and with the harness's own pinning rather than `ab-bench`'s.
+
+**The lesson is about which changes get benchmarked.** KI-117 was a correctness fix — days of
+work to make a `:trace` appear, guarded by a test asserting the trace's *contents*, reviewed
+as a correctness fix. Nothing in that framing suggests running a benchmark, and the row that
+would have objected lives in this repo, which is only measured when someone refreshes the
+column. When a fix adds work to a path that runs per frame, per element or per message, A/B
+the row that exercises it: `./scripts/ab-bench.sh --list` names them and one row is ninety
+seconds.
+
+## `sort` is ~8% slower than the 0.24.0 column and it is not this week's work (open)
+
+The same refresh reads **`sort` +8.6%** (125.7 vs 115.7 ms, spread 2.7% over three
+invocations — stable, unlike `regex`/`wordcount`). It is **older than `04e0fe36`**: A/B
+against that commit reads +2.0% against a 0.7% floor, i.e. noise. So it entered somewhere in
+`8162245c..04e0fe36` (2026-08-28 → 09-08), and per this file's own advice the next step is a
+three- or four-point sweep across that range to see whether it is a step or a ramp before
+anyone spends builds on a bisect. `sort` builds a 375k-element list with `cons` and sorts it,
+so allocation and the GC are the places to look first, not the comparator (already unboxed —
+see the note above).
+
 ## Measurement traps found the hard way
 
 Six ways to get a confident wrong number on this runtime, each of which produced one:
