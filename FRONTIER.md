@@ -310,16 +310,48 @@ column. When a fix adds work to a path that runs per frame, per element or per m
 the row that exercises it: `./scripts/ab-bench.sh --list` names them and one row is ninety
 seconds.
 
-## `sort` is ~8% slower than the 0.24.0 column and it is not this week's work (open)
+## `sort`'s +8.6% was the 0.24.0 column's own reading, not a runtime regression (CLOSED 2026-09-10)
 
-The same refresh reads **`sort` +8.6%** (125.7 vs 115.7 ms, spread 2.7% over three
-invocations — stable, unlike `regex`/`wordcount`). It is **older than `04e0fe36`**: A/B
-against that commit reads +2.0% against a 0.7% floor, i.e. noise. So it entered somewhere in
-`8162245c..04e0fe36` (2026-08-28 → 09-08), and per this file's own advice the next step is a
-three- or four-point sweep across that range to see whether it is a step or a ramp before
-anyone spends builds on a bisect. `sort` builds a 375k-element list with `cons` and sorts it,
-so allocation and the GC are the places to look first, not the comparator (already unboxed —
-see the note above).
+The 0.27.0 refresh read **`sort` +8.6%** (125.7 vs 115.7 ms wall) and this section filed it as
+an open regression somewhere in `8162245c..04e0fe36`, with a three-or-four-point sweep as the
+next step. **There is nothing in that range.** The sweep was never needed: the two endpoints
+agree with each other, and the gap is in the *baseline reading*.
+
+Re-measured 2026-09-10, both binaries built through `make release-brood`, both `:state :live`
+on their own stdlib image and both materialising 9 modules under `BROOD_IMAGE_TRACE=1` (checked
+— an image miss is worth ~10 ms, which is the size of the thing being explained):
+
+| method | base `8162245c` | new `7b0327fb` | delta |
+|---|---|---|---|
+| `make ab --floor sort` — 1-core pin, best-of-7 | 150 ms | 152 ms | +1.3% (floor 0.7%) |
+| interleaved min-of-9, cores 8-11 (the harness's own pin) | 125 ms | 128 ms | +2.4% |
+| **`bench/harness.py --only sort --langs brood --runs 3`** | **121.8 ms** | **123.8 ms** | **+1.6%** |
+
+Three methods, one box, one session, agreeing on **~+1.5-2.5%** — at or just above this row's
+noise floor and under the `max(5%, 2 x floor)` bar. The published columns say +8.6% because
+**the unchanged baseline binary measures 121.8-125 ms today against its own published 115.7**.
+Nothing about the runtime accounts for that; the 115.7 is simply not reproducible.
+
+Two controls rule out the obvious alternatives. The base is *stable* today — four separate
+invocation groups read min 125/126/125/125, a 0.8% spread — so this is not within-session
+wander. And the machine was quiet (load 0.02, no stray process older than an hour), so it is
+not the orphaned-load-spinner shape that inflated everything measured 2026-09-03 -> 09-08.
+
+**The methodology finding, which is the part worth keeping.** Compute rows are **best of 3**,
+and `whklat` is a *laptop* — an i5-11500H on the `powersave` governor, clocking 0.8-3.7 GHz per
+core. Best-of-3 is enough to rank languages *within* one session, where every column pays the
+same clock state, but it is **not enough to make a row's absolute value comparable across
+sessions weeks apart**. A row whose real movement is ~0 can therefore surface as a confident
++8.6% with a "stable, 2.7% spread over three invocations" note attached — the spread was real
+and measured *within* the new session, and it says nothing about the old one. Before filing a
+single-row regression from a column refresh, **re-measure the OLD commit's binary in the same
+session as the new one**; that costs one worktree build and is the only comparison the numbers
+support. A/B against a rebuilt baseline is evidence; column-vs-column across sessions is a
+hypothesis.
+
+Not investigated, and deliberately not claimed: peak RSS read 238.8 vs 262.0 MB on these two
+single runs where the published columns read 245.4 vs 248.5 MB. Single-run RSS on this
+allocator is purge-delay dependent (see `MIMALLOC_PURGE_DELAY`), so neither pair is a result.
 
 ## Measurement traps found the hard way
 
