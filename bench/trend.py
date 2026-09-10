@@ -22,6 +22,7 @@ against ~23 MB warm, per brood's docs/handoff.md), so that row tracks boot-cache
 least as much as it tracks the runtime's footprint.
 """
 import json
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -39,6 +40,26 @@ def git(*args):
     return subprocess.run(["git", *args], cwd=ROOT, capture_output=True, text=True).stdout
 
 
+def brood_date(meta):
+    """The date the BROOD column was measured.
+
+    NOT `_meta.date`, which is the last full-FIELD run and deliberately stays pinned
+    across brood-only refreshes (the other six columns really were measured then, and
+    `docs.py`'s machine line depends on that). A brood-only refresh records its own date
+    in `_meta.brood_refresh`, and this chart plots brood's rows *only*, so that is the
+    date its points belong at.
+
+    Getting this wrong froze the chart for two weeks: thirteen consecutive publishes
+    (2026-08-28 -> 09-10) all carried `_meta.date = 2026-08-28`, so the dedup below
+    collapsed twelve refreshes onto one point — and because it keeps the NEWEST commit
+    per date, that point silently re-plotted each new refresh's numbers under the old
+    label. A chart whose whole purpose is "did the thing I just optimised move" showed
+    no movement, on the exact run type that produces its data.
+    """
+    m = re.search(r"re-measured (\d{4}-\d{2}-\d{2})", meta.get("brood_refresh") or "")
+    return m.group(1) if m else (meta.get("date") or "").split(" ")[0]
+
+
 def history(rows):
     """`[(date, {row: wall_ms})]` oldest-first — one entry per published run date."""
     commits = git("log", "--format=%h", "--", "results/results.json").split()
@@ -51,7 +72,7 @@ def history(rows):
             d = json.loads(raw)
         except json.JSONDecodeError:
             continue  # a truncated results.json is in the history; skip rather than die
-        date = (d.get("_meta", {}).get("date") or "").split(" ")[0]
+        date = brood_date(d.get("_meta", {}))
         if not date or date in seen:
             continue
         vals = {}
