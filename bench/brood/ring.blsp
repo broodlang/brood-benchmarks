@@ -3,7 +3,7 @@
 ;; Checksum = N*LAPS (constructed). Tagged :next setup relies on selective receive.
 (def n (let (e (os/env "BENCH_N")
              v (if e (string/->number e) 200))
-         (if (failure? v) (throw (str "BENCH_N is not a number: " e)) v)))
+         (if (int? v) v (throw (str "BENCH_N is not an integer: " e)))))
 (def laps 5000)
 (def total (* n laps))
 (def me (self))

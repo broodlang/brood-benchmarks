@@ -3,7 +3,7 @@
 ;; Checksum = N * ack(3,9) = N * 4093.
 (def n (let (e (os/env "BENCH_N")
              v (if e (string/->number e) 6))
-         (if (failure? v) (throw (str "BENCH_N is not a number: " e)) v)))
+         (if (int? v) v (throw (str "BENCH_N is not an integer: " e)))))
 
 (defn ack (m k)
   (cond

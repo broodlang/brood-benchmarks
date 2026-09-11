@@ -4,7 +4,7 @@
 ;; Brood's json is pure-Brood (std/json) vs the native parsers elsewhere.
 (def n (let (e (os/env "BENCH_N")
              v (if e (string/->number e) 2000))
-         (if (failure? v) (throw (str "BENCH_N is not a number: " e)) v)))
+         (if (int? v) v (throw (str "BENCH_N is not an integer: " e)))))
 
 (defn build (i x acc)
   (if (>= i n)

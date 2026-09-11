@@ -1,6 +1,6 @@
 (def n (let (e (os/env "BENCH_N")
              v (if e (string/->number e) 750000))
-         (if (failure? v) (throw (str "BENCH_N is not a number: " e)) v)))
+         (if (int? v) v (throw (str "BENCH_N is not an integer: " e)))))
 (def kk 1000)
 
 ;; LCG token stream tallied into an immutable map — single-pass update per step.

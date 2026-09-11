@@ -3,7 +3,7 @@
 ;; value is data-dependent (i % 100) so the checksum is real work, not foldable.
 (def n (let (e (os/env "BENCH_N")
              v (if e (string/->number e) 200000))
-         (if (failure? v) (throw (str "BENCH_N is not a number: " e)) v)))
+         (if (int? v) v (throw (str "BENCH_N is not an integer: " e)))))
 (def md 1000000007)
 
 (defn loop (i acc)
