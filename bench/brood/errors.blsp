@@ -1,7 +1,9 @@
 ;; error handling — raise a value-carrying error and recover it, N times.
 ;; Exercises the runtime's throw/catch path (not happy-path compute). The thrown
 ;; value is data-dependent (i % 100) so the checksum is real work, not foldable.
-(def n (let (e (os/env "BENCH_N")) (if e (string/->number e) 200000)))
+(def n (let (e (os/env "BENCH_N")
+             v (if e (string/->number e) 200000))
+         (if (failure? v) (throw (str "BENCH_N is not a number: " e)) v)))
 (def md 1000000007)
 
 (defn loop (i acc)

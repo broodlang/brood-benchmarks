@@ -2,7 +2,9 @@
 ;; (sum of encoded char codes + sum of decoded bytes) mod 2^31 — exercises and
 ;; verifies both directions. Brood's base64 is pure-Brood (std/encoding) vs the
 ;; native codecs elsewhere.
-(def n (let (e (os/env "BENCH_N")) (if e (string/->number e) 50000)))
+(def n (let (e (os/env "BENCH_N")
+             v (if e (string/->number e) 50000))
+         (if (failure? v) (throw (str "BENCH_N is not a number: " e)) v)))
 
 (defn gen (i x acc)
   (if (>= i n)
@@ -14,7 +16,10 @@
 ;; ADR-166 reserves every name that ships in the binary.
 (def bs (reverse (gen 0 123456789 (list))))
 (def enc (encoding/base64-encode-bytes bs))
-(def decoded (encoding/base64-decode-bytes enc))
+(def decoded (let (d (encoding/base64-decode-bytes enc))
+               ;; The input is our OWN encoder's output, so a failure here is a codec
+               ;; bug, not bad input — this row claims to verify both directions.
+               (if (failure? d) (throw (str "base64 round-trip failed: " (error-message d))) d)))
 (def enc-sum (reduce (string/->codepoints enc) 0 (fn (a c) (math/rem (+ a c) 2147483647))))
 (def dec-sum (reduce decoded 0 (fn (a b) (math/rem (+ a b) 2147483647))))
 (io/puts (math/rem (+ enc-sum dec-sum) 2147483647))

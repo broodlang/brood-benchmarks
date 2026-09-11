@@ -1,4 +1,6 @@
-(def n (let (e (os/env "BENCH_N")) (if e (string/->number e) 150000)))
+(def n (let (e (os/env "BENCH_N")
+             v (if e (string/->number e) 150000))
+         (if (failure? v) (throw (str "BENCH_N is not a number: " e)) v)))
 
 ;; all-integer trial division: in Brood the (* d d) multiply is CHEAPER than
 ;; comparing d to a float sqrt bound (mixed int/float compare coerces) — so we

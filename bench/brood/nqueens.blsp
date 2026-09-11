@@ -1,4 +1,6 @@
-(def n (let (e (os/env "BENCH_N")) (if e (string/->number e) 10)))
+(def n (let (e (os/env "BENCH_N")
+             v (if e (string/->number e) 10))
+         (if (failure? v) (throw (str "BENCH_N is not a number: " e)) v)))
 
 ;; Backtracking N-queens, counting solutions. `placed` is the columns chosen for
 ;; the rows above (nearest row first); `dist` is the row distance to that nearest

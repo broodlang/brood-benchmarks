@@ -32,7 +32,9 @@
 ;;
 ;; Reported as percentiles, because the mean is exactly the statistic that hides this.
 ;; Checksum = the summed work result, identical in every port.
-(def n (let (e (os/env "BENCH_N")) (if e (string/->number e) 50000)))
+(def n (let (e (os/env "BENCH_N")
+             v (if e (string/->number e) 50000))
+         (if (failure? v) (throw (str "BENCH_N is not a number: " e)) v)))
 (def rate 20000) ; requests/second, open loop
 (def gap-ns (math/quot 1000000000 rate))
 (def cheap 40) ; work units in an ordinary request
