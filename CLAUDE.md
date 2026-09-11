@@ -186,10 +186,26 @@ python3 bench/chart.py                # regenerate results/overview.svg from res
 the canonical numbers. Then, in this order:
 
 ```sh
+python3 bench/merge_brood.py <commit> "<version>" n1 n2 n3   # 0. brood-only refresh only
 python3 bench/chart.py     # 1. the README's overall-speed chart (results/overview.svg)
 python3 bench/docs.py      # 2. every derivable number in BENCHMARKS.md + README.md
 python3 bench/docs.py --check   # 3. must exit 0 before you commit
+git commit ...             # 4. COMMIT, then:
+python3 bench/trend.py     # 5. results/trend.svg — AFTER the commit, see below
 ```
+
+**`trend.py` runs AFTER the commit, and that is not a style preference.** It reads
+`git show <commit>:results/results.json` over `git log` — committed history only, never
+the working tree — so running it in step 1-3 renders a chart that cannot contain the run
+you just measured. Commit `results/results.json` first, then regenerate `trend.svg` and
+commit that.
+
+Getting this wrong is not loud. A brood-only refresh does not change `_meta.date` (the
+other columns really were measured at the field run, and `docs.py`'s machine line depends
+on that), so before 2026-09-11 `trend.py` keyed its points on a date that thirteen
+consecutive publishes shared, silently collapsing twelve refreshes onto one point — and,
+since the dedup keeps the newest commit per date, re-plotting each new refresh's numbers
+under the old label. It keys on `_meta.brood_refresh` now, which `merge_brood.py` writes.
 
 **Then write the prose by hand — and only the prose.** `docs.py` owns the machine/date/commit
 line, the **Overall rating** block, the `latency` percentile table, both `spawn-live` tables,
