@@ -71,6 +71,14 @@ def main(labels, commit, version, out=RESULTS / "results.json"):
     meta = field["_meta"]
     field_date = meta["date"].split(" ")[0]
     meta["brood_commit"] = commit
+    # The field must be the full "brood X.Y.Z (sha)" string, because staleness.py parses it
+    # with `brood\s+(\S+)\s+\(([0-9a-f]+)\)`; a bare "0.27.2" parses to None, and every
+    # brood commit past the measured one then reds `staleness --fail-on-version` (2026-09-13:
+    # the 5c913fe3 refresh shipped a bare version and CI went red the next brood push).
+    import re as _re
+    if not _re.search(r"brood\s+\S+\s+\([0-9a-f]+\)", version):
+        sys.exit(f"merge_brood: version must be 'brood X.Y.Z (sha)', got {version!r} "
+                 f"(staleness.py cannot parse a bare version)")
     meta["versions"]["brood"] = version
     meta["brood_refresh"] = (
         f"brood column re-measured {today} at {version} (brood-only, min of "

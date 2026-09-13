@@ -1586,7 +1586,7 @@
     "date": "2026-08-28 15:24",
     "brood_commit": "5c913fe3",
     "versions": {
-      "brood": "0.27.2",
+      "brood": "brood 0.27.2 (5c913fe3)",
       "clojure": "Clojure 1.12.5 / JDK 25.0.4",
       "elixir": "Elixir 1.21.0-dev (b82c44a) (compiled with Erlang/OTP 28)",
       "python": "Python 3.14.4",
