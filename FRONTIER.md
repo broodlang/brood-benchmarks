@@ -23,7 +23,7 @@ affected code, so hot reload holds.
 Ratios are Brood's compute vs the fastest language on that row — **usually C**, a machine-floor
 reference, so these read "vs roughly the hardware", not "vs the fastest managed runtime".
 
-- **`spawn-live` (1.58 s, 1.73 GB — 1.9× slower and 1.9× heavier than the BEAM).** ~5.5 KB per
+- **`spawn-live` (1.43 s, 1.69 GB — 2.0× slower and 1.9× heavier than the BEAM).** ~5.5 KB per
   live process against ~3.1 KB. Four wins landed here (ADR-215 AST-keyed code sharing, `fold`
   walking a vector by index, a native counted fold, dispatch reorder) and **none touched the
   process floor**, which is what is left — the row's peak RSS sat flat throughout. See levers 1
@@ -33,21 +33,21 @@ reference, so these read "vs roughly the hardware", not "vs the fastest managed 
   earlier bug here: **the JIT-vs-no-JIT ratio per row** — `fib` 54×, `collatz` 40×, but `nbody`
   3.2×, which is what exposed a silent bail. `bintree` (3.5×) and `nqueens` (3.4×) are in that
   same suspicious band.
-- **`bintree` (7.8×; the BEAM is unusually fast here and beats C)** — the one row C does not lead:
+- **`bintree` (6.1×; the BEAM is unusually fast here and beats C)** — the one row C does not lead:
   malloc/free on ~819k short-lived nodes loses to a generational collector, worth knowing before
   treating "native allocation" as the target. The cost is the call protocol: ~77 ns per node over
   four non-tail calls. That is the X-register/call-convention redesign, not a tuning knob. **The
   open watch-item.**
-- **`nqueens` (36× C, 12× Node)** — backtracking recursion; the `reduce`-over-`range` per node and
+- **`nqueens` (35× C, 12× Node)** — backtracking recursion; the `reduce`-over-`range` per node and
   the non-tail `solve`/`safe?` recursion dominate. C's margin is partly structural (it pushes onto
   a stack array where Node and .NET copy the placed-columns list per node), so **12× against Node
   is the fairer target**.
-- **`mandelbrot` (9.6× C)** — `esc` is JIT'd with register-carried f64 params; the residual is
+- **`mandelbrot` (9.3× C)** — `esc` is JIT'd with register-carried f64 params; the residual is
   boxed 24-byte `Value` tagging plus loop overhead. Near the JIT floor — C is only 1.2× ahead of
   .NET here, so the row is close to its arithmetic limit for everyone.
-- **`matmul` (59× C)** — inner loop is native; residual is the one read LICM can't hoist plus boxed
+- **`matmul` (51× C)** — inner loop is native; residual is the one read LICM can't hoist plus boxed
   `Value` array storage. Both denominators are ~2–4 ms, so read the absolute, not the multiple.
-- **`pipeline` (8.7×)** — lazy-seq/transducer composition the JIT doesn't cover. **The
+- **`pipeline` (6.2× Node)** — lazy-seq/transducer composition the JIT doesn't cover. **The
   "allocation churn dominates" half of this entry was withdrawn 2026-08-28: it does not.**
   Scoped counters (`perf/measure`, size-swept 100k → 1M so only work-proportional counters
   count) put `alloc` at **15, flat** — `alloc_slot!` is the one macro behind every LOCAL heap
@@ -72,7 +72,8 @@ reference, so these read "vs roughly the hardware", not "vs the fastest managed 
   **~50% of this row is call plumbing.** But see the ruled-out list: memoizing the *resolution*
   half was implemented and measured at ~0 where users run. The cost is the **call protocol**, not
   the bookkeeping.
-- **Message latency (`pingpong` 3.0×, `ring` 2.5×, `supervisor` 2.9× vs Elixir)** — the widest
+- **Message latency (`pingpong` 3.2×, `ring` 3.0× vs Elixir; `supervisor` is under a
+  regression, below)** — the widest
   honest gap, with its three large levers already taken: direct handoff (1.9×), the HOF matcher
   fast path (3.0×), and the receive-mark that removed an O(rounds × backlog) rescan. What is left
   per message is a mailbox mutex, a `wake_parked`, a re-enqueue and one matcher activation, over a
@@ -283,6 +284,33 @@ checksums *agree* — both stayed green the whole time. `bench/staleness.py` (wi
 daily job) now compares the commit the column was measured at against the commit under test
 and fails on a version boundary. It deliberately measures nothing: a perf gate on a shared
 runner would be a flake generator, and a gate nobody trusts is worse than none.
+
+## `supervisor` +50% at the 2026-09-14 field run (OPEN)
+
+The full seven-language refresh at `c9d6c1a1` found every row inside drift except one:
+**`supervisor` 886 → 1330 ms**, the row measuring 20,000 supervised children with a quarter
+retired and restarted. It clears the verification bar the rest of this file insists on, in both
+directions:
+
+| | run 1 | run 2 | run 3 | spread |
+|---|---|---|---|---|
+| `5c913fe3` (the 0.27.2 column), rebuilt + its own std image, PATH-overridden | 888.6 ms | 892.1 ms | 891.4 ms | 0.4% |
+| `c9d6c1a1` (this column) | 1342.0 ms | 1344.7 ms | 1349.8 ms | 0.6% |
+
+Both sides are best-of-7 within the invocation (`supervisor` is in `NOISY`), and three whole
+invocations per side — the min-of-3 treatment that exists because one invocation is a coin flip
+on this box. A row that normally wanders is holding still here, on both binaries, 50% apart.
+
+**Peak RSS did not move with it** (626 → 644 MB, inside this row's own RSS drift), so the cost is
+time, not allocation volume: something on the per-child path got slower, not bigger. Nothing else
+in the run moved beyond drift, which argues against a broad dispatch or boot cause and for
+something on the link/monitor/restart path specifically.
+
+Not yet bisected — 72 commits separate the two, and the window contains at least four candidates
+that touch this path by description: the module-publish staging (`9b8d34d9`, ADR-344), the
+`%isolate` load survival (`d235e000`, ADR-339), the timer-thread wake change (`25bc86ad`) and the
+VM→native direct call (`205cc55c`). Per this file's own rule, sample three or four points across
+the range before bisecting: a step means bisect, a ramp means there is nothing to localise.
 
 ## The 0.27.0 refresh: a correctness fix that cost 61% on one row (2026-09-10)
 
