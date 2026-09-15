@@ -72,8 +72,8 @@ reference, so these read "vs roughly the hardware", not "vs the fastest managed 
   **~50% of this row is call plumbing.** But see the ruled-out list: memoizing the *resolution*
   half was implemented and measured at ~0 where users run. The cost is the **call protocol**, not
   the bookkeeping.
-- **Message latency (`pingpong` 3.2×, `ring` 3.0× vs Elixir; `supervisor` is under a
-  regression, below)** — the widest
+- **Message latency (`pingpong` 3.2×, `ring` 3.0× vs Elixir; `supervisor` carries ~0.2 s of
+  pre-run type checking, below)** — the widest
   honest gap, with its three large levers already taken: direct handoff (1.9×), the HOF matcher
   fast path (3.0×), and the receive-mark that removed an O(rounds × backlog) rescan. What is left
   per message is a mailbox mutex, a `wake_parked`, a re-enqueue and one matcher activation, over a
@@ -285,7 +285,7 @@ daily job) now compares the commit the column was measured at against the commit
 and fails on a version boundary. It deliberately measures nothing: a perf gate on a shared
 runner would be a flake generator, and a gate nobody trusts is worse than none.
 
-## `supervisor` +50% at the 2026-09-14 field run (OPEN)
+## `supervisor` +50% at the 2026-09-14 field run — the checker, not the supervisor (2026-09-15)
 
 The full seven-language refresh at `c9d6c1a1` found every row inside drift except one:
 **`supervisor` 886 → 1330 ms**, the row measuring 20,000 supervised children with a quarter
@@ -306,11 +306,27 @@ time, not allocation volume: something on the per-child path got slower, not big
 in the run moved beyond drift, which argues against a broad dispatch or boot cause and for
 something on the link/monitor/restart path specifically.
 
-Not yet bisected — 72 commits separate the two, and the window contains at least four candidates
-that touch this path by description: the module-publish staging (`9b8d34d9`, ADR-344), the
-`%isolate` load survival (`d235e000`, ADR-339), the timer-thread wake change (`25bc86ad`) and the
-VM→native direct call (`205cc55c`). Per this file's own rule, sample three or four points across
-the range before bisecting: a step means bisect, a ramp means there is nothing to localise.
+**Resolved to a cause the next day, and it was none of the four candidates above.** A `BENCH_N`
+sweep put the cost at a flat ~520 ms — N=100 read 625 ms against 104 — so it was load time, and
+cutting the program form by form put it on one line: `(def sup (supervisor/start []))`, which
+checked in 463 ms where it had cost 41. `brood file.blsp` runs the advisory type checker before the
+program, and the checker's call-site specializer returned a `None` through `?` *before* its memo
+write, so a negative answer that cost a full body walk was re-asked at every call site and every
+enclosing level: the prelude's `get` re-typed 1864 times for 52 distinct questions. Latent since
+call-site specialization landed; reachable once ADR-341 gave module-private parameters types
+(brood KI-138, fixed at `0148a3a5`, guarded by a test that bounds the walks).
+
+| | run 1 | run 2 | run 3 | min |
+|---|---|---|---|---|
+| `d99fea7e` (this refresh, KI-138 fixed) | 1087.2 ms | 1102.3 ms | 1101.0 ms | **1087 ms** |
+
+**Half.** The 0.27.2 column's binary checks the two-line probe in 10 ms; the fixed one in 240 ms
+— one walk per question now (238 for 236), at ~1 ms per walk, across the modules ADR-339
+materialises transitively (`os`, `io`, `string`, `map`, `seq`, … where the old checker loaded
+`supervisor` alone). That is the checker doing more by design at a price nothing gated, filed as
+brood **KI-139** (open) with the profile and the repro. The lesson this file already teaches,
+restated: a checker cost is a runtime cost on this system, and the signal came from this column,
+not from a test — which is the argument for keeping it fresh.
 
 ## The 0.27.0 refresh: a correctness fix that cost 61% on one row (2026-09-10)
 
