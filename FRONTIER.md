@@ -333,8 +333,9 @@ call): probe check 290 → 65 ms, visits 288 408 → 20 979.
 
 | | run 1 | run 2 | run 3 | min |
 |---|---|---|---|---|
-| `c813ce1a` (KI-138 + KI-139 fixed, this refresh) | 875.9 ms | 879.3 ms | 861.0 ms | **861 ms** |
+| `c813ce1a` (KI-138 + KI-139 fixed, that refresh) | 875.9 ms | 879.3 ms | 861.0 ms | **861 ms** |
 | `5c913fe3` (the 0.27.2 column's binary), same day, image rebuilt | | | | 975 ms |
+| `b092e62b` (0.28.0, the current column), same day, later | 839.2 ms | 836.0 ms | 836.8 ms | **836 ms** |
 
 Under where it started, on a day the control says is ~7% slower than that column's. Two lessons
 this file already teaches, restated by the day: a flat profile plus a per-walk count that "looks
