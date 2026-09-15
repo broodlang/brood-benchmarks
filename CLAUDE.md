@@ -55,6 +55,14 @@ python3 bench/chart.py                # regenerate results/overview.svg from res
   harness) or brood's `scripts/ab-bench.sh --floor` — never against the published
   number alone, which was itself one sample. Concurrency rows (`NOISY`) drift several
   percent beyond even that.
+  - **A PATH-override control is only a control if that binary has its std image.** brood's
+    cache keeps the **four newest** `std-image-*.bin` (`stdimage.blsp` `prune`), and every
+    `make install`, `make ab`, and nextest setup writes one — so in a session that builds several
+    trees, the baseline binary's image is silently evicted and it loads the standard library from
+    source: +24–71% on the short rows (2026-09-15, `ring` "confirmed" at +7.8% by exactly this).
+    Before reading a control, `BROOD_IMAGE_TRACE=1 <that brood> --check any.blsp` must print
+    `[image] install: N sections`, not `nil sections`; if it does not, rebuild the image in that
+    worktree (`cargo build -p nest && scripts/build-std-image.sh`) and run the control again.
 
 - **`wordcount` is bimodal too** (2026-09-02): six invocations of one binary split cleanly
   63.0 / 63.0 / 63.2 against 67.1 / 67.2 / 67.5 — a 7.1% spread with no middle. It read

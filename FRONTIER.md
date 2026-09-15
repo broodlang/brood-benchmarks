@@ -72,8 +72,8 @@ reference, so these read "vs roughly the hardware", not "vs the fastest managed 
   **~50% of this row is call plumbing.** But see the ruled-out list: memoizing the *resolution*
   half was implemented and measured at ~0 where users run. The cost is the **call protocol**, not
   the bookkeeping.
-- **Message latency (`pingpong` 3.2×, `ring` 3.0× vs Elixir; `supervisor` carries ~0.2 s of
-  pre-run type checking, below)** — the widest
+- **Message latency (`pingpong` 3.2×, `ring` 3.0× vs Elixir; `supervisor`'s 2026-09-14 spike
+  was the type checker, below)** — the widest
   honest gap, with its three large levers already taken: direct handoff (1.9×), the HOF matcher
   fast path (3.0×), and the receive-mark that removed an O(rounds × backlog) rescan. What is left
   per message is a mailbox mutex, a `wake_parked`, a re-enqueue and one matcher activation, over a
@@ -320,13 +320,26 @@ call-site specialization landed; reachable once ADR-341 gave module-private para
 |---|---|---|---|---|
 | `d99fea7e` (this refresh, KI-138 fixed) | 1087.2 ms | 1102.3 ms | 1101.0 ms | **1087 ms** |
 
-**Half.** The 0.27.2 column's binary checks the two-line probe in 10 ms; the fixed one in 240 ms
-— one walk per question now (238 for 236), at ~1 ms per walk, across the modules ADR-339
-materialises transitively (`os`, `io`, `string`, `map`, `seq`, … where the old checker loaded
-`supervisor` alone). That is the checker doing more by design at a price nothing gated, filed as
-brood **KI-139** (open) with the profile and the repro. The lesson this file already teaches,
-restated: a checker cost is a runtime cost on this system, and the signal came from this column,
-not from a test — which is the argument for keeping it fresh.
+**Then the other half, the same afternoon (KI-139).** The fix above left the probe's check at
+240 ms against 10 ms on the 0.27.2 column's binary, and the row at 1.09 s. Timing each specialized
+walk put 249 of those milliseconds on ONE 239-node body (`supervisor-group-restart`); counting
+expression visits during it read 78 910 — 330× the body; per-form entry counts laid the ladder out
+(1 → 2 → 4 → 7 → 11 → … → 2464 down the nesting, each `(do …)` re-entering its single form twice);
+backtraces at the doubled entry named the caller. A `let`/`do`/`if` whose body the inferencer
+could not type returned unknown from the control-flow path and then **fell through to the call
+path**, which typed `(let (b) body)` as a call to a function named `let` — bindings and body
+re-typed as its arguments. One guard (a special-form head that cannot be typed is unknown, never a
+call): probe check 290 → 65 ms, visits 288 408 → 20 979.
+
+| | run 1 | run 2 | run 3 | min |
+|---|---|---|---|---|
+| `c813ce1a` (KI-138 + KI-139 fixed, this refresh) | 875.9 ms | 879.3 ms | 861.0 ms | **861 ms** |
+| `5c913fe3` (the 0.27.2 column's binary), same day, image rebuilt | | | | 975 ms |
+
+Under where it started, on a day the control says is ~7% slower than that column's. Two lessons
+this file already teaches, restated by the day: a flat profile plus a per-walk count that "looks
+about right" is not attribution (three measurements were needed, each contradicting the previous
+theory); and the signal came from this column, not from a test — the argument for keeping it fresh.
 
 ## The 0.27.0 refresh: a correctness fix that cost 61% on one row (2026-09-10)
 
