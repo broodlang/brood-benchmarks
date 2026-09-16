@@ -342,6 +342,37 @@ this file already teaches, restated by the day: a flat profile plus a per-walk c
 about right" is not attribution (three measurements were needed, each contradicting the previous
 theory); and the signal came from this column, not from a test — the argument for keeping it fresh.
 
+## The 2026-09-16 field run: Go joins, and the tally a user writes is the fast one (v0.30.0)
+
+Two things changed at once, and they are separate.
+
+**Go is a full column** (`bench/go/`, one static binary per row, `bench/go/README.md` for the
+judgement calls). It lands where the field had a hole — between C and .NET: 1.8× the C floor on
+the 15-row aggregate, 1.4× on the single-threaded compute rows, at C's memory (1.8 MB base RSS,
+2.3 ms startup). It is the column to read Brood's concurrency rows against now that the BEAM is
+not the only scheduler in the field: goroutines are not isolated processes (shared heap, no
+mailbox — `spawn-live` copies its payload explicitly and sits in the coroutine table), but they
+are preemptively scheduled across cores, and `pingpong` at 24 ms against Brood's 178 and the
+BEAM's 58 says what a channel handoff costs against a mailbox with a copying send. `latency`
+is the exception: Go's p99 sits with Brood's, not below it — a goroutine that runs for 500 µs
+is not preempted (Go's tick is 10 ms), so the requests queued on its P wait, which is the row's
+question asked of a third scheduler. Go's aggregate against Brood's is 5.9×; the row set the
+overview aggregates did not change (Go runs every `all` row), so this run's overall figures ARE
+comparable with the previous ones — unlike the C landing.
+
+**`wordcount` and `persistent-map` are now written as a user writes them.** The review of every
+port for idiom found one Brood finding: both called `%map-int-add`, an undocumented kernel
+primitive that only the compiler's linear-map rewrite recognised — the idiomatic
+`(assoc m k (+ 1 (get m k 0)))` was 8× slower on the same loop. The ports were changed to the
+idiom, and brood was changed to recognise it (ADR-360, KI-151 there: `%table-add`, and
+`%map-int-add` made exactly the same `+`). The published rows are the idiom: `wordcount` 42 ms
+and `persistent-map` 56 ms against 39 / 55 for the primitive spelling at the last refresh —
+the same figure, from code nobody has to know a `%` name to write. What is left on those rows
+is what was left before: the immutable map against Go's `m[k] += v` (6 ms) is 7–9×, which is
+the CHAMP-in-a-table build against a mutating hash map, not the loop.
+
+Everything else in the Brood column is inside the ±10% field drift of the 0.29.2 refresh.
+
 ## The 0.29.2 refresh: `bintree` −8% from the call convention's first rungs, `base64` +7% from a checker cost (2026-09-16, evening)
 
 `bintree` **84 → 77 ms** (min of 3, spread 0.1%): brood's call convention work (rungs A0/A1,
