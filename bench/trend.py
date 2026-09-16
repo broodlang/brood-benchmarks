@@ -61,10 +61,19 @@ def brood_date(meta):
 
 
 def history(rows):
-    """`[(date, {row: wall_ms})]` oldest-first — one entry per published run date."""
+    """`[(date, {row: wall_ms})]` oldest-first — one entry per PUBLISHED REFRESH.
+
+    A refresh is identified by (date, brood commit), not by date alone: the column is
+    refreshed several times on a busy day (2026-09-15 had three — d99fea7e, c813ce1a,
+    b092e62b, each a different runtime), and keying on the date collapsed them onto one
+    point, the newest overwriting the rest, so the chart showed no new point for a
+    refresh that had landed. Within a date the points keep publish order (oldest first);
+    the same refresh re-published (a `trend:` regeneration commit carries the same
+    results.json) still counts once.
+    """
     commits = git("log", "--format=%h", "--", "results/results.json").split()
     seen = {}
-    for c in commits:  # newest first, so the first hit for a date is that run's publish
+    for k, c in enumerate(commits):  # newest first
         raw = git("show", f"{c}:results/results.json")
         if not raw.strip():
             continue
@@ -72,8 +81,10 @@ def history(rows):
             d = json.loads(raw)
         except json.JSONDecodeError:
             continue  # a truncated results.json is in the history; skip rather than die
-        date = brood_date(d.get("_meta", {}))
-        if not date or date in seen:
+        meta = d.get("_meta", {})
+        date = brood_date(meta)
+        key = (date, meta.get("brood_commit") or "")
+        if not date or key in seen:
             continue
         vals = {}
         for r in rows:
@@ -85,8 +96,10 @@ def history(rows):
                 # 285% blow-up until this was handled.
                 vals[r] = (lang["wall_ms"], d.get(r, {}).get("n"))
         if vals:
-            seen[date] = vals
-    return sorted(seen.items())
+            seen[key] = (k, vals)
+    # Oldest first: by date, then by git order within the date (a larger `k` is older).
+    ordered = sorted(seen.items(), key=lambda kv: (kv[0][0], -kv[1][0]))
+    return [(key[0], vals) for key, (_, vals) in ordered]
 
 
 def render(series, dates, rows):
