@@ -34,11 +34,11 @@ from common import CHART_ROWS, CHART_OVERLAY_ROW, compute, geomean  # noqa: E402
 COLOR = {
     "brood": "#c0392b", "elixir": "#8e44ad", "python": "#2980b9",
     "node": "#27ae60", "ruby": "#d35400", "dotnet": "#16a085",
-    "clojure": "#e67e22", "c": "#b7950b",
+    "clojure": "#e67e22", "c": "#b7950b", "go": "#00add8",
 }
 LABEL = {"brood": "Brood", "elixir": "Elixir", "python": "Python",
          "node": "Node", "ruby": "Ruby", "dotnet": ".NET", "clojure": "Clojure",
-         "c": "C"}
+         "go": "Go", "c": "C"}
 
 
 def collect(results):

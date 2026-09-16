@@ -32,3 +32,7 @@ bench/c/build/
 
 # Startup-image cache — a build artifact, rebuilt on demand
 .brood/
+
+# Compiled Go benches (regenerable; the harness rebuilds via build_go()). The .go
+# sources ARE committed — only the binaries are ignored.
+bench/go/build/

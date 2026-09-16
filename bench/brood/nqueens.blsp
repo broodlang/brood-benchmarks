@@ -10,7 +10,7 @@
   (if (empty? placed)
     true
     (let (p (first placed) d (- p c))
-      (if (or (= p c) (= d dist) (= d (- 0 dist)))
+      (if (or (= p c) (= d dist) (= d (- dist)))
         false
         (safe? c (rest placed) (+ dist 1))))))
 

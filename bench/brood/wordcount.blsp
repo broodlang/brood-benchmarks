@@ -3,13 +3,20 @@
          (if (int? v) v (throw (str "BENCH_N is not an integer: " e)))))
 (def kk 1000)
 
-;; LCG token stream tallied into an immutable map — single-pass update per step.
+;; LCG token stream tallied into an immutable map — the plain read-modify-write a Brood
+;; user writes, `(assoc m k (+ 1 (get m k 0)))`, like every other port's one-call update.
+;; Until 2026-09-16 this called `%map-int-add`, an undocumented kernel primitive that was
+;; 8.5× faster because only IT was recognised by the compiler's linear-map rewrite (the
+;; accumulator is provably linear, so the map is built in place and the loop stays native).
+;; The idiomatic form was not code a user would write to get that, so the port was changed
+;; to the idiom and brood taught to recognise it (brood ADR-360 / KI-151): the two now
+;; compile to the same thing, and the published figure is the idiom.
 (defn gen (x m i)
   (if (>= i n)
     m
     (let (x2 (bit/and (+ (* x 1103515245) 12345) 2147483647)
           key (math/rem x2 kk))
-      (gen x2 (%map-int-add m key 1) (+ i 1)))))
+      (gen x2 (assoc m key (+ 1 (get m key 0))) (+ i 1)))))
 
 (def counts (gen 123456789 {} 0))
 

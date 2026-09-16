@@ -131,6 +131,12 @@ def brood_version(res):
     return f"{ver} (`{commit}`)" if commit else ver
 
 
+def go_version(v):
+    """`Go 1.24.2` from `go version go1.24.2 linux/amd64`."""
+    m = re.search(r"go(\d+(?:\.\d+)+)", v.get("go") or "")
+    return f"Go {m.group(1)}" if m else "Go"
+
+
 def machine_line(res):
     m = res["_meta"]
     v = m["versions"]
@@ -151,7 +157,8 @@ def machine_line(res):
         f"Machine: `{m['host']}`, {m['cores']}-core x86-64, "
         f"Linux {m['platform'].split('-')[1]}, **{date}** · Brood {brood} · "
         f"{v['clojure']} · Elixir {elixir} · {v['python']} · Node {v['node']} · "
-        f"Ruby {v['ruby'].split(' (')[0].replace('ruby ', '')} · .NET {v['dotnet']}."
+        f"Ruby {v['ruby'].split(' (')[0].replace('ruby ', '')} · .NET {v['dotnet']}"
+        f"{' · ' + go_version(v) if 'go' in v else ''}."
         f"{refresh}"
     )
 
@@ -365,9 +372,9 @@ def peer_block(res, starts):
 
 
 def coroutine_block(res, starts):
-    return spawn_live_table(res, starts, ["node", "dotnet", "python"],
+    return spawn_live_table(res, starts, ["node", "dotnet", "python", "go"],
                             {"node": "promise", "dotnet": "`Task`",
-                             "python": "`asyncio` task"}, "COROUTINE")
+                             "python": "`asyncio` task", "go": "goroutine"}, "COROUTINE")
 
 
 def standings_block(res, starts):
@@ -429,7 +436,7 @@ def standings_block(res, starts):
         f"Elixir {fmt_s(compute(res, starts, 'spawn-live', 'elixir'))} / "
         f"{fmt_gb(sl['elixir']['rss_kb'])} — the only peer; "
         + ", ".join(f"{PRETTY[l]} {fmt_s(compute(res, starts, 'spawn-live', l))} / "
-                    f"{fmt_gb(sl[l]['rss_kb'])}" for l in ("node", "dotnet", "python")
+                    f"{fmt_gb(sl[l]['rss_kb'])}" for l in ("node", "dotnet", "python", "go")
                     if l in sl)
         + " are coroutines on a shared heap |",
         f"| `supervisor` (20k supervised children, a quarter retired and restarted) | "
@@ -455,7 +462,8 @@ def environment_block(res, starts):
         f"{v['clojure'].replace(' / JDK', ' / OpenJDK')} (HotSpot) · "
         f"{re.sub(r' \(compiled with Erlang/OTP (\d+)\)', r' / OTP \1', v['elixir'])} "
         f"(BeamAsm JIT) · {v['python']} · Node {v['node'].lstrip('v')} (V8) · "
-        f"{v['ruby'].split(' (')[0]} · .NET {v['dotnet']} (RyuJIT). "
+        f"{v['ruby'].split(' (')[0]} · .NET {v['dotnet']} (RyuJIT)"
+        f"{' · ' + go_version(v) + ' (gc)' if 'go' in v else ''}. "
         f"{m['date'].split(' ')[0]}.",
         end("ENVIRONMENT"),
     ]

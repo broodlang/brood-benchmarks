@@ -1,4 +1,4 @@
-# benchmark — Brood vs C vs Clojure vs Elixir vs Python vs Node vs Ruby vs .NET
+# benchmark — Brood vs C vs Go vs Clojure vs Elixir vs Python vs Node vs Ruby vs .NET
 
 **31 programs under one harness**, measuring where the Brood runtime stands on startup,
 memory, compute and concurrency. Brood is a young runtime measured against mature ones:

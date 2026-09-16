@@ -1,8 +1,10 @@
 # brood-benchmarks — guidance for Claude
 
 A cross-language micro-benchmark suite: 31 programs across Brood, Clojure, Elixir,
-Python, Node, Ruby and .NET, run under one harness. 28 are implemented in every
-language.
+Python, Node, Ruby, .NET and Go, run under one harness. 28 are implemented in every
+language. **Go is a full column** (added 2026-09-16): every `all` row plus `spawn-live` and
+`latency`, built like C — one static binary per row under `bench/go/build`, `bench/go/README.md`
+records the judgement calls (panic/recover for the error rows, `iter.Seq` for `pipeline`).
 
 **C is a partial column and a deliberate one** (added 2026-08-14): 16 of the 31 rows, as a
 machine-floor reference so ratios mean "vs roughly what the hardware does" rather than "vs
@@ -99,7 +101,7 @@ python3 bench/chart.py                # regenerate results/overview.svg from res
   `python3 bench/smoke.py` (Brood only) — the other columns cannot have changed if you have
   not touched them, and each cross-language pass spawns a JVM, a BEAM and a .NET host per
   row, which costs minutes for information you already have. The same holds for the full
-  harness: `bench/harness.py` across all seven languages is a *publishing* step, not an
+  harness: `bench/harness.py` across all eight languages is a *publishing* step, not an
   iteration step. Use `--langs brood` while working.
 
 - **`bench/smoke.py` is the gate; run it before anything else and after any brood
@@ -178,7 +180,7 @@ python3 bench/chart.py                # regenerate results/overview.svg from res
   `--quick` and `--only`.** So a one-row smoke test clobbers the published numbers; they are
   committed, so `git diff results/` shows it and restoring is easy, but check before you
   commit. (Walked into on 2026-08-05: a `--quick --only fib --langs brood` sanity check
-  replaced a full seven-language run's results.) Use `--label X` for a run you want to keep
+  replaced a full eight-language run's results.) Use `--label X` for a run you want to keep
   separately — `results/{results,report}.<label>.*` is gitignored.
 - The harness does one discarded warmup run per language before measuring. Don't
   remove it: wall is a best-of but RSS a worst-of, so without it Brood's
@@ -267,7 +269,7 @@ row, and that check is what exposed this.
   runs it — the harness gates on it. Idiomatic per language, not adversarial;
   the fairness rules live in the README.
 - Files are named identically per benchmark (`fib.blsp`/`fib.clj`/`fib.ex`/`fib.c`/…)
-  so they diff side by side. A new benchmark needs all seven ports plus a
+  so they diff side by side. A new benchmark needs all eight ports plus a
   `BENCHES` entry in `bench/harness.py` (and a C port if the row is compute and you
   want the floor — use `"all+c"`).
 - For Brood idioms read `docs/brood-for-claude.md` before writing `.blsp`.

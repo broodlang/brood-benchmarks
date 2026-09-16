@@ -34,7 +34,7 @@ RESULTS = ROOT.parent / "results"
 # Display names for report headers/titles, in the canonical column order.
 NICE = {"brood": "Brood", "clojure": "Clojure", "elixir": "Elixir",
         "python": "Python", "node": "Node", "ruby": "Ruby", "dotnet": ".NET",
-        "c": "C"}
+        "go": "Go", "c": "C"}
 
 # ext + how to invoke a single source file. `env` is merged on top of the
 # inherited environment for that language's child process.
@@ -67,6 +67,15 @@ DOTNET_APP = DOTNET_DIR / "publish" / "brood-bench"
 C_DIR = ROOT / "c"
 C_BUILD = C_DIR / "build"
 C_CFLAGS = ["-O2", "-march=native", "-std=c11", "-Wall", "-Wextra"]
+
+# Go is a FULL column (every `all` row, plus `spawn-live` and `latency`), built the way C
+# is: one static binary per row under bench/go/build, so `startup` measures a real Go
+# process — runtime init, one write, exit — and not a switch inside a running one. It is
+# the compiled, garbage-collected, goroutine-scheduled point of comparison the field was
+# missing between C (no runtime) and .NET (a JIT). `bench.go` is the shared helper every
+# row is compiled with; the rest of the directory is one `package main` file per row.
+GO_DIR = ROOT / "go"
+GO_BUILD = GO_DIR / "build"
 
 # Elixir, like .NET, is precompiled once at startup rather than run from source.
 # `elixir file.exs` recompiles the program's module on every run — that ~100ms
@@ -118,6 +127,7 @@ LANGS = {
     "node":   {"dir": "node",   "ext": "js",   "cmd": lambda p: ["node", p]},
     "ruby":   {"dir": "ruby",   "ext": "rb",   "cmd": lambda p: ["ruby", p]},
     "dotnet": {"dir": "dotnet", "ext": "cs",   "cmd": lambda p: [str(DOTNET_APP), Path(p).stem]},
+    "go":     {"dir": "go",     "ext": "go",   "cmd": lambda p: [str(GO_BUILD / Path(p).stem)]},
     "c":      {"dir": "c",      "ext": "c",    "cmd": lambda p: [str(C_BUILD / Path(p).stem)]},
 }
 
@@ -125,7 +135,7 @@ LANGS = {
 # (see the C_DIR comment), so a row opts into it explicitly with "all+c" rather than
 # C being silently expected everywhere and skipped when missing. A missing port
 # should be a loud absence in this suite, not an empty cell.
-ALL = ["brood", "clojure", "elixir", "python", "node", "ruby", "dotnet"]
+ALL = ["brood", "clojure", "elixir", "python", "node", "ruby", "dotnet", "go"]
 ALL_C = ALL + ["c"]
 WHERE = {"all": ALL, "all+c": ALL_C}
 
@@ -177,6 +187,29 @@ def build_c():
             raise RuntimeError(f"gcc failed on {src.name}:\n{r.stdout}{r.stderr}")
         if r.stderr.strip():
             print(f"  warning ({src.name}): {r.stderr.strip().splitlines()[0]}")
+
+
+def build_go():
+    """Compile every Go bench to its own binary under bench/go/build (mirrors build_c).
+
+    `go build` on the explicit file pair rather than the package: every row is its own
+    `package main` in one directory (so the files diff side by side with the other
+    columns), and an explicit file list is how Go compiles one of them. Fails the run on
+    any compile error, for the same reason build_c does.
+    """
+    print("compiling Go benches (go build)…")
+    GO_BUILD.mkdir(parents=True, exist_ok=True)
+    sources = sorted(p for p in GO_DIR.glob("*.go") if p.name != "bench.go")
+    if not sources:
+        raise RuntimeError(f"no Go sources found in {GO_DIR}")
+    for src in sources:
+        out = GO_BUILD / src.stem
+        r = subprocess.run(
+            ["go", "build", "-o", str(out), "bench.go", src.name],
+            cwd=str(GO_DIR), capture_output=True, text=True,
+        )
+        if r.returncode != 0:
+            raise RuntimeError(f"go build failed on {src.name}:\n{r.stdout}{r.stderr}")
 
 
 def build_brood():
@@ -254,6 +287,7 @@ def probe_version(lang):
         "node":   ["node", "--version"],
         "ruby":   ["ruby", "--version"],
         "dotnet": ["dotnet", "--version"],
+        "go":     ["go", "version"],
         "c":      ["gcc", "--version"],
     }.get(lang)
     if not cmd or shutil.which(cmd[0]) is None:
@@ -350,7 +384,7 @@ BENCHES = [
     # `cores` and `CPU\u00b7s` columns now make the difference legible: a promise/Task is
     # not an isolated preemptively-scheduled process, and this row does not pretend
     # otherwise -- it reports what each runtime spends to hold 300k live units.
-    ("spawn-live",  300000, ["brood", "elixir", "node", "dotnet", "python"],
+    ("spawn-live",  300000, ["brood", "elixir", "node", "dotnet", "python", "go"],
      "hold N units alive, then wake each with a copied message"),
     # SUPERVISION, and like `spawn-live` deliberately not "all". The unit of comparison is
     # an OTP-style supervisor: a process that links its children, is told when one exits,
@@ -366,7 +400,7 @@ BENCHES = [
     # answers is "what does a busy handler do to everyone else?". Excluded: Ruby and Clojure,
     # only because nobody has written those ports yet — unlike `spawn-live`/`supervisor`, there
     # is no reason in principle they cannot run it, and they should be added.
-    ("latency",    50000, ["brood", "elixir", "node", "dotnet", "python"],
+    ("latency",    50000, ["brood", "elixir", "node", "dotnet", "python", "go"],
      "latency under a fixed arrival rate, 5% of requests occupying 500us each"),
     ("supervisor", 20000, ["brood", "elixir"],
      "supervise N children, then retire a quarter and let the supervisor restart them"),
@@ -582,7 +616,7 @@ def main():
                     help="skip the discarded per-language warmup run (see warmup(): it keeps a "
                          "cold boot-cache populate out of the reported peak RSS)")
     ap.add_argument("--only", default="", help="comma list of benchmark names")
-    ap.add_argument("--langs", default="brood,clojure,elixir,python,node,ruby,dotnet,c")
+    ap.add_argument("--langs", default="brood,clojure,elixir,python,node,ruby,dotnet,go,c")
     ap.add_argument("--quick", action="store_true")
     ap.add_argument("--out", default="", help="directory to write result files into (default: results/)")
     ap.add_argument("--label", default="", help="filename suffix, e.g. --label whklat -> results.whklat.json")
@@ -632,6 +666,9 @@ def main():
         if l not in ("dotnet", "c") and shutil.which(binary) is None:
             print(f"warning: `{binary}` not found on PATH — skipping {l}.", file=sys.stderr)
             langs.remove(l)
+    if "go" in langs and shutil.which("go") is None:
+        print("warning: `go` not found on PATH — skipping the Go column", file=sys.stderr)
+        langs.remove("go")
     if "c" in langs and shutil.which("gcc") is None:
         print("warning: `gcc` not found on PATH — skipping the C column.", file=sys.stderr)
         langs.remove("c")
@@ -647,6 +684,8 @@ def main():
         build_dotnet()
     if "c" in langs:
         build_c()
+    if "go" in langs:
+        build_go()
     if "brood" in langs:
         build_brood()
     if "elixir" in langs:

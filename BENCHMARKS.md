@@ -47,7 +47,7 @@ In `vs best` / `vs avg`, **`+` is slower, `−` is faster**. Rank and distance o
 on the rest. C is a floor reference, not a peer — what it does and does not measure, and the
 per-row caveats that move its numbers, are in [`bench/c/README.md`](bench/c/README.md).
 
-| benchmark | C | .NET <sup>p</sup> | Elixir <sup>p</sup> | Node | Brood | Ruby | Python | Clojure <sup>c</sup> | Brood rank | vs best | vs avg |
+| benchmark | C | Go <sup>p</sup> | .NET <sup>p</sup> | Elixir <sup>p</sup> | Node | Brood | Ruby | Python | Clojure <sup>c</sup> | Brood rank | vs best | vs avg |
 |---|---|---|---|---|---|---|---|---|---|---|---|
 | **score (15 rows)** | 1.00 | 3.90 | 6.05 | 6.06 | **7.13** | 24.35 | 24.73 | 32.17 | **5/8** | 🔴 +7.3× | 🟢 −1.2× |
 | `fib` | 12ms | 39ms | 76ms | 73ms | **61ms** | 598ms | 709ms | 160ms | 3/8 | 🔴 +5.2× | 🟢 −1.8× |
@@ -87,7 +87,7 @@ the lever is variadic dispatch, not wrappers in general.
 **<sup>c</sup> Clojure runs cold.** A fresh JVM per run (~0.34 s) never fully JIT-compiles the
 hot loop; a long-running service would beat every number in its column.
 
-**<sup>p</sup> Precompiled.** Elixir and .NET run as prebuilt artifacts; the rest compile from
+**<sup>p</sup> Precompiled.** Elixir, .NET and Go run as prebuilt artifacts (Go as one static binary per row, the way C is built); the rest compile from
 source each run. Favours Elixir/.NET, and is the fair analog of `node app.js`. Elixir is
 precompiled to `_build` for a specific reason worth knowing: `elixir file.exs` recompiles the
 module every run, ~100 ms that lands in *compute* because the `startup` baseline compiles nothing
@@ -154,7 +154,7 @@ price of the guarantee.
 **Against the in-place-mutation languages** — Brood is the subject here, not a member of the
 group. This is what the immutability guarantee costs:
 
-| benchmark | C | .NET <sup>p</sup> | Node | Brood | Ruby | Python | Brood rank | vs best | vs avg |
+| benchmark | C | Go <sup>p</sup> | .NET <sup>p</sup> | Node | Brood | Ruby | Python | Brood rank | vs best | vs avg |
 |---|---|---|---|---|---|---|---|---|---|
 | **score (5 rows)** | 1.00 | 3.08 | 3.76 | **12.99** | 16.43 | 35.06 | **4/6** | 🔴 +13.0× | 🟠 +2.2× |
 | `wordcount` | 1ms | 38ms | 19ms | **39ms** | 74ms | 166ms | 4/6 | 🔴 +29.7× | 🟠 +1.5× |
@@ -170,7 +170,7 @@ in Brood, while every other column calls a C, JVM or .NET native implementation.
 measures the library, not the VM. Sizes are small precisely because Brood is slow here, so the
 native columns finish in single-digit ms and the ordering *among them* is meaningless.
 
-| benchmark | Node | Ruby | Elixir <sup>p</sup> | Python | .NET <sup>p</sup> | Brood | Clojure <sup>c</sup> | Brood rank |
+| benchmark | Go <sup>p</sup> | Node | Ruby | Elixir <sup>p</sup> | Python | .NET <sup>p</sup> | Brood | Clojure <sup>c</sup> | Brood rank |
 |---|---|---|---|---|---|---|---|---|
 | `json` <sup>n</sup> | 2ms | 4ms | 6ms | 8ms | 42ms | **124ms** | 395ms | 6/7 |
 | `regex` <sup>n</sup> | 4ms | 7ms | 17ms | 13ms | 13ms | **62ms** | 134ms | 6/7 |
@@ -213,7 +213,7 @@ Against its actual peer:
 
 Against the rest of the field, for context:
 
-| benchmark | .NET <sup>p</sup> | Brood | Node | Clojure <sup>c</sup> | Python | Ruby | Brood rank | vs best | vs avg |
+| benchmark | Go <sup>p</sup> | .NET <sup>p</sup> | Brood | Node | Clojure <sup>c</sup> | Python | Ruby | Brood rank | vs best | vs avg |
 |---|---|---|---|---|---|---|---|---|---|
 | **score (5 rows), fastest on 1** | 1.00 | **1.26** | 1.27 | 4.35 | 7.16 | 7.67 | **2/6** | 🟠 +2.0× | 🟢 −2.5× |
 | `spawn` | 18ms | **36ms** | 53ms | 168ms | 568ms | 1.6s | 2/6 | 🟠 +2.0× | 🟢 −4.7× |
@@ -492,6 +492,6 @@ binary's first run costs more), which the harness's warmup keeps out of both col
   `json`/`regex`/`base64` (in-language codecs against native ones), `pipeline` (lazy-seq churn the
   JIT doesn't cover) and `bintree` (four non-tail calls per node — the open watch-item).
 
-The per-language source for every benchmark lives under [`bench/`](bench/), seven files per
+The per-language source for every benchmark lives under [`bench/`](bench/), eight files per
 benchmark named identically except the extension, so the implementations diff side by side. Run
 the suite with `python3 bench/harness.py` (see the [README](README.md#running-it) for options).

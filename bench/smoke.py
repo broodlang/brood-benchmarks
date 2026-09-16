@@ -94,7 +94,8 @@ def available(h, langs):
     compiled ports need. A missing runtime is a skip, not a failure — the gate's job is
     to catch rot in the rows, and crying wolf about an absent .NET SDK gets it ignored."""
     probes = {"brood": None, "python": "python3", "node": "node", "ruby": "ruby",
-              "elixir": "elixirc", "clojure": "clojure", "dotnet": "dotnet", "c": "gcc"}
+              "elixir": "elixirc", "clojure": "clojure", "dotnet": "dotnet", "go": "go",
+              "c": "gcc"}
     keep = []
     for l in langs:
         probe = probes.get(l)
@@ -111,6 +112,8 @@ def available(h, langs):
             h.build_beam()
         if "c" in keep:
             h.build_c()
+        if "go" in keep:
+            h.build_go()
     except Exception as e:                                   # a build failure IS a failure
         print(f"smoke: build step failed: {e}", file=sys.stderr)
         raise

@@ -49,7 +49,7 @@ CHART_OVERLAY_ROW = "spawn-live"
 
 # Markdown column heading -> results.json key.
 LANG_COL = {"C": "c", ".NET": "dotnet", "Elixir": "elixir", "Node": "node", "Brood": "brood",
-            "Ruby": "ruby", "Python": "python", "Clojure": "clojure"}
+            "Ruby": "ruby", "Python": "python", "Clojure": "clojure", "Go": "go"}
 PRETTY = {v: k for k, v in LANG_COL.items()}
 
 

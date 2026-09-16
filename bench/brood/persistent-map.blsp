@@ -1,10 +1,13 @@
 ;; Read-modify-write churn on a persistent map over a large key space (50k keys,
 ;; so the CHAMP trie is deep and each update path-copies real depth — unlike
-;; wordcount's shallow 1k-key map). Each step is a fused single-descent RMW
-;; (`%map-int-add`, the same idiom wordcount uses) — the faithful counterpart of
-;; the other ports' one-call update (Elixir `Map.update/4`, Node `map.set`,
-;; Python `d[k] = d.get(k,0)+d`): read-old + path-copy in ONE trie walk, not a
-;; separate `get` descent followed by an `assoc` descent.
+;; wordcount's shallow 1k-key map). Each step is the plain read-modify-write a Brood
+;; user writes — `(assoc m k (+ (get m k 0) …))` — the counterpart of the other ports'
+;; `Map.update/4` / `map.set` / `d[k] = d.get(k, 0) + …`. It used to call
+;; `%map-int-add`, an undocumented kernel primitive that only the compiler's linear-map
+;; rewrite recognised (5× faster: the accumulator is provably linear, so the map is built
+;; in place); that is not code a user would write (the benchmark's rule is idiomatic, not
+;; adversarial), so the port was changed to the idiom and brood taught to recognise it
+;; (brood ADR-360 / KI-151). The two now compile to the same thing.
 ;; Checksum = sum of key*value over the map.
 (def n (let (e (os/env "BENCH_N")
              v (if e (string/->number e) 300000))
@@ -16,7 +19,7 @@
     acc
     (let (x2 (bit/and (+ (* x 1103515245) 12345) 2147483647)
           key (math/rem x2 m))
-      (go (+ i 1) x2 (%map-int-add acc key (+ 1 (math/rem key 7)))))))
+      (go (+ i 1) x2 (assoc acc key (+ (get acc key 0) (+ 1 (math/rem key 7))))))))
 
 (def final (go 0 123456789 {}))
 (io/puts (reduce final 0 (fn (a kv) (let ([k v] kv) (+ a (* k v))))))
