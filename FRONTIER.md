@@ -342,6 +342,22 @@ this file already teaches, restated by the day: a flat profile plus a per-walk c
 about right" is not attribution (three measurements were needed, each contradicting the previous
 theory); and the signal came from this column, not from a test — the argument for keeping it fresh.
 
+## The 0.29.2 refresh: `bintree` −8% from the call convention's first rungs, `base64` +7% from a checker cost (2026-09-16, evening)
+
+`bintree` **84 → 77 ms** (min of 3, spread 0.1%): brood's call convention work (rungs A0/A1,
+`docs/call-convention.md` there) took the inline native→native call from 237 to 213
+instructions by moving the per-call save/restore of six activation fields into the callbacks
+that read them. The fixed-baseline A/B predicted −7.4%.
+
+`base64` **65 → 70 ms** (+6.6%, spread 1.4%) — over the veto line, so it was bisected before
+publishing, with instruction counts because the row's wall is bimodal at 76–80 ms across
+binaries: ~5% of it is brood `1a8759fb`, which removed nine declared sigs from `std/encoding`;
+`brood file` type-checks a program before running it, and the pre-flight now INFERS those
+functions' types on every run (~30 M instructions, ~8 ms) where a declaration was a lookup.
+Skip the check and the wave's delta is +1%. Filed as brood **KI-150** for the wave's owner —
+the KI-138/139 class, a checker cost paid by every short-lived program. The convention's own
+share on this row is +1.6%.
+
 ## The 0.29.0 refresh: `regex` −34% from a JIT fix the row had been asking for (2026-09-16)
 
 `regex` **113 → 75 ms** (min of 3, spread 1.2%), and it is a lowering change, not a regex one:

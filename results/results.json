@@ -4,9 +4,9 @@
     "what": "interpreter/VM startup + base memory",
     "langs": {
       "brood": {
-        "wall_ms": 13.0,
-        "rss_kb": 52580,
-        "cpu_pct": 109,
+        "wall_ms": 12.8,
+        "rss_kb": 52384,
+        "cpu_pct": 100,
         "checksum": "0"
       },
       "clojure": {
@@ -59,8 +59,8 @@
     "langs": {
       "brood": {
         "wall_ms": 73.6,
-        "rss_kb": 58836,
-        "cpu_pct": 106,
+        "rss_kb": 60484,
+        "cpu_pct": 107,
         "checksum": "9227465"
       },
       "clojure": {
@@ -113,7 +113,7 @@
     "langs": {
       "brood": {
         "wall_ms": 63.0,
-        "rss_kb": 58684,
+        "rss_kb": 58212,
         "cpu_pct": 104,
         "checksum": "449999985000000"
       },
@@ -166,9 +166,9 @@
     "what": "higher-order fold over a range",
     "langs": {
       "brood": {
-        "wall_ms": 19.8,
-        "rss_kb": 58616,
-        "cpu_pct": 116,
+        "wall_ms": 19.3,
+        "rss_kb": 56040,
+        "cpu_pct": 123,
         "checksum": "12499997500000"
       },
       "clojure": {
@@ -220,9 +220,9 @@
     "what": "integer arithmetic (trial division)",
     "langs": {
       "brood": {
-        "wall_ms": 54.2,
-        "rss_kb": 60828,
-        "cpu_pct": 113,
+        "wall_ms": 54.5,
+        "rss_kb": 60384,
+        "cpu_pct": 111,
         "checksum": "13848"
       },
       "clojure": {
@@ -274,9 +274,9 @@
     "what": "integer arithmetic + tight inner loop",
     "langs": {
       "brood": {
-        "wall_ms": 86.4,
-        "rss_kb": 62712,
-        "cpu_pct": 107,
+        "wall_ms": 85.6,
+        "rss_kb": 60272,
+        "cpu_pct": 105,
         "checksum": "442"
       },
       "clojure": {
@@ -328,8 +328,8 @@
     "what": "floating-point math (escape iterations)",
     "langs": {
       "brood": {
-        "wall_ms": 169.7,
-        "rss_kb": 60788,
+        "wall_ms": 170.0,
+        "rss_kb": 62352,
         "cpu_pct": 104,
         "checksum": "6129302"
       },
@@ -382,9 +382,9 @@
     "what": "nested loops + indexing (integer NxN)",
     "langs": {
       "brood": {
-        "wall_ms": 138.3,
-        "rss_kb": 95300,
-        "cpu_pct": 108,
+        "wall_ms": 138.9,
+        "rss_kb": 78804,
+        "cpu_pct": 107,
         "checksum": "654353666"
       },
       "clojure": {
@@ -436,9 +436,9 @@
     "what": "string building (join) + length",
     "langs": {
       "brood": {
-        "wall_ms": 26.2,
-        "rss_kb": 77124,
-        "cpu_pct": 120,
+        "wall_ms": 25.6,
+        "rss_kb": 74644,
+        "cpu_pct": 117,
         "checksum": "3388889"
       },
       "clojure": {
@@ -490,9 +490,9 @@
     "what": "hash-map build (immutable vs mutable)",
     "langs": {
       "brood": {
-        "wall_ms": 51.2,
-        "rss_kb": 77100,
-        "cpu_pct": 116,
+        "wall_ms": 51.4,
+        "rss_kb": 72820,
+        "cpu_pct": 118,
         "checksum": "374854840"
       },
       "clojure": {
@@ -544,9 +544,9 @@
     "what": "allocation / GC pressure (build+walk trees)",
     "langs": {
       "brood": {
-        "wall_ms": 84.3,
-        "rss_kb": 110048,
-        "cpu_pct": 112,
+        "wall_ms": 77.4,
+        "rss_kb": 111704,
+        "cpu_pct": 110,
         "checksum": "1638200"
       },
       "clojure": {
@@ -598,9 +598,9 @@
     "what": "sort a list of ints + checksum walk",
     "langs": {
       "brood": {
-        "wall_ms": 103.6,
-        "rss_kb": 230736,
-        "cpu_pct": 104,
+        "wall_ms": 103.4,
+        "rss_kb": 214440,
+        "cpu_pct": 105,
         "checksum": "46468819"
       },
       "clojure": {
@@ -652,8 +652,8 @@
     "what": "backtracking recursion \u2014 count N-queens solutions",
     "langs": {
       "brood": {
-        "wall_ms": 98.1,
-        "rss_kb": 105876,
+        "wall_ms": 99.0,
+        "rss_kb": 111484,
         "cpu_pct": 109,
         "checksum": "724"
       },
@@ -706,9 +706,9 @@
     "what": "error handling \u2014 raise + recover a value N times",
     "langs": {
       "brood": {
-        "wall_ms": 61.7,
-        "rss_kb": 71108,
-        "cpu_pct": 110,
+        "wall_ms": 62.2,
+        "rss_kb": 68628,
+        "cpu_pct": 108,
         "checksum": "9900000"
       },
       "clojure": {
@@ -754,9 +754,9 @@
     "what": "error propagation \u2014 throw 50 frames deep, catch at top",
     "langs": {
       "brood": {
-        "wall_ms": 88.8,
-        "rss_kb": 72828,
-        "cpu_pct": 111,
+        "wall_ms": 90.4,
+        "rss_kb": 68500,
+        "cpu_pct": 109,
         "checksum": "2475000"
       },
       "clojure": {
@@ -802,8 +802,8 @@
     "what": "filter/map/reduce pipeline over a range",
     "langs": {
       "brood": {
-        "wall_ms": 47.9,
-        "rss_kb": 60912,
+        "wall_ms": 47.4,
+        "rss_kb": 60384,
         "cpu_pct": 113,
         "checksum": "155553889038886"
       },
@@ -850,8 +850,8 @@
     "what": "deep double-recursion (Ackermann ack(3,9))",
     "langs": {
       "brood": {
-        "wall_ms": 350.8,
-        "rss_kb": 58748,
+        "wall_ms": 350.7,
+        "rss_kb": 60504,
         "cpu_pct": 102,
         "checksum": "24558"
       },
@@ -904,9 +904,9 @@
     "what": "Sieve of Eratosthenes (mutable array vs Table)",
     "langs": {
       "brood": {
-        "wall_ms": 51.9,
-        "rss_kb": 68112,
-        "cpu_pct": 106,
+        "wall_ms": 51.3,
+        "rss_kb": 70176,
+        "cpu_pct": 110,
         "checksum": "78498"
       },
       "clojure": {
@@ -958,9 +958,9 @@
     "what": "read-modify-write churn on a map (deep CHAMP)",
     "langs": {
       "brood": {
-        "wall_ms": 66.7,
-        "rss_kb": 134996,
-        "cpu_pct": 113,
+        "wall_ms": 68.0,
+        "rss_kb": 136748,
+        "cpu_pct": 115,
         "checksum": "30039386344"
       },
       "clojure": {
@@ -1006,8 +1006,8 @@
     "what": "floating-point physics sim (N-body)",
     "langs": {
       "brood": {
-        "wall_ms": 214.0,
-        "rss_kb": 99796,
+        "wall_ms": 221.0,
+        "rss_kb": 107432,
         "cpu_pct": 109,
         "checksum": "-169078071"
       },
@@ -1060,9 +1060,9 @@
     "what": "JSON encode+parse round-trip (pure-Brood vs native)",
     "langs": {
       "brood": {
-        "wall_ms": 137.3,
-        "rss_kb": 136820,
-        "cpu_pct": 129,
+        "wall_ms": 136.4,
+        "rss_kb": 164892,
+        "cpu_pct": 135,
         "checksum": "1489952542"
       },
       "clojure": {
@@ -1108,8 +1108,8 @@
     "what": "regex full-match count (pure-Brood vs native)",
     "langs": {
       "brood": {
-        "wall_ms": 74.9,
-        "rss_kb": 99744,
+        "wall_ms": 74.8,
+        "rss_kb": 97472,
         "cpu_pct": 119,
         "checksum": "10000"
       },
@@ -1156,9 +1156,9 @@
     "what": "base64 encode+decode (pure-Brood vs native)",
     "langs": {
       "brood": {
-        "wall_ms": 65.2,
-        "rss_kb": 142520,
-        "cpu_pct": 115,
+        "wall_ms": 69.5,
+        "rss_kb": 142196,
+        "cpu_pct": 114,
         "checksum": "12081249"
       },
       "clojure": {
@@ -1204,9 +1204,9 @@
     "what": "lightweight concurrent units + result collection",
     "langs": {
       "brood": {
-        "wall_ms": 48.2,
-        "rss_kb": 103920,
-        "cpu_pct": 554,
+        "wall_ms": 49.2,
+        "rss_kb": 103320,
+        "cpu_pct": 568,
         "checksum": "6100000"
       },
       "clojure": {
@@ -1252,9 +1252,9 @@
     "what": "hold N units alive, then wake each with a copied message",
     "langs": {
       "brood": {
-        "wall_ms": 1360.0,
-        "rss_kb": 1758484,
-        "cpu_pct": 303,
+        "wall_ms": 1392.0,
+        "rss_kb": 1768448,
+        "cpu_pct": 300,
         "checksum": "36300000"
       },
       "elixir": {
@@ -1288,19 +1288,19 @@
     "what": "latency under a fixed arrival rate, 5% of requests occupying 500us each",
     "langs": {
       "brood": {
-        "wall_ms": 2561.4,
-        "rss_kb": 398944,
-        "cpu_pct": 332,
+        "wall_ms": 2560.2,
+        "rss_kb": 394180,
+        "cpu_pct": 324,
         "checksum": "168000000",
         "metrics": {
-          "fat_units": 76862,
-          "fat_measured_us": 500,
+          "fat_units": 76772,
+          "fat_measured_us": 501,
           "ordinary_n": 47500,
           "p50_us": 18,
-          "p99_us": 83,
-          "p999_us": 313,
-          "max_us": 1702,
-          "sustained_rps": 19922
+          "p99_us": 80,
+          "p999_us": 178,
+          "max_us": 1973,
+          "sustained_rps": 19929
         }
       },
       "elixir": {
@@ -1374,8 +1374,8 @@
     "what": "supervise N children, then retire a quarter and let the supervisor restart them",
     "langs": {
       "brood": {
-        "wall_ms": 849.8,
-        "rss_kb": 674016,
+        "wall_ms": 856.3,
+        "rss_kb": 659060,
         "cpu_pct": 149,
         "checksum": "25000"
       },
@@ -1392,9 +1392,9 @@
     "what": "parallel fib \u2014 100 computed at once across cores",
     "langs": {
       "brood": {
-        "wall_ms": 191.3,
-        "rss_kb": 83608,
-        "cpu_pct": 1024,
+        "wall_ms": 195.1,
+        "rss_kb": 85448,
+        "cpu_pct": 1023,
         "checksum": "134626900"
       },
       "clojure": {
@@ -1440,8 +1440,8 @@
     "what": "concurrent HTTP \u2014 N in-flight GETs to a local server",
     "langs": {
       "brood": {
-        "wall_ms": 171.1,
-        "rss_kb": 600100,
+        "wall_ms": 168.9,
+        "rss_kb": 673836,
         "cpu_pct": 246,
         "checksum": "500"
       },
@@ -1488,8 +1488,8 @@
     "what": "message round-trip latency \u2014 two units bounce a token N times",
     "langs": {
       "brood": {
-        "wall_ms": 196.0,
-        "rss_kb": 122160,
+        "wall_ms": 194.9,
+        "rss_kb": 119640,
         "cpu_pct": 108,
         "checksum": "100000"
       },
@@ -1536,9 +1536,9 @@
     "what": "N-process ring \u2014 token travels N*5000 hops",
     "langs": {
       "brood": {
-        "wall_ms": 786.8,
-        "rss_kb": 122548,
-        "cpu_pct": 105,
+        "wall_ms": 794.5,
+        "rss_kb": 121940,
+        "cpu_pct": 104,
         "checksum": "1000000"
       },
       "clojure": {
@@ -1584,9 +1584,9 @@
     "cores": 12,
     "platform": "Linux-7.0.0-30-generic-x86_64-with-glibc2.43",
     "date": "2026-09-14 09:19",
-    "brood_commit": "d464e9ed",
+    "brood_commit": "beec7480",
     "versions": {
-      "brood": "brood 0.29.0 (d464e9ed)",
+      "brood": "brood 0.29.2 (beec7480)",
       "clojure": "Clojure 1.12.5 / JDK 25.0.4",
       "elixir": "Elixir 1.21.0-dev (b82c44a) (compiled with Erlang/OTP 28)",
       "python": "Python 3.14.4",
@@ -1597,6 +1597,6 @@
     },
     "isolation": "taskset pin (compute\u2192cores 8-11, concurrency\u21920-11); 0.25s settle",
     "warmup": "one discarded startup run per language",
-    "brood_refresh": "brood column re-measured 2026-09-16 at brood 0.29.0 (d464e9ed) (brood-only, min of 3 interleaved harness invocations; other columns 2026-09-14)"
+    "brood_refresh": "brood column re-measured 2026-09-16 at brood 0.29.2 (beec7480) (brood-only, min of 3 interleaved harness invocations; other columns 2026-09-14)"
   }
 }
