@@ -342,6 +342,25 @@ this file already teaches, restated by the day: a flat profile plus a per-walk c
 about right" is not attribution (three measurements were needed, each contradicting the previous
 theory); and the signal came from this column, not from a test — the argument for keeping it fresh.
 
+## The 0.29.0 refresh: `regex` −34% from a JIT fix the row had been asking for (2026-09-16)
+
+`regex` **113 → 75 ms** (min of 3, spread 1.2%), and it is a lowering change, not a regex one:
+brood ADR-353 (KI-132). Two deopt-thrash mechanisms in the JIT — `=` with a string operand
+deopted on every native activation, and a join whose edges carried different representations
+(`(or p X)`, `(if c x 7)`) was compiled as an unconditional deopt — meant any arm comparing a
+string or merging a boxed value with a scalar ran native for sixteen activations and then
+interpreted forever. ADR-352's DFA lexers are exactly that shape. The fixed-baseline A/B read the
+row at −30.5% against a 0.8% floor before the refresh, so the published move is the expected
+one, not this row's documented ~17% cross-invocation swing (which is still there; see the
+measurement traps).
+
+`spawn` reads +5.0% (1.9% spread) and was attributed rather than believed: the delta sits on
+the `brood-jit` thread — two arms that used to be refused at lowering now compile
+(`%match-splice-fail-in` 3.2 ms, the `receive` matcher 2.9 ms), the per-run compile constant a
+short-lived program pays — while direct timings at three `BENCH_N` sizes read parity or
+better. The other concurrency rows moved inside their documented drift. Every other row is
+within ±2% of the b092e62b column.
+
 ## The 0.27.0 refresh: a correctness fix that cost 61% on one row (2026-09-10)
 
 The column had been stale since 0.24.0 (`staleness.py` had been saying so for three
