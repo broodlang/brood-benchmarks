@@ -658,12 +658,13 @@ def main():
 
     # A missing runtime is skipped (with a warning), not fatal — so the default
     # invocation works on a machine that lacks one of the toolchains.
-    # `dotnet` and `c` are compiled columns: their `cmd` points at a build artifact that
-    # does not exist until build_dotnet()/build_c() has run, so probing it here would
-    # always "miss" and silently drop the column. They are checked by toolchain below.
+    # `dotnet`, `c` and `go` are compiled columns: their `cmd` points at a build artifact
+    # that does not exist until build_dotnet()/build_c()/build_go() has run, so probing it
+    # here would always "miss" and silently drop the column. They are checked by toolchain
+    # below.
     for l in list(langs):
         binary = LANGS[l]["cmd"]("x")[0]
-        if l not in ("dotnet", "c") and shutil.which(binary) is None:
+        if l not in ("dotnet", "c", "go") and shutil.which(binary) is None:
             print(f"warning: `{binary}` not found on PATH — skipping {l}.", file=sys.stderr)
             langs.remove(l)
     if "go" in langs and shutil.which("go") is None:
