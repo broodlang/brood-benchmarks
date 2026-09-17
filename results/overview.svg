@@ -14,9 +14,9 @@
 <rect x="92" y="160" width="58.7" height="22" rx="4" fill="#b3bac1"/>
 <text x="82" y="176" text-anchor="end" font-size="13" font-weight="500" fill="#555">Node</text>
 <text x="158.7" y="176" font-size="13" font-weight="400" fill="#444">5.3×</text>
-<rect x="92" y="194" width="115.9" height="22" rx="4" fill="#c0392b"/>
+<rect x="92" y="194" width="115.3" height="22" rx="4" fill="#c0392b"/>
 <text x="82" y="210" text-anchor="end" font-size="13" font-weight="700" fill="#222">Brood</text>
-<text x="215.9" y="210" font-size="13" font-weight="700" fill="#444">10.4×</text>
+<text x="215.3" y="210" font-size="13" font-weight="700" fill="#444">10.3×</text>
 <rect x="92" y="228" width="116.1" height="22" rx="4" fill="#b3bac1"/>
 <text x="82" y="244" text-anchor="end" font-size="13" font-weight="500" fill="#555">Elixir</text>
 <text x="216.1" y="244" font-size="13" font-weight="400" fill="#444">10.4×</text>

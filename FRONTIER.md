@@ -342,6 +342,24 @@ this file already teaches, restated by the day: a flat profile plus a per-walk c
 about right" is not attribution (three measurements were needed, each contradicting the previous
 theory); and the signal came from this column, not from a test — the argument for keeping it fresh.
 
+## The 0.30.0 refresh: `pipeline` −52% from fusion, and two loops that were never loops (2026-09-17)
+
+`pipeline` **48 → 23 ms** (min of 3, spread 0.9%): the `(-> (range n) (seq/lfilter …)
+(seq/lmap …) (reduce 0 +))` the row is written as now compiles to one native counted loop —
+the stage literals substituted in, the range's bounds read once — instead of a transducer
+closure per stage called per element through a Rust→native gateway (brood ADR-360 §7:
+3 735 → 460 instructions per element; what is left is the `mult35?` call). `bintree` **79 →
+75 ms**: the callee nils its own frame, so the inline native call stopped looping over the
+callee's slots (call-convention rung A4, first half).
+
+Two things this refresh does NOT show, because no row writes them, and that user code does:
+a `letrec`-bound local loop had never compiled to a `SelfCall` — 100 ns per iteration against
+a `defn` loop's 2.3 ns, every named local loop in the language (KI-156, fixed the same day)
+— and a `fold` with a passthrough-shaped reducer, `(fn (acc x) (+ acc x))`, took the generic
+dispatch at 137 ns per element where a non-passthrough body of the same fold took 25 (now the
+same 25). A `fold` over a range with any literal is the counted loop: `(fold (range 3M) 0 (fn
+(acc x) (+ acc x)))` 410 → 21 ms. The rest of the column is inside the ±3% the box drifts.
+
 ## The 2026-09-16 field run: Go joins, and the tally a user writes is the fast one (v0.30.0)
 
 Two things changed at once, and they are separate.
