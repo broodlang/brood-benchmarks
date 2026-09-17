@@ -342,6 +342,45 @@ this file already teaches, restated by the day: a flat profile plus a per-walk c
 about right" is not attribution (three measurements were needed, each contradicting the previous
 theory); and the signal came from this column, not from a test — the argument for keeping it fresh.
 
+## The 0.30.1 refresh: `supervisor` −30% with no edit to the supervisor — the VM got the instructions process code dispatches on (2026-09-17, afternoon)
+
+`supervisor` **879 → 613 ms** (min of 3, spread 0.8%; Elixir 256). Every earlier move on this
+row was a supervisor fix; this one changed nothing in `supervisor.blsp`. One `start-child` was
+decomposed by layer — a bare send/receive round trip 1.9 µs, `gen/call` 5.0, a `gen/call` that
+`spawn-link`s inside the server 7.4, the real `start-child` 22.5 — and the supervisor's own
+~15 µs bisected by deletion under a copied module name: nine `get`s and six `assoc`s on the
+state map were prelude *wrappers* (5 µs — the wrapper's call and its own `map?`/`vector?`
+dispatch, each a Brood call on the VM, cost more than the CHAMP op under it), and the
+7-clause loop's `receive` matcher allocated five fail-continuation closures per message and
+called one per failing clause (2.2 µs, `ns_match_run` at 19% of the isolated run). None of it
+is the supervisor: it is the shape of every `gen` server and every `match` over a message,
+which the JIT's profitability gate rightly refuses (`call-mediated-boxed`), so it runs on the
+VM interpreter, where a Brood→Brood call is ~70 ns. Four general changes (brood ADR-362): the
+`receive` matcher chains clauses as an `or` where `match` would build a thunk; the type
+predicates are one instruction (`PrimOp1::TypeIs`, recognised by the `(%eq (type-of x) :kw)`
+shape — `vector?` 168 → 67 ns on the VM, 1 ns native); `%vector-ref`/`%vector-length` inline
+(the `VectorRef` prim entry had named the native by its pre-`seq/` spelling and was dead
+since that rename); and the 2-arity map read is a primitive by default (ADR-296's opt-in,
+with a plain map's miss answered inline: a hit 322 → 66 ns, a 100% miss 519 → 123).
+
+The same instructions land everywhere a map or a tagged tuple is read, which is what the
+rest of the column shows: `json` **138 → 111 ms** (−19.5%), `nbody` −12.6%, `pingpong` −11.9%,
+`spawn-live` −9.1%, `persistent-map` −7.8%, `spawn` −7.1%, `regex` −6.4%, `pipeline` −6%;
+nothing moved up beyond its spread. `start-child` is now 16.4 µs against Elixir's ~3, and the
+remaining split is recorded in brood's handoff: the messaging floor (~6 µs — `pingpong`'s
+class), the VM call protocol (~70 ns per call, ~30 calls per child — the general lever), the
+3-arity `get` and `assoc` wrappers (~1.5 µs), `gen/call`'s own interpreted body (1.2 µs).
+
+A trap the sweep set on the way, recorded because it will recur: brood's `make ab` read
+`ring` +6% and `pingpong` +7% against sub-1% floors, with instruction counts equal at one
+worker, every VM counter identical, and a bisect by variant build blaming a compile-time-only
+change. Under `release-lean` (LTO, one codegen unit — what `nest release` and this column's
+`make install` ship) the same trees read `pingpong` 182 vs 181 ms and `ring` inside its 2%
+spread: `release-fast` has no LTO, and the Rust additions moved the inliner's partition of
+the kernel's message path (`copy_cross_heap_rec`, called per message, stopped inlining). A
+kernel-path row that moves a few percent with no counter moving is a build-profile question
+before it is a code question.
+
 ## The 0.30.0 refresh: `pipeline` −52% from fusion, and two loops that were never loops (2026-09-17)
 
 `pipeline` **48 → 23 ms** (min of 3, spread 0.9%): the `(-> (range n) (seq/lfilter …)
