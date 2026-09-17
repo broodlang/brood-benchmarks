@@ -286,7 +286,7 @@ against warm. Binary size does not imply footprint either: brotli added 1.2 MB o
 
 **Brood vs Elixir** is the one end-to-end like-for-like column — the only other runtime here with
 both persistent structures and isolated preemptive processes. Brood leads `pfib` (1.6×) and `http`
-(3.6×); Elixir leads `spawn` (1.4×), `ring` (3.0×), `pingpong` (~3×) and `supervisor` (2.4× at
+(3.6×); Elixir leads `spawn` (1.4×), `ring` (3.0×), `pingpong` (~3×) and `supervisor` (2.3× at
 the 0.30.1 refresh, from 3.4× — see FRONTIER's note: the row was never about the supervisor).
 
 **The `pingpong`/`ring` gap IS per-message fixed cost, decomposed 2026-08-30** (an earlier
