@@ -342,6 +342,28 @@ this file already teaches, restated by the day: a flat profile plus a per-walk c
 about right" is not attribution (three measurements were needed, each contradicting the previous
 theory); and the signal came from this column, not from a test — the argument for keeping it fresh.
 
+## The 04958398 refresh: `supervisor` −5% from the 3-arity `get` and `assoc` primitives (ADR-368) (2026-09-18)
+
+Min of three interleaved brood-only invocations (spreads 0.2–4.7%), the runtime at brood
+`04958398`. One row moved: **`supervisor` 614 → 584 ms (−4.9%, spread 0.4%)**, which is the
+`make ab --floor` reading the change was landed on (−4.6% against its base, −4.5% at the VM
+ceiling) — the 2.3× against Elixir is 2.2×. The mechanism is ADR-362's continued: `(get m k
+default)` (every record read-with-default) and `(assoc m k v)` (every record update) were full
+calls through the prelude wrapper's `cond`; they are `PrimOp3` instructions now, one VM arm
+and one JIT callback each, with rules as narrow as the 2-arity read's — a record's nil result
+still reaches `%lookup-miss`, a vector `assoc` still goes through the wrapper. In isolation a
+2M-iteration loop of two reads went 1124 → 172 ms (281 → 43 ns a read) and an `assoc` loop
+921 → 590 ms (460 → 295 ns); on the supervisor's ~16 µs per child that is the ~1.5 µs the
+decomposition below priced the map wrappers at. Everything else read inside its spread:
+`ring` −3.3% on a 4.7% spread, `errors` −3.3% on 0.3% (real but small; the recompile of
+lazily-loaded bodies, ADR-366, is the only runtime change that could touch it), `sort` +2.7%
+on 0.9% (a `sort` reading is the row's own bimodality — see the 2026-09-10 note). Also in this
+runtime and NOT visible here, because the harness runs every row with the pre-flight check:
+brood ADR-366 — a body compiled before its module lazily loaded kept its pre-load compile shape
+for the whole process, 2.8× the instructions on `pipeline` under `BROOD_NO_CHECK=1`; the row's
+unchecked path is now the cheapest one. What remains of `supervisor`'s gap is the per-message
+floor and the call protocol, unchanged.
+
 ## The 0.30.1 refresh: `supervisor` −30% with no edit to the supervisor — the VM got the instructions process code dispatches on (2026-09-17, afternoon)
 
 `supervisor` **879 → 613 ms** (min of 3, spread 0.8%; Elixir 256). Every earlier move on this
