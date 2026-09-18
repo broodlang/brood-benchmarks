@@ -342,6 +342,27 @@ this file already teaches, restated by the day: a flat profile plus a per-walk c
 about right" is not attribution (three measurements were needed, each contradicting the previous
 theory); and the signal came from this column, not from a test — the argument for keeping it fresh.
 
+## The a6a0d934 refresh: `supervisor` −5% again, from the multi-pair `assoc` unroll (2026-09-18, midday)
+
+Min of three interleaved brood-only invocations (spreads 0.2–2.5%), the runtime at brood
+`a6a0d934` (`fe8633ba`'s code; the last commit is a docs line). **`supervisor` 584 → 553 ms
+(−5.3%, spread 0.6%)** — the `make ab --floor` reading the change landed on (−5.8% against
+its base, −4.6% against this column's), 2.2× Elixir → 2.1×: a literal multi-pair
+`(assoc st :n i :children xs :ids ids)` now unrolls at compile time into nested single-pair
+`MapAssoc` instructions, no rest list and no `%assoc-map-pairs` loop (1.28 → 0.53 µs on a
+three-pair loop). The rest of the column is the pre-flight type check, attributed the way the
+morning's was: every `BROOD_NO_CHECK=1` run of the moved rows is flat against the previous
+column's binary (+0.1–1% instructions) while `brood --check` alone grew **4–7M instructions
+per file** — today's checker work (KI-164's guard narrowing, KI-165's runtime enforcement of
+`deftype` aliases, C13, C14) — which is 3–4% on a 20–30 ms row and nothing on a long one. Of
+the rows past the gate: `strings` +8.8% wall on **+1.4% instructions** (checked run, both
+binaries) is the release-fast codegen-partitioning class, not code (brood's CLAUDE.md,
+2026-09-17 afternoon), `pipeline` +3.5% is the checker's, `ring` +3.6% on a 1.3% spread with
+`pingpong` flat and no message-path change is drift. Nothing in the runtime moved up.
+Also in this runtime and not visible in any row: a map literal in a hot arm no longer bails
+the arm (`MakeMap` joined the JIT subset). The checker's per-run cost is brood KI-150, and
+today's +5M is another data point for its structural option.
+
 ## The 04958398 refresh: `supervisor` −5% from the 3-arity `get` and `assoc` primitives (ADR-368) (2026-09-18)
 
 Min of three interleaved brood-only invocations (spreads 0.2–4.7%), the runtime at brood
