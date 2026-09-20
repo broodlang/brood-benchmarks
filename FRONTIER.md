@@ -348,6 +348,16 @@ this file already teaches, restated by the day: a flat profile plus a per-walk c
 about right" is not attribution (three measurements were needed, each contradicting the previous
 theory); and the signal came from this column, not from a test — the argument for keeping it fresh.
 
+## The v0.31.0 refresh: the release column, and it is the db98f7cd column (2026-09-20, night)
+
+Min of three interleaved brood-only invocations at the tagged release `136b14d7`
+(brood 0.31.0). No row moved past its spread but `json` −3.1% and `ring` −3.6% (both inside
+the day's codegen-class swing on those rows); like-for-like 7.54, still ahead of Node. The
+release carries, beyond the db98f7cd runtime, KI-170's direct-load frame with its two
+follow-up fixes, a relower that fires per sixteen entry deopts, and the checker's docstring
+fix — none on a benchmark path, which is what this column confirms. Published so the
+staleness gate reads the release version.
+
 ## The db98f7cd refresh: `nqueens` −29% from a unary minus, and the like-for-like score passes Node (2026-09-20, evening)
 
 Min of three interleaved brood-only invocations (spreads 0.2–3.5%), the runtime at brood
