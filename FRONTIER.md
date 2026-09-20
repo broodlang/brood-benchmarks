@@ -342,6 +342,46 @@ this file already teaches, restated by the day: a flat profile plus a per-walk c
 about right" is not attribution (three measurements were needed, each contradicting the previous
 theory); and the signal came from this column, not from a test — the argument for keeping it fresh.
 
+## The 1b9befd0 refresh: the whole column moves, from four brood fixes and a verdict cache (2026-09-20)
+
+Min of three interleaved brood-only invocations (spreads 0.2–3.9% except `sieve` 7.7%), the
+runtime at brood `1b9befd0`. Every compute row is faster, most by 5–10%, and the moves have
+names (brood's devlog 2026-09-20, three entries):
+
+- **Short rows, −14% to −21%: `reduce` 21.2 → 16.7 ms, `strings` 28.5 → 23.5, `pipeline`
+  23.9 → 20.6.** Brood ADR-371: `brood file` now replays its pre-flight type-check verdict
+  for an unchanged program instead of walking it on every run — the walk was 34M of
+  `pipeline`'s 217M instructions (18.7%), 20M of `reduce`'s 166M. This is the structural
+  close of brood KI-150 (the "short rows carry today's checker cost" note two refreshes
+  above): the checker's per-run tax is gone from the column, and a checker feature can no
+  longer move a benchmark row. It is exactly the class of per-run artifact the boot cache
+  and the stdlib image already are — the harness's discarded warm-up run warms it — so it
+  is measured the same way. **It cost one thing on the way:** the first column at `4fb3e1cd`
+  read base RSS 42.6 → 49.3 MB, because a hit skipped the walk's eager module loads and the
+  run's lazy load recompiled the top-level form (brood ADR-366's stale mark); a hit replays
+  the walk's loads now and the column reads 45.1 MB — the residual is the day's other
+  changes (KI-166's per-thread symbol-hash table among them), not the cache.
+- **`spawn` −22% (47.7 → 37.1 ms), `supervisor` −10% (553 → 498 ms), `nbody` −14%
+  (196.6 → 169.9 ms).** Brood KI-167: a loop handed to its recompiled body after a lazy
+  module load (ADR-366) ran the rest of its life NESTED — every `receive` in it parked the
+  OS worker dirty, and a native preempt with no driver to yield to interpreted up to 256
+  iterations. Now a frame-level tail transition. `nbody`'s share is ADR-372 beside it: a
+  register-carried param profiled `Int` on one activation deopted on every other, forever
+  (a `SelfCall` arm had no deopt feedback); sixteen entry deopts now re-lower the arm with
+  that slot boxed. And the inline `empty?` deopted for anything but nil or a pair, so every
+  `(cond (empty? coll) …)` prelude loop handed a vector ran on the VM — `json`'s
+  `needs-escape?` 7 910 times per run — which is `json` −7.8% and part of `wordcount` −8%.
+- **`mandelbrot` −6.7%.** §7.9 of brood's compute frontier closed: the float-slot veto in the
+  profitability gate refused exactly one arm in this corpus (`row-sum`) and protected none.
+- **The like-for-like score 8.90 → 7.75**, within 0.13 of Node's 7.62 (the rank stays 6/9);
+  aggregate compute vs the field's average 0.91× → 0.84×.
+
+**Read with the usual care.** `ring` +3.6% on a 2.0% spread with `pingpong` +0.8% and no
+message-path change: brood's own fence-only `make ab --floor` read it +2.3% once and +0.1%
+once on a day its baseline wandered 760 → 776 ms, so it is drift until a fixed-baseline A/B
+says otherwise. `sieve`'s −9.3% carries a 7.7% spread. `startup` −2.3% is inside its 2.4%
+spread. Nothing else in the column is within its spread of the previous number.
+
 ## The a6a0d934 refresh: `supervisor` −5% again, from the multi-pair `assoc` unroll (2026-09-18, midday)
 
 Min of three interleaved brood-only invocations (spreads 0.2–2.5%), the runtime at brood
