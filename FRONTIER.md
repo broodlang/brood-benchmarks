@@ -46,8 +46,8 @@ reference, so these read "vs roughly the hardware", not "vs the fastest managed 
   callbacks. Unary `-`/`/` lower to the 2-arg primitive now: 1 507M → 1 111M instructions,
   −29% wall. What is left: the native entry per `reduce` element (~12%), `solve` on the VM
   (~15%), a closure captured per node. C's margin is partly structural (it pushes onto
-  a stack array where Node and .NET copy the placed-columns list per node), so **12× against Node
-  is the fairer target**.
+  a stack array where Node and .NET copy the placed-columns list per node), so **the Node
+  ratio is the fairer target**.
 - **`mandelbrot` (9.3× C)** — `esc` is JIT'd with register-carried f64 params; the residual is
   boxed 24-byte `Value` tagging plus loop overhead. Near the JIT floor — C is only 1.2× ahead of
   .NET here, so the row is close to its arithmetic limit for everyone.
