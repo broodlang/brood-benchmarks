@@ -38,8 +38,14 @@ reference, so these read "vs roughly the hardware", not "vs the fastest managed 
   treating "native allocation" as the target. The cost is the call protocol: ~77 ns per node over
   four non-tail calls. That is the X-register/call-convention redesign, not a tuning knob. **The
   open watch-item.**
-- **`nqueens` (35× C, 12× Node)** — backtracking recursion; the `reduce`-over-`range` per node and
-  the non-tail `solve`/`safe?` recursion dominate. C's margin is partly structural (it pushes onto
+- **`nqueens` (35× C, 7.5× Node; was 53× / 12× before the db98f7cd refresh)** — backtracking
+  recursion; the `reduce`-over-`range` per node and the non-tail `solve`/`safe?` recursion
+  dominate. **A quarter of the row was one unary minus** (2026-09-20): `safe?`'s `(- dist)` was
+  a generic call to the variadic wrapper — a non-tail call, hence a GC safepoint, hence no
+  hoisted pair-slab bases — so the list walk read every pair through `brood_rt_car`/`_cdr`
+  callbacks. Unary `-`/`/` lower to the 2-arg primitive now: 1 507M → 1 111M instructions,
+  −29% wall. What is left: the native entry per `reduce` element (~12%), `solve` on the VM
+  (~15%), a closure captured per node. C's margin is partly structural (it pushes onto
   a stack array where Node and .NET copy the placed-columns list per node), so **12× against Node
   is the fairer target**.
 - **`mandelbrot` (9.3× C)** — `esc` is JIT'd with register-carried f64 params; the residual is
@@ -341,6 +347,22 @@ Under where it started, on a day the control says is ~7% slower than that column
 this file already teaches, restated by the day: a flat profile plus a per-walk count that "looks
 about right" is not attribution (three measurements were needed, each contradicting the previous
 theory); and the signal came from this column, not from a test — the argument for keeping it fresh.
+
+## The db98f7cd refresh: `nqueens` −29% from a unary minus, and the like-for-like score passes Node (2026-09-20, evening)
+
+Min of three interleaved brood-only invocations (spreads 0.2–3.5%), the runtime at brood
+`db98f7cd`. One row moved on purpose — **`nqueens` 135.3 → 96.1 ms (−29.0%, spread 1.1%)**,
+rank 8/9 → 7/9 — and it is the `make ab --floor` reading the change landed on (−28.5%, 0.7%
+floor). The mechanism is in the `nqueens` bullet above: `(- dist)` was a call, the call was a
+safepoint, the safepoint kept `safe?` from reading its list inline. **The like-for-like
+score is 7.55, ahead of Node's 7.62 for the first time** (rank 6/9 → 5/9); aggregate
+compute vs the field's average 0.84× → 0.80×.
+
+Also in this column, unasked: `ring` −4.3% and `pingpong` −4.1% against the 1b9befd0
+numbers — the same rows the previous refresh read +3.6% / +0.8% and attributed to
+release-fast codegen partitioning. This binary partitioned differently and they came back.
+Two consecutive columns moving the message rows ±4% with the VM's counters identical is the
+argument, made twice now, for measuring on a deterministic-codegen build.
 
 ## The 1b9befd0 refresh: the whole column moves, from four brood fixes and a verdict cache (2026-09-20)
 
