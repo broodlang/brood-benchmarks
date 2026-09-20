@@ -376,10 +376,21 @@ names (brood's devlog 2026-09-20, three entries):
 - **The like-for-like score 8.90 → 7.75**, within 0.13 of Node's 7.62 (the rank stays 6/9);
   aggregate compute vs the field's average 0.91× → 0.84×.
 
-**Read with the usual care.** `ring` +3.6% on a 2.0% spread with `pingpong` +0.8% and no
-message-path change: brood's own fence-only `make ab --floor` read it +2.3% once and +0.1%
-once on a day its baseline wandered 760 → 776 ms, so it is drift until a fixed-baseline A/B
-says otherwise. `sieve`'s −9.3% carries a 7.7% spread. `startup` −2.3% is inside its 2.4%
+**Read with the usual care.** `ring` +3.6% on a 2.0% spread with `pingpong` +0.8% — **settled
+the same evening with fixed baselines, and it is the release-fast codegen class, not the
+message path.** Interleaved best-of-9 of the morning's brood commit (`2c1596c0`) against
+this column's (`1b9befd0`), both images live, base-vs-base floor 0.2–0.7%: `ring` +9.5%,
+`pingpong` +7.9%, and the same with `BROOD_NO_CHECK=1`, so the verdict cache is not it.
+Bisected over the four commits between with `perf stat`: `pingpong` **instructions +1.4%
+then +0.2%, cycles +4%, L1-icache misses 67M → 75M (+11%)**, and the VM's own work counters
+(`BROOD_PERF_STATS`: activations, IC hits, allocs, env hops, native entries) are **identical
+to the last few hundred** across the commits. No message-path code changed; the day's
+commits added Rust in the tooling and gated three dev-tools items out of the lean build, and
+the release-fast profile (no LTO) re-partitioned the hot dispatch code around them — the
+`strings` +8.8%-on-+1.4%-instructions class two refreshes above. The wall number is real
+and published as measured; the code did not slow down. The lever, if this class is to stop
+moving the message rows, is a deterministic-codegen build for measurement (LTO, one codegen
+unit — what `nest release` ships), which is a harness decision, not a runtime one. `sieve`'s −9.3% carries a 7.7% spread. `startup` −2.3% is inside its 2.4%
 spread. Nothing else in the column is within its spread of the previous number.
 
 ## The a6a0d934 refresh: `supervisor` −5% again, from the multi-pair `assoc` unroll (2026-09-18, midday)
