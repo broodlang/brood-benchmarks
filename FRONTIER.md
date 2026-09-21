@@ -23,10 +23,13 @@ affected code, so hot reload holds.
 Ratios are Brood's compute vs the fastest language on that row — **usually C**, a machine-floor
 reference, so these read "vs roughly the hardware", not "vs the fastest managed runtime".
 
-- **`spawn-live` (1.43 s, 1.69 GB — 2.0× slower and 1.9× heavier than the BEAM).** ~5.5 KB per
+- **`spawn-live` (1.13 s, 1.49 GB — 1.7× slower and 1.7× heavier than the BEAM).** ~5.2 KB per
   live process against ~3.1 KB. Four wins landed here (ADR-215 AST-keyed code sharing, `fold`
   walking a vector by index, a native counted fold, dispatch reorder) and **none touched the
-  process floor**, which is what is left — the row's peak RSS sat flat throughout. See levers 1
+  process floor** — the row's peak RSS sat flat at 1.69–1.75 GB throughout — until 2026-09-21,
+  when three commits on the floor itself (no ColdHeap per spawn, SmallMaps for the per-process
+  maps, a root stack that grows by four) took it 1.75 → 1.56 GB (−11%) with the wall −6.6%. The
+  floor is still what is left. See levers 1
   and 2b.
 - **`nbody`** — the immutable rebuild (a fresh 7-element vector per body per step) is what
   remains; it needs escape analysis or a native float array. A standing check fell out of the
@@ -48,9 +51,14 @@ reference, so these read "vs roughly the hardware", not "vs the fastest managed 
   (~15%), a closure captured per node. C's margin is partly structural (it pushes onto
   a stack array where Node and .NET copy the placed-columns list per node), so **the Node
   ratio is the fairer target**.
-- **`mandelbrot` (9.3× C)** — `esc` is JIT'd with register-carried f64 params; the residual is
-  boxed 24-byte `Value` tagging plus loop overhead. Near the JIT floor — C is only 1.2× ahead of
-  .NET here, so the row is close to its arithmetic limit for everyone.
+- **`mandelbrot` (3.8× C; was 9.3× until the 422c92a5 refresh)** — `esc` is JIT'd with
+  register-carried f64 params; the residual is boxed 24-byte `Value` tagging plus loop overhead.
+  The 2026-09-21 halving (161 → 77 ms wall, 0.5% spread over three invocations) is brood
+  ADR-378: an arm whose floats arrive through vector reads used to lower onto the integer path,
+  deopt on every activation and latch BAILED — and the latch never cleared its callers' fast
+  links, so the interpreted arm was entered natively forever. Deopt feedback now re-tiers it in
+  float context, and untyped comparisons dispatch by tag. Near the JIT floor now — C is only
+  1.2× ahead of .NET here, so the row is close to its arithmetic limit for everyone.
 - **`matmul` (51× C)** — inner loop is native; residual is the one read LICM can't hoist plus boxed
   `Value` array storage. Both denominators are ~2–4 ms, so read the absolute, not the multiple.
 - **`pipeline` (6.2× Node)** — lazy-seq/transducer composition the JIT doesn't cover. **The
@@ -218,6 +226,19 @@ row, opposite sign, and worth deciding about rather than rediscovering a third t
 runtime's fixed costs shrink, subtracting a `startup` row that itself loads modules
 over-corrects for rows that load none. Changing it is a methodology decision, not a bug fix,
 so nothing here has been adjusted.
+
+**Startup 12.9 → 13.6 ms at the 422c92a5 refresh (2026-09-21), and it is real: +6.2% against
+a 0.0% floor under `ab-bench`, 74.4M → 81.3M instructions on `(io/puts 0)`.** Attributed on
+unstripped binaries (brood KI-182). The largest piece is the JIT compiling at boot: brood
+ADR-381 offers every declared `def` to the Brood contract hook even when contracts are
+unarmed, the hook's `(not (or (%contracts-armed?) …))` runs once per declared name as `io`'s
+sections materialise, `not` crosses the tier threshold, and every `brood file` run now
+instantiates Cranelift to compile it (`BROOD_JIT_DUMP_IR=1`: one arm, `not`, on the new
+binary; none on the old; none on an empty file; `BROOD_NO_JIT=1` gives 1.55M of it back).
+The rest is diffuse and expected: the prelude image carries def sites now (brood ADR-382,
+802 → 1328 entries, +0.6M in position-table inserts) and the prelude itself grew by the
+contracts policy and the ADR-377/379 additions (+0.3M freeze, +0.4M image load). The number
+is published as measured; the fix is brood's, not this repo's.
 
 ## The Brood column pays a per-run cost no other compiled column pays
 
