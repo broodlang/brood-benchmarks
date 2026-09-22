@@ -240,6 +240,14 @@ The rest is diffuse and expected: the prelude image carries def sites now (brood
 contracts policy and the ADR-377/379 additions (+0.3M freeze, +0.4M image load). The number
 is published as measured; the fix is brood's, not this repo's.
 
+**Startup at the 653d41d9 refresh (2026-09-22): 13.6 → 13.1 ms, and the mechanism above is
+closed.** brood KI-182's fixes — the kernel no longer consults the contract policy unarmed,
+the `defability` op function carries the armed test inline, the image replay registers impls
+without re-running their arity diagnostic, and `nth`'s index guard no longer calls `not` —
+leave no arm lowering on any module load; `(io/puts 0)` reads 78.3M instructions against the
+136b14d7 column's 75.0M (was 81.3M), the remainder being the prelude image's def sites and a
+larger prelude. Every other row moved inside its spread; like-for-like 7.20 → 7.12.
+
 ## The Brood column pays a per-run cost no other compiled column pays
 
 Measured 2026-08-27, and it is the one standing *methodology* handicap rather than a runtime gap.
