@@ -109,6 +109,12 @@ reference, so these read "vs roughly the hardware", not "vs the fastest managed 
   - `regex` **unchanged, and it has no such gap** — its hot path is a memoised DFA whose steady
     state is one `table/get`, not string assembly. The "shared by all three" framing was wrong
     about which rows shared the problem.
+  - **`regex` is not a pure-Brood codec any more** (brood 0.33, ADR-389, 2026-09-23): `std/regex`
+    keeps the pattern language and matches with `regex-automata`. The row now compares native
+    matching with native matching, and a Brood column measured before 0.33 timed the old DFA —
+    compare across that line with care. ADR-389 asks for an interpreter-bound workload in its
+    place (a state machine, set simulation); a new row needs every port, the Python one and the
+    harness entry included, so it waits on a decision about writing those.
 
   **Split a codec row before optimising it.** Both movers are two-directional and the halves are
   nowhere near equal — `base64` decode was 4× its encode, `json` parse 2.4× its encode — so
