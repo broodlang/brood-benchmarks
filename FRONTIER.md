@@ -383,6 +383,31 @@ this file already teaches, restated by the day: a flat profile plus a per-walk c
 about right" is not attribution (three measurements were needed, each contradicting the previous
 theory); and the signal came from this column, not from a test — the argument for keeping it fresh.
 
+## The 40d07ec0 refresh: startup, base RSS, `http` and `reduce` regressed across 0.33 → 0.37 (2026-10-12)
+
+Min of three interleaved brood-only invocations at brood 0.37.0 (`40d07ec0`) against the
+`c7e7bae3` column (0.33.0). Most rows read +0–3%, inside this box's cross-session drift, but
+four rows read past their spread, so they were re-measured against a rebuilt `c7e7bae3`
+(lean, std image confirmed loaded for both) with the two binaries interleaved three times in
+one sitting — the control that counts here:
+
+| row | c7e7bae3 (min of 3) | 40d07ec0 (min of 3) | delta |
+|---|---|---|---|
+| `startup` wall | 12.8 ms | 13.8 ms | **+7.8%** |
+| `startup` RSS (base RSS) | 40.8 MiB | 52.1 MiB | **+27%** |
+| `http` wall | 168.4 ms | 178.4 ms | **+5.9%** |
+| `http` peak RSS | 618 MiB | 729 MiB | +18% |
+| `reduce` wall | 16.8 ms | 17.7 ms | **+5.4%** |
+| `errors` wall | 57.6 ms | 59.7 ms | +3.6% |
+
+Each arm's three readings agree within ~1.5%, so these are real, not plateau luck. The base-RSS
+move is the largest and most likely to be shared cause: the startup image grew (127 → 128
+sections, 6661 → 6814 bindings) and every row pays boot. **Not yet attributed** — 0.33 → 0.37
+spans several releases, so sample three or four points across the range before bisecting
+(see the `primes` ramp under CLAUDE.md). Gains: `latency` p99.9 1061 → 591 µs (p99 flat,
+80 → 83 µs), `matmul` −1%; nothing else moved past its spread in Brood's favour. Like-for-like
+6.85 → 6.94.
+
 ## The v0.31.0 refresh: the release column, and it is the db98f7cd column (2026-09-20, night)
 
 Min of three interleaved brood-only invocations at the tagged release `136b14d7`
