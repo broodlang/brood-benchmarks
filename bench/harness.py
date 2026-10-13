@@ -38,8 +38,9 @@ NICE = {"brood": "Brood", "clojure": "Clojure", "elixir": "Elixir",
 
 # ext + how to invoke a single source file. `env` is merged on top of the
 # inherited environment for that language's child process.
-#   brood: pin BROOD_VM=1 so an inherited BROOD_VM=0 can't silently drop us onto
-#   the (≈2× slower) tree-walker and make the numbers unreproducible.
+#   brood: pin BROOD_TIER=2 (the full tier, native code included) so an inherited
+#   lower ceiling can't silently drop us onto the bytecode VM or the (≈2× slower)
+#   tree-walker and make the numbers unreproducible.
 # .NET needs compilation, so unlike the others we don't "run the source": the
 # project (bench/dotnet/) is built once to a native apphost (see DOTNET_APP /
 # build_dotnet), and each benchmark runs as `brood-bench <name>` — measuring the
@@ -117,7 +118,7 @@ def clojure_cmd(p):
 
 
 LANGS = {
-    "brood":  {"dir": "brood",  "ext": "blsp", "cmd": lambda p: ["brood", p], "env": {"BROOD_VM": "1"}},
+    "brood":  {"dir": "brood",  "ext": "blsp", "cmd": lambda p: ["brood", p], "env": {"BROOD_TIER": "2"}},
     "clojure": {"dir": "clojure", "ext": "clj", "cmd": clojure_cmd},
     "elixir": {"dir": "elixir", "ext": "ex",   "cmd": elixir_cmd},
     # -P isolates sys.path from the script's own dir, so bench files named after a
