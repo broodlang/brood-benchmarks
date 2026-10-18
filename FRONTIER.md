@@ -95,8 +95,8 @@ reference, so these read "vs roughly the hardware", not "vs the fastest managed 
   Brood beats every thread/queue language here; Node's `ring` is cooperative single-thread async.
   **Do not extend this to `latency`** — that row was never per-message cost (a send + receive is
   1.1 µs); it was spawn placement.
-- **Text codecs (`json`, `regex`, `base64`)** — pure-Brood `std/` libraries against native codecs,
-  by design. **The shared-fast-path lever was taken on 2026-08-26 and it was two of the three,
+- **Text codecs (`json`, `regex`, `base64`)** — were pure-Brood `std/` libraries against native
+  codecs, by design; only `json` still is (see `regex` and `base64` below). **The shared-fast-path lever was taken on 2026-08-26 and it was two of the three,
   not all three** (published 2026-08-27):
   - `json` **−20.8%** (0.7% floor). `string/->codepoints` is a native that had **no native
     inverse**, so every parser rebuilt its result with `(apply str (map int->char cs))` — a
@@ -115,6 +115,12 @@ reference, so these read "vs roughly the hardware", not "vs the fastest managed 
     compare across that line with care. ADR-389 asks for an interpreter-bound workload in its
     place (a state machine, set simulation); a new row needs every port, the Python one and the
     harness entry included, so it waits on a decision about writing those.
+  - **`base64` is not a pure-Brood codec any more either** (brood 0.40, `a85044ab`,
+    2026-10-18): `encoding/base64-encode-bytes`/`-decode-bytes` run on the `%base64-encode` /
+    `%base64-decode` primitives. The row read 58.2 → 35.9 ms (−38%) at the 099abd59 refresh,
+    and what is left is mostly the LCG byte generation and boot — the codec itself is a native
+    kernel now. A Brood column measured before 0.40 timed the Brood codec; do not read the
+    drop as language speed. Like `regex`, the row no longer measures the interpreter.
 
   **Split a codec row before optimising it.** Both movers are two-directional and the halves are
   nowhere near equal — `base64` decode was 4× its encode, `json` parse 2.4× its encode — so
@@ -592,6 +598,28 @@ a `defn` loop's 2.3 ns, every named local loop in the language (KI-156, fixed th
 dispatch at 137 ns per element where a non-passthrough body of the same fold took 25 (now the
 same 25). A `fold` over a range with any literal is the counted loop: `(fold (range 3M) 0 (fn
 (acc x) (+ acc x)))` 410 → 21 ms. The rest of the column is inside the ±3% the box drifts.
+
+## The 0.40.0 refresh: `collatz` +7% from a correctness fix, `base64` −38% from a native codec (2026-10-18)
+
+Brood column at brood 099abd59, min of 3 interleaved brood-only invocations against the
+be3ce088 column. Movers, each checked by `perf stat -e instructions:u` on rebuilt binaries
+(both arms' std images live):
+
+- **`collatz` +7.1% wall, +6.6% instructions — attributed to brood `ef80547d` (KI-274).** That
+  fix makes every native self-loop snapshot the global epoch at entry and compare it on the
+  back-edge poll, so a loop sees a `def` of itself while it runs. `ef80547d~1` → `ef80547d`:
+  1.157 G → 1.229 G (+6.3%); the rest of the range adds +0.3%. The same commit is +3.0% on
+  `primes` (614 → 633 M), and nothing on `loop`, `strings` or `errors-deep`. The guard runs once
+  per tick batch, yet the cost scales with iterations (~2.7 instructions each over `collatz`'s
+  ~27 M), so the suspect is the entry epoch held live across the loop body rather than the
+  check itself — **not yet verified**; the lead is brood's to take.
+- **`base64` −38%** is the row switching to a native codec (`%base64-encode`/`-decode`, brood
+  `a85044ab`), not language speed — see the text-codecs entry above.
+- **`supervisor` −10%, `spawn-live` −3%:** the process-floor work (a parked process 3 201 →
+  2 747 B, brood `36d677c9`/`c6a0c600`/`dfdc2011`) and `15716c2b` (no trim per park). Not
+  checked against a control in this refresh.
+- `primes` +1.9%, `errors-deep` +1.1% and `strings` +0.6% in instructions outside `ef80547d`:
+  unattributed, at or under their spreads.
 
 ## The 2026-09-16 field run: Go joins, and the tally a user writes is the fast one (v0.30.0)
 

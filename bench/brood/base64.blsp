@@ -1,7 +1,7 @@
 ;; Generate N bytes (LCG mod 256), base64-encode then decode. Checksum =
 ;; (sum of encoded char codes + sum of decoded bytes) mod 2^31 — exercises and
-;; verifies both directions. Brood's base64 is pure-Brood (std/encoding) vs the
-;; native codecs elsewhere.
+;; verifies both directions. Since brood 0.40 std/encoding's base64 runs on the
+;; %base64-encode / %base64-decode primitives, so the codec is native here too.
 (def n (let (e (os/env "BENCH_N")
              v (if e (string/->number e) 50000))
          (if (int? v) v (throw (str "BENCH_N is not an integer: " e)))))
