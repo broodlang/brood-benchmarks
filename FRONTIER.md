@@ -400,11 +400,19 @@ one sitting — the control that counts here:
 | `reduce` wall | 16.8 ms | 17.7 ms | **+5.4%** |
 | `errors` wall | 57.6 ms | 59.7 ms | +3.6% |
 
-Each arm's three readings agree within ~1.5%, so these are real, not plateau luck. The base-RSS
-move is the largest and most likely to be shared cause: the startup image grew (127 → 128
-sections, 6661 → 6814 bindings) and every row pays boot. **Not yet attributed** — 0.33 → 0.37
-spans several releases, so sample three or four points across the range before bisecting
-(see the `primes` ramp under CLAUDE.md). Gains: `latency` p99.9 1061 → 591 µs (p99 flat,
+Each arm's three readings agree within ~1.5%, so the wall-time moves are real, not plateau luck.
+
+**The base-RSS move is NOT a memory regression (attributed the same day).** mimalloc marks its
+arena for transparent huge pages (`allow_thp`, on by default) and this box runs THP in
+`madvise` mode, so the arena is backed by 2 MiB pages and resident memory moves in 2 MiB steps
+depending on where allocations land. With `MIMALLOC_ALLOW_THP=0` the same commits read 19.9
+(c7e7bae3) → 20.1 MiB (40d07ec0): +1%. The step sits at brood `a954922f` (+4.2 MiB, exactly two
+huge pages); whether a fault gets a huge page also depends on the box's fragmentation at that
+moment, which is why the interleaved control read +11 MiB where a later bisect read +2.3. So
+the published base-RSS and peak-RSS columns measure THP luck as much as memory: compare them
+across runs only with THP off. Turning THP off in the runtime would halve RSS but cost
+throughput on allocation-heavy rows (`sort` ~40% slower in a rough probe) — a separate
+decision, not taken here. Gains: `latency` p99.9 1061 → 591 µs (p99 flat,
 80 → 83 µs), `matmul` −1%; nothing else moved past its spread in Brood's favour. Like-for-like
 6.85 → 6.94.
 
