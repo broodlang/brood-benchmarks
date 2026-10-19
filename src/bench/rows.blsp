@@ -1,0 +1,94 @@
+(defmodule bench/rows
+  "The benchmark table — every row's name, default N, which languages run it and what it
+stresses — as DATA, in the canonical order. The measuring half (`bench/harness`) runs it
+and the reporting half (`bench/common`, `bench/docs`, `bench/chart`) reads results in this
+order, so neither imports the other. A JSON object has no order once it is a Brood map;
+this table is where the order lives.")
+
+;; Which languages an "all"-style row runs in. C is not in `all`: it is a partial port, so a
+;; row opts into it explicitly with `:all+c` rather than C being silently expected
+;; everywhere and skipped when missing. A missing port should be a loud absence in this
+;; suite, not an empty cell.
+(def all-langs ["brood" "clojure" "elixir" "python" "node" "ruby" "dotnet" "go"])
+(def all-langs-c (conj all-langs "c"))
+
+;; The canonical language order (the column order every table and result file uses).
+(def lang-order ["brood" "clojure" "elixir" "python" "node" "ruby" "dotnet" "go" "c"])
+
+;; Display names for report headers/titles.
+(def nice
+  {"brood" "Brood"
+   "clojure" "Clojure"
+   "elixir" "Elixir"
+   "python" "Python"
+   "node" "Node"
+   "ruby" "Ruby"
+   "dotnet" ".NET"
+   "go" "Go"
+   "c" "C"})
+
+;; name, default N, where (`:all`, `:all+c`, or an explicit vector of languages), what.
+;; Sizes are picked so even the fastest runtime (.NET / Node) spends ~100ms+ of *compute* —
+;; below that, wall − startup is just startup-measurement noise — while the slowest still
+;; finishes in a couple of seconds.
+;;
+;; `spawn-live` holds N units ALIVE and is deliberately not `:all`: the unit must be a real
+;; process (its own heap, a mailbox that copies, preemptive scheduling). The coroutine
+;; runtimes are included because the `cores` and `CPU·s` columns make the difference
+;; legible. `supervisor` runs only where a runtime supervisor exists (Brood, Elixir).
+;; `latency` is ranked by percentiles: fixed arrival rate, open loop, every 20th request
+;; occupying 500us; Ruby and Clojure only lack ports nobody has written yet.
+(def benches
+  [["startup" 0 :all+c "interpreter/VM startup + base memory"]
+    ["fib" 35 :all+c "naive recursion / function-call overhead"]
+    ["loop" 30000000 :all+c "raw iteration (tail recursion vs for-loop)"]
+    ["reduce" 5000000 :all+c "higher-order fold over a range"]
+    ["primes" 150000 :all+c "integer arithmetic (trial division)"]
+    ["collatz" 250000 :all+c "integer arithmetic + tight inner loop"]
+    ["mandelbrot" 540 :all+c "floating-point math (escape iterations)"]
+    ["matmul" 175 :all+c "nested loops + indexing (integer NxN)"]
+    ["strings" 500000 :all+c "string building (join) + length"]
+    ["wordcount" 750000 :all+c "hash-map build (immutable vs mutable)"]
+    ["bintree" 200 :all+c "allocation / GC pressure (build+walk trees)"]
+    ["sort" 375000 :all+c "sort a list of ints + checksum walk"]
+    ["nqueens" 10 :all+c "backtracking recursion — count N-queens solutions"]
+    ["errors" 200000 :all "error handling — raise + recover a value N times"]
+    ["errors-deep" 50000 :all "error propagation — throw 50 frames deep, catch at top"]
+    ["pipeline" 100000 :all "filter/map/reduce pipeline over a range"]
+    ["ackermann" 6 :all+c "deep double-recursion (Ackermann ack(3,9))"]
+    ["sieve" 1000000 :all+c "Sieve of Eratosthenes (mutable array vs Table)"]
+    ["persistent-map" 300000 :all "read-modify-write churn on a map (deep CHAMP)"]
+    ["nbody" 50000 :all+c "floating-point physics sim (N-body)"]
+    ["json" 2000 :all "JSON encode+parse round-trip (pure-Brood vs native)"]
+    ["regex" 20000 :all "regex full-match count (pure-Brood vs native)"]
+    ["base64" 50000 :all "base64 encode+decode (pure-Brood vs native)"]
+    ["spawn" 10000 :all "lightweight concurrent units + result collection"]
+    ["spawn-live"
+      300000
+      ["brood" "elixir" "node" "dotnet" "python" "go"]
+      "hold N units alive, then wake each with a copied message"]
+    ["latency"
+      50000
+      ["brood" "elixir" "node" "dotnet" "python" "go"]
+      "latency under a fixed arrival rate, 5% of requests occupying 500us each"]
+    ["supervisor"
+      20000
+      ["brood" "elixir"]
+      "supervise N children, then retire a quarter and let the supervisor restart them"]
+    ["pfib" 31 :all "parallel fib — 100 computed at once across cores"]
+    ["http" 500 :all "concurrent HTTP — N in-flight GETs to a local server"]
+    ["pingpong" 100000 :all "message round-trip latency — two units bounce a token N times"]
+    ["ring" 200 :all "N-process ring — token travels N*5000 hops"]])
+
+(def row-names (vec (map benches first)))
+
+(defn row-langs (where)
+  "The languages a row's `where` names: `:all`, `:all+c`, or an explicit vector."
+  (case where :all all-langs :all+c all-langs-c where))
+
+(defn in-order (names order)
+  "`names` (any collection of strings) sorted by their position in `order`, with names
+`order` does not mention after them, alphabetically."
+  (let (known (seq/filter order (fn (n) (includes? names n)))
+        rest-names (sort (seq/filter (vec names) (fn (n) (not (includes? order n))))))
+    (into (vec known) rest-names)))

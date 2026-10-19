@@ -1,0 +1,53 @@
+(defmodule bench/cli
+  "Command-line flags for the bench tools, the subset of `argparse` they use: `--name
+value`, `--name=value`, and boolean `--flag`s. A spec is a map of flag name (no dashes) to
+`{:kind :string|:int|:float|:flag :default v}`; `parse` answers a map of keyword to value,
+every spec'd flag present (its default when not given), plus `:args` — the positional
+words, in order. An unknown flag or a missing value is an error naming it.")
+
+(defn- convert (flag kind text)
+  (case kind
+    :string text
+    :int
+      (let (n (string/->number text))
+        (if (int? n) n (error (str "--" flag ": expected an integer, got ") text)))
+    :float
+      (let (n (string/->number text))
+        (if (number? n) (* 1.0 n) (error (str "--" flag ": expected a number, got ") text)))
+    (error "cli: unknown flag kind: " kind)))
+
+(defn- defaults (spec)
+  (into {:args []} (map spec (fn ([flag options]) [(keyword flag) (get options :default)]))))
+
+(defn- parse-loop (spec words acc)
+  (if (empty? words)
+    acc
+    (let (word (first words))
+      (cond
+        ;; `nest run FILE -- args` hands the script the `--` itself
+        (= word "--") (parse-loop spec (rest words) acc)
+        (not (string/starts-with? word "--"))
+          (parse-loop spec (rest words) (assoc acc :args (conj (get acc :args) word)))
+        else
+          (let (body (string/substring word 2 (string/length word))
+                eq (index-of body "=")
+                flag (if (>= eq 0) (string/substring body 0 eq) body)
+                inline (if (>= eq 0) (string/substring body (inc eq) (string/length body)) nil)
+                options (get spec flag))
+            (cond
+              (nil? options) (error "unrecognized argument: " word)
+              (= (get options :kind) :flag)
+                (parse-loop spec (rest words) (assoc acc (keyword flag) true))
+              (not (nil? inline))
+                (parse-loop spec
+                  (rest words)
+                  (assoc acc (keyword flag) (convert flag (get options :kind) inline)))
+              (empty? (rest words)) (error (str "--" flag ": expected a value") "")
+              else
+                (parse-loop spec
+                  (rest (rest words))
+                  (assoc acc (keyword flag) (convert flag (get options :kind) (first (rest words)))))))))))
+
+(defn parse (spec words)
+  "Parse `words` (the strings after `--`) against `spec`; see the module doc."
+  (parse-loop spec (vec words) (defaults spec)))

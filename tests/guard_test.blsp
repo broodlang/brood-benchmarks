@@ -1,0 +1,110 @@
+;; The corruption guard (`bench/harness/verify-compute-floor`) and the exit contract around it.
+;;
+;; The guard exists because of 2026-07-28: `startup` is subtracted from every other row, it
+;; was sampled best-of-3 like everything else, and a high Elixir boot sample (197ms against a
+;; true ~182ms) exceeded Elixir's *wall* on six short rows. `max(0.0, wall - startup)`
+;; clamped those to 0.0ms, which sorts to **1st place** and turns every ratio against it into
+;; nonsense (Brood's `bintree` printed `103x` where it is `12x`). The run was very nearly
+;; published.
+;;
+;; A guard that silently stops working is worse than none, and this one cannot be exercised
+;; on demand — whether a real run clamps depends on boot-sample luck. So the behaviour is
+;; pinned here with fabricated timings, and the harness's measurement layer is replaced
+;; through its hooks so the test is instant and needs no runtimes installed.
+(defmodule guard-test
+  (:use test)
+  (:use bench/harness :only [verify-compute-floor collect-meta]))
+
+(defn- clamped-cells (results)
+  (vec (sort (map (first (verify-compute-floor results)) (fn ([name lang _ _]) [name lang])))))
+
+;; The real shape of the 2026-07-28 corruption.
+(def corrupt
+  {:startup {:langs {:elixir {:wall_ms 197.0} :brood {:wall_ms 13.2}}}
+   :bintree {:langs {:elixir {:wall_ms 196.8} :brood {:wall_ms 116.5}} :what "x" :n 1}
+   :nqueens {:langs {:elixir {:wall_ms 192.0} :brood {:wall_ms 95.0}} :what "x" :n 1}})
+
+(describe "verify-compute-floor"
+  (test "detects both clamped cells"
+    (assert= (clamped-cells corrupt) [["bintree" "elixir"] ["nqueens" "elixir"]]))
+  (test "flags the row for the report, and leaves healthy rows unflagged"
+    (let ([_ marked] (verify-compute-floor corrupt))
+      (assert= (get (get marked :bintree) :compute_clamped) ["elixir"])
+      (is (not (contains? (get marked :startup) :compute_clamped)))))
+  (test "a healthy run is silent"
+    (assert= (clamped-cells {:startup {:langs {:elixir {:wall_ms 181.8} :brood {:wall_ms 12.3}}}
+                             :bintree {:langs {:elixir {:wall_ms 196.8} :brood {:wall_ms 116.5}}
+                                       :what "x"
+                                       :n 1}})
+      []))
+  ;; `--only fib` never measures a baseline; there is nothing to subtract, so nothing to check.
+  (test "no startup baseline is skipped, not crashed"
+    (assert= (clamped-cells {:fib {:langs {:brood {:wall_ms 70.0}}}}) []))
+  ;; A crashed cell has no timing; it must not be mistaken for a clamped one.
+  (test "an errored cell is not a clamp"
+    (assert= (clamped-cells {:startup {:langs {:elixir {:wall_ms 181.8}}}
+                             :x {:langs {:elixir {:error "boom"}} :what "x" :n 1}})
+      []))
+  ;; Exactly-equal wall and startup is compute == 0, which is still not a measurement.
+  (test "wall == startup counts as clamped"
+    (assert= (count (clamped-cells {:startup {:langs {:elixir {:wall_ms 180.0}}}
+                                    :x {:langs {:elixir {:wall_ms 180.0}} :what "x" :n 1}}))
+      1)))
+
+;; ---- end-to-end: the exit contract ---------------------------------------------------
+;; Elixir's bintree wall lands below its own startup — the corruption, reproduced on demand.
+(def corrupt-walls
+  {["brood" "startup"] 12.0
+   ["brood" "bintree"] 120.0
+   ["elixir" "startup"] 190.0
+   ["elixir" "bintree"] 185.0})
+
+(defn- drain (acc)
+  (receive
+    ([:say s] (drain (assoc acc :out (str (get acc :out) s "\n"))))
+    ([:warn s] (drain (assoc acc :err (str (get acc :err) s "\n"))))
+    (after 0 acc)))
+
+(defn- run-main (walls extra-args)
+  "Run the harness with the measurement stubbed out; `{:code :report :err}`. The REAL
+`collect-meta` runs, with no languages, so the meta the report reads is filled exactly as a
+real run fills it and probes no runtime."
+  (let (me (self)
+        dir (str "/tmp/brood-guard-test-" (rand/token 6))
+        hooks {:say (fn (s) (send me [:say s]))
+               :warn (fn (s) (send me [:warn s]))
+               :prepare (fn (langs _hooks) [langs {}])
+               :warmup (fn (_langs _timeout _ctx _hooks) nil)
+               :bench-lang (fn (lang name _n _runs _timeout _pin _settle _ctx)
+                             (let (w (get walls [lang name]))
+                               (if (nil? w) nil {:wall_ms w :rss_kb 1024 :checksum "1"})))
+               :collect-meta (fn (_langs) (collect-meta []))}
+        code (bench/harness/run (into ["--only"
+                                        "startup,bintree" "--langs" "brood,elixir" "--no-warmup"
+                                        "--out" dir]
+                                  extra-args)
+               hooks)
+        report (file/slurp (str dir "/report.md"))
+        logs (drain {:out "" :err ""}))
+    (file/rm (str dir "/report.md"))
+    (file/rm (str dir "/results.json"))
+    (file/rmdir dir)
+    {:code code :report report :err (get logs :err)}))
+
+(describe "the exit contract"
+  (test "a FULL run with a clamped cell exits non-zero, and says so"
+    (let (r (run-main corrupt-walls []))
+      (assert= (get r :code) 1)
+      (is (includes? (get r :err) "COMPUTE CLAMPED"))
+      (is (includes? (get r :report) "COMPUTE CLAMPED"))
+      (is (includes? (get r :err) "bintree/elixir"))))
+  (test "--quick warns but does not fail, and says why it is tolerated"
+    (let (r (run-main corrupt-walls ["--quick"]))
+      (assert= (get r :code) 0)
+      (is (includes? (get r :err) "COMPUTE CLAMPED"))
+      (is (includes? (get r :err) "--quick"))))
+  (test "a clean run exits zero with no warning anywhere"
+    (let (r (run-main (assoc corrupt-walls ["elixir" "bintree"] 260.0) []))
+      (assert= (get r :code) 0)
+      (is (not (includes? (get r :err) "COMPUTE CLAMPED")))
+      (is (not (includes? (get r :report) "COMPUTE CLAMPED"))))))

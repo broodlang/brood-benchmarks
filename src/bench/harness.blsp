@@ -1,0 +1,1213 @@
+(defmodule bench/harness
+  "Benchmark harness: run each program in every language, measure wall time + peak RSS +
+CPU, verify the checksums agree, write `results/results*.json` and `report*.md`.
+
+    nest run -- harness                    ; full suite, 3 runs each
+    nest run -- harness --runs 5
+    nest run -- harness --only fib,sort,mandelbrot
+    nest run -- harness --langs brood,python
+    nest run -- harness --quick         ; smaller sizes (smoke test)
+    nest run -- harness --label whklat  ; results.whklat.json + report.whklat.md
+    nest run -- harness --out /tmp/run  ; write the result files there
+
+Run from the repository root: every path here (`bench/<lang>/…`, `results/`) is relative
+to it. A missing runtime is skipped with a warning rather than aborting the run — without
+the .NET SDK installed (`sudo apt install dotnet-sdk-10.0`) the suite still runs the
+other languages.
+
+This is the MEASURING half. It reads the benchmark table from `bench/rows` (data) and
+never uses `bench/common`, the reporting half's vocabulary."
+  (:use bench/rows)
+  (:use bench/json-out))
+
+;; ---- the languages ---------------------------------------------------------------------
+;; How to invoke one source file in each language, and the environment merged on top of
+;; the inherited one for that language's child process.
+;;   brood: pin BROOD_TIER=2 (the full tier, native code included) so an inherited lower
+;;   ceiling can't silently drop us onto the bytecode VM or the (≈2× slower) tree-walker
+;;   and make the numbers unreproducible.
+;;
+;; .NET needs compilation, so unlike the others we don't "run the source": the project
+;; (bench/dotnet/) is built once to a native apphost (`build-dotnet`), and each benchmark
+;; runs as `brood-bench <name>` — measuring the real runtime startup + RyuJIT, the fair
+;; analog to `node app.js`. The per-bench .cs files still live one-per-benchmark so they
+;; diff side by side.
+(def dotnet-dir "bench/dotnet")
+(def dotnet-app "bench/dotnet/publish/brood-bench")
+
+;; C is the MACHINE FLOOR column, and it is deliberately a PARTIAL port: it runs the compute
+;; rows only (the `:all+c` rows), not the whole suite. The concurrency rows have no honest C
+;; answer — 300k held-alive units means 300k pthread stacks (~2 GB), and a supervisor would
+;; be a loop this repo wrote, which measures the harness author rather than the language.
+;; The codec rows would measure whichever third-party C library was picked, since C ships
+;; none.
+;;
+;; Each benchmark is a standalone binary (bench/c/<name>.c -> build/<name>), so the
+;; `startup` row measures a real C process: exec, loader, one write, exit.
+;;
+;; -O2 is how C is normally shipped. `-march=native` is included because every other
+;; runtime here JITs for the host CPU at runtime (V8, RyuJIT, BeamAsm, Brood's tier-1) —
+;; targeting baseline x86-64 would understate C against columns that do not. The
+;; consequence is that this column, like every absolute in this repo, is specific to the
+;; machine in the header.
+(def c-dir "bench/c")
+(def c-build "bench/c/build")
+(def c-cflags ["-O2" "-march=native" "-std=c11" "-Wall" "-Wextra"])
+
+;; Go is a FULL column (every `:all` row, plus `spawn-live` and `latency`), built the way C
+;; is: one static binary per row under bench/go/build, so `startup` measures a real Go
+;; process — runtime init, one write, exit — and not a switch inside a running one.
+;; `bench.go` is the shared helper every row is compiled with.
+(def go-dir "bench/go")
+(def go-build "bench/go/build")
+
+;; Elixir, like .NET, is precompiled once rather than run from source. `elixir file.exs`
+;; recompiles the program's module on every run — that ~100ms compile leaks into the
+;; "compute" measurement (compute = wall − startup, and the `startup` baseline compiles no
+;; module so the leak isn't subtracted). Instead every bench module is `elixirc`ed to
+;; beam-dir once (`build-beam`) and run precompiled with `-pa beam-dir`. Each module is
+;; named `B<benchname>` (alnum only) so they don't collide; the run command loads it and
+;; calls `B<name>.main()`.
+(def elixir-dir "bench/elixir")
+(def beam-dir "bench/elixir/_build")
+
+;; Clojure runs on the JVM. To avoid per-run `clojure` CLI / dependency-resolution
+;; overhead, the classpath is resolved once (`build-clojure` → `clojure -Spath`) and each
+;; run is `java -cp <cp> clojure.main file.clj`. The JVM still cold-starts every run, so
+;; HotSpot under-JITs short single-shot runs — a known caveat the docs flag.
+(def clojure-dir "bench/clojure")
+
+(def lang-dirs
+  {"brood" ["brood" "blsp"]
+   "clojure" ["clojure" "clj"]
+   "elixir" ["elixir" "ex"]
+   "python" ["python" "py"]
+   "node" ["node" "js"]
+   "ruby" ["ruby" "rb"]
+   "dotnet" ["dotnet" "cs"]
+   "go" ["go" "go"]
+   "c" ["c" "c"]})
+
+(defn- stem (path)
+  (let (base (last (string/split path "/"))
+        dot (string/last-index-of base "."))
+    (if (> dot 0) (string/substring base 0 dot) base)))
+
+(defn beam-module (name)
+  "The compiled module name for a benchmark — `B` + the name's alphanumerics. Must match
+the `defmodule B…` in the corresponding bench/elixir/<name>.ex.
+
+    (bench/harness/beam-module \"errors-deep\")   → \"Berrorsdeep\""
+  (str "B" (regex/replace "[^a-zA-Z0-9]" name "")))
+
+(defn lang-cmd (lang path ctx)
+  "The command (a vector, program first) that runs bench file `path` in `lang`. `ctx`
+carries what a build resolved (`:clojure-cp`)."
+  (case lang
+    "brood" ["brood" path]
+    "clojure" ["java" "-cp" (get ctx :clojure-cp "") "clojure.main" path]
+    "elixir" ["elixir" "-pa" beam-dir "-e" (str (beam-module (stem path)) ".main()")]
+    ;; -P isolates sys.path from the script's own dir, so bench files named after a stdlib
+    ;; module (json.py, base64.py) don't shadow the stdlib for *sibling* scripts.
+    "python" ["python3" "-P" path]
+    "node" ["node" path]
+    "ruby" ["ruby" path]
+    "dotnet" [dotnet-app (stem path)]
+    "go" [(str go-build "/" (stem path))]
+    "c" [(str c-build "/" (stem path))]
+    (error "harness: unknown language: " lang)))
+
+(defn- lang-env (lang) (if (= lang "brood") {"BROOD_TIER" "2"} {}))
+
+(defn- bench-path (lang name)
+  (let ([dir ext] (get lang-dirs lang)) (str "bench/" dir "/" name "." ext)))
+
+;; ---- output --------------------------------------------------------------------------
+(def default-hooks
+  {:say (fn (s) (io/puts s))
+   :warn (fn (s) (io/puts s :to *err*))})
+
+(defn- say (hooks s) ((get hooks :say) s))
+(defn- warn (hooks s) ((get hooks :warn) s))
+
+(defn- py-str-repr (s)
+  ;; Python's repr of a str: single quotes unless the text has a ' and no ".
+  (let (quote (if (and (includes? s "'") (not (includes? s "\""))) "\"" "'")
+        escaped (string/replace (string/replace s "\\" "\\\\") quote (str "\\" quote))
+        escaped (string/replace (string/replace (string/replace escaped "\n" "\\n") "\r" "\\r")
+                  "\t" "\\t"))
+    (str quote escaped quote)))
+
+(defn- py-repr (v)
+  (cond
+    (nil? v) "None"
+    (string? v) (py-str-repr v)
+    (map? v)
+      (str "{"
+        (string/join (map v (fn ([k x]) (str (py-repr (->string k)) ": " (py-repr x)))) ", ")
+        "}")
+    (or (vector? v) (list? v)) (str "[" (string/join (map v py-repr) ", ") "]")
+    else (str v)))
+
+(defn- fixed (x n) (math/->fixed (* 1.0 x) n))
+
+;; `nest run` arms runtime contracts for the program it runs and exports that to its
+;; children (`BROOD_CONTRACTS=1`, plus `RUST_BACKTRACE=1`). Python's harness passed
+;; neither, and a measured `brood` with every `sig` checked is not the runtime users get —
+;; so every child of this harness starts with both unset.
+(def child-env {"BROOD_CONTRACTS" nil "RUST_BACKTRACE" nil})
+
+(defn- child-cmd (program args &optional (opts {}))
+  ;; `os/cmd` with the harness's own environment scrubbed (`child-env`).
+  (os/cmd program args (assoc opts :env (merge child-env (get opts :env {})))))
+
+(defn- run-cmd (program args &optional (opts {}))
+  ;; `subprocess.run(…, capture_output=True)`; nil when the program cannot be started.
+  (check-allow :discarded-catch (try (child-cmd program args opts) (catch _e nil))))
+
+;; ---- builds --------------------------------------------------------------------------
+(defn build-clojure (hooks ctx)
+  "Resolve the Clojure classpath once (`clojure -Spath` from bench/clojure/deps.edn), so
+each run is `java -cp <cp> clojure.main file.clj` with no per-run dependency resolution."
+  (say hooks "resolving Clojure classpath (clojure -Spath)…")
+  (let (r (child-cmd "clojure" ["-Spath"] {:cwd clojure-dir}))
+    (if (= (get r :exit) 0)
+      (assoc ctx :clojure-cp (string/trim (get r :stdout)))
+      (error (str "clojure -Spath failed:\n" (get r :stdout) (get r :stderr)) ""))))
+
+(defn build-dotnet (hooks)
+  "Build the .NET benchmark project once to a native apphost (Release)."
+  (say hooks "building .NET project (Release)…")
+  (let (r (child-cmd "dotnet" ["build" "-c" "Release" "-o" "publish"] {:cwd dotnet-dir}))
+    (when (not (= (get r :exit) 0))
+      (error (str "dotnet build failed:\n" (get r :stdout) (get r :stderr)) ""))))
+
+(defn- source-files (dir ext)
+  (sort (seq/filter (file/list-files dir) (fn (f) (string/ends-with? f (str "." ext))))))
+
+(defn build-c (hooks)
+  "Compile every C bench to its own binary under bench/c/build. One binary per benchmark
+rather than a dispatcher, so `startup` measures a real C process. Fails the run on any
+compile error: a silently missing binary would show up as an absent column."
+  (say hooks "compiling C benches (gcc -O2 -march=native)…")
+  (file/mkdir c-build)
+  (let (sources (source-files c-dir "c"))
+    (when (empty? sources) (error (str "no C sources found in " c-dir) ""))
+    (doseq (source sources)
+      (let (out (str c-build "/" (stem source))
+            r (child-cmd "gcc" (into c-cflags [(str c-dir "/" source) "-o" out "-lm"])))
+        (when (not (= (get r :exit) 0))
+          (error (str "gcc failed on " source ":\n" (get r :stdout) (get r :stderr)) ""))
+        (when (not (string/blank? (get r :stderr)))
+          (say hooks
+            (str "  warning ("
+              source
+              "): "
+              (first (string/split (string/trim (get r :stderr)) "\n")))))))))
+
+(defn build-go (hooks)
+  "Compile every Go bench to its own binary under bench/go/build (as `build-c` does): `go
+build` on the explicit file pair, since every row is its own `package main`."
+  (say hooks "compiling Go benches (go build)…")
+  (file/mkdir go-build)
+  (let (sources (seq/filter (source-files go-dir "go") (fn (f) (not (= f "bench.go")))))
+    (when (empty? sources) (error (str "no Go sources found in " go-dir) ""))
+    (doseq (source sources)
+      (let (out (str "build/" (stem source))
+            r (child-cmd "go" ["build" "-o" out "bench.go" source] {:cwd go-dir}))
+        (when (not (= (get r :exit) 0))
+          (error (str "go build failed on " source ":\n" (get r :stdout) (get r :stderr)) ""))))))
+
+(defn build-brood (hooks)
+  "Write the stdlib startup image once, so the Brood column measures the configuration
+users actually get: a `require`d std module restores its bindings from the image instead
+of re-evaluating its source. The runtime does not BUILD it (that costs ~1 s, and `brood
+app.blsp` is exactly the short-lived run it would land on), and a benchmark host may never
+have run `nest`. Best-effort: if this fails, every row still runs, just from source."
+  (say hooks "writing the Brood stdlib image (nest stdimage)…")
+  (if (nil? (os/which "nest"))
+    (warn hooks
+      (str "warning: `nest` not found on PATH — the Brood column will load std from source,\n"
+        "         which costs a few percent on the codec rows. Install it or run "
+        "`nest stdimage`."))
+    (let (r (child-cmd "nest" ["stdimage"]))
+      (if (not (= (get r :exit) 0))
+        (warn hooks
+          (str "warning: `nest stdimage` failed — the Brood column falls back to loading std\n"
+            "         from source:\n"
+            (string/trim (str (get r :stdout) (get r :stderr)))))
+        (say hooks (str "  " (string/trim (get r :stdout))))))))
+
+(defn build-beam (hooks)
+  "Precompile every Elixir bench module to beam-dir once (as `build-dotnet` does), so the
+~100ms module compile no longer leaks into compute."
+  (say hooks "compiling Elixir modules (elixirc → _build)…")
+  (file/mkdir beam-dir)
+  (let (sources (map (source-files elixir-dir "ex") (fn (f) (str elixir-dir "/" f))))
+    (when (empty? sources) (error (str "no Elixir sources found in " elixir-dir) ""))
+    (let (r (child-cmd "elixirc" (into ["-o" beam-dir] sources)))
+      (when (not (= (get r :exit) 0))
+        (error (str "elixirc failed:\n" (get r :stdout) (get r :stderr)) "")))))
+
+;; ---- provenance ----------------------------------------------------------------------
+(defn- output-lines (r)
+  ;; `(r.stdout or r.stderr).splitlines()`, stripped, blank lines dropped.
+  (let (text (if (string/blank? (get r :stdout "")) (get r :stderr "") (get r :stdout)))
+    (seq/filter (map (string/split text "\n") string/trim) (fn (l) (not (= l ""))))))
+
+(defn probe-version (lang)
+  "The runtime's `--version` first line (for elixir, the `Elixir …` line), or nil if the
+binary isn't on PATH. Clojure runs as `java -cp … clojure.main`, so its provenance is the
+Clojure lib version plus the JDK it runs on, not the `clojure` CLI launcher version."
+  (if (= lang "clojure")
+    (when (os/which "clojure")
+      (let (cv (run-cmd "clojure"
+                 ["-M" "-e" "(print (clojure-version))"]
+                 {:cwd clojure-dir :timeout-ms 60000})
+            jv (run-cmd "java" ["-version"] {:timeout-ms 15000}))
+        (when (and cv jv)
+          (let (clj (string/trim (get cv :stdout ""))
+                jtext (if (string/blank? (get jv :stderr "")) (get jv :stdout "") (get jv :stderr))
+                jline (or (seq/find (string/split jtext "\n") (fn (l) (includes? l "version"))) "")
+                jver (if (includes? jline "\"") (nth (string/split jline "\"") 1) ""))
+            (when (not (= clj ""))
+              (str "Clojure " clj (if (= jver "") "" (str " / JDK " jver))))))))
+    (let (cmd (get {"brood" ["brood" "--version"]
+                    "elixir" ["elixir" "--version"]
+                    "python" ["python3" "--version"]
+                    "node" ["node" "--version"]
+                    "ruby" ["ruby" "--version"]
+                    "dotnet" ["dotnet" "--version"]
+                    "go" ["go" "version"]
+                    "c" ["gcc" "--version"]}
+                lang))
+      (when (and cmd (os/which (first cmd)))
+        (let (r (run-cmd (first cmd) (vec (rest cmd)) {:timeout-ms 15000}))
+          (when r
+            (let (lines (output-lines r))
+              (when (not (empty? lines))
+                ;; `elixir --version` leads with the Erlang/OTP banner; the Elixir line is
+                ;; what we want.
+                (or (seq/find lines (fn (l) (string/starts-with? l "Elixir"))) (first lines))))))))))
+
+(defn brood-commit ()
+  "The brood commit the sibling checkout (`../brood`) is at — provenance the version string
+does not always carry, with a `+` suffix when the tree had uncommitted changes, because a
+number measured against a dirty tree is not reproducible and should say so. nil when the
+checkout is missing or git fails."
+  (let (repo "../brood")
+    (when (file/exists? (str repo "/.git"))
+      (let (sha (run-cmd "git" ["-C" repo "rev-parse" "--short" "HEAD"] {:timeout-ms 10000})
+            dirty (run-cmd "git" ["-C" repo "status" "--porcelain"] {:timeout-ms 10000}))
+        (when (and sha dirty (= (get sha :exit) 0))
+          (str (string/trim (get sha :stdout))
+            (if (string/blank? (get dirty :stdout)) "" "+")))))))
+
+(defn- cmd-text (program args)
+  (let (r (run-cmd program args)) (if r (string/trim (get r :stdout "")) "")))
+
+(defn cpu-count ()
+  "Logical CPUs on this machine (Python's `os.cpu_count()`)."
+  (let (n (string/->number (cmd-text "nproc" ["--all"]))) (if (int? n) n 1)))
+
+(defn- platform-string ()
+  ;; Python's `platform.platform()`: Linux-<release>-<machine>-with-glibc<version>.
+  (let (libc (string/replace (cmd-text "getconf" ["GNU_LIBC_VERSION"]) " " ""))
+    (str (cmd-text "uname" ["-s"])
+      "-"
+      (cmd-text "uname" ["-r"])
+      "-"
+      (cmd-text "uname" ["-m"])
+      (if (= libc "") "" (str "-with-" libc)))))
+
+(defn collect-meta (langs)
+  "Provenance for the report header: host, core count, OS, date, runtime versions."
+  {:host (os/hostname)
+   :cores (cpu-count)
+   :platform (platform-string)
+   :date (cmd-text "date" ["+%Y-%m-%d %H:%M"])
+   :brood_commit (brood-commit)
+   :versions (into {} (map langs (fn (l) [(keyword l) (probe-version l)])))})
+
+;; ---- measuring -----------------------------------------------------------------------
+;; The concurrency benchmarks bounce 15–45% run-to-run with scheduler / CPU contention.
+;; Since we report the best (least-noisy) run, taking more samples tightens the floor — so
+;; these run more times than the steady compute benches.
+(def noisy #{"spawn" "pfib" "http" "pingpong" "ring" "supervisor" "latency"})
+
+;; Rows where a LOW CPU% is legitimate because the program genuinely blocks (waiting on the
+;; local HTTP server), so the idle-CPU guard must not flag them.
+(def blocking-rows #{"http" "startup"})
+(def noisy-runs 7)
+
+;; Smaller sizes for a fast smoke run.
+(def quick
+  {"fib" 25
+   "loop" 300000
+   "reduce" 100000
+   "primes" 5000
+   "collatz" 5000
+   "mandelbrot" 48
+   "matmul" 40
+   "strings" 10000
+   "wordcount" 20000
+   "bintree" 8
+   "sort" 10000
+   "nqueens" 8
+   "pipeline" 50000
+   "spawn" 5000
+   "pfib" 24
+   "http" 100
+   "supervisor" 2000
+   "latency" 5000})
+
+;; `#metric name=value` lines a program may print alongside its checksum — the `latency`
+;; row reports percentiles, and its wall is fixed by the arrival schedule. Stripped from
+;; stdout before the checksum comparison so the checksum stays the correctness check.
+(def metric-re "^#metric\\s+([A-Za-z0-9_]+)=(-?[\\d.]+)\\s*$")
+
+(defn split-metrics (out)
+  "`[metrics checksum]` — pull `#metric k=v` lines out of a program's stdout."
+  (let (lines (regex/split "\r?\n" out)
+        found (fold lines
+                [{} []]
+                (fn (acc line)
+                  (let ([metrics kept] acc
+                        m (regex/find metric-re (string/trim line)))
+                    (if m
+                      (let (raw (get (nth (get m :groups) 1) :text)
+                            v (string/->number raw))
+                        ;; `-?[\d.]+` admits "1.2.3", which is no number: Python would
+                        ;; raise there; it is kept as an ordinary line here.
+                        (if (number? v)
+                          [(assoc metrics
+                             (keyword (get (first (get m :groups)) :text))
+                               (if (includes? raw ".") (* 1.0 v) v))
+                            kept]
+                          [metrics (conj kept line)]))
+                      [metrics (conj kept line)])))))
+    [(first found) (string/trim (string/join (second found) "\n"))]))
+
+;; Rows selected by a metric instead of by wall time, and the metric that decides "best".
+;; Lower is better. For `latency` the wall is N/rate by construction — identical in every
+;; runtime — so picking the best run by wall would be picking at random.
+(def metric-rows {"latency" "p99_us"})
+
+(def rss-re "Maximum resident set size \\(kbytes\\):\\s*(\\d+)")
+;; "Percent of CPU this job got" — 100% is one core, 1200% is all twelve. This is the
+;; column that keeps a process row honest: wall time alone cannot distinguish "fast" from
+;; "cannot scale"; wall + cores can.
+(def cpu-re "Percent of CPU this job got:\\s*(\\d+)%")
+;; ANSI colour/SGR escapes, stripped from a benchmark's stdout before checksumming — a
+;; runtime that auto-colourises prints the SAME integer wrapped in escapes.
+(def ansi-re "\u{1b}\\[[0-9;]*m")
+
+(defn- first-group-int (re text)
+  (let (m (regex/find re text))
+    (when m (let (n (string/->number (get (first (get m :groups)) :text))) (if (int? n) n nil)))))
+
+(defn- sleep-seconds (s)
+  (when (> s 0) (receive (after (math/round (* s 1000.0)) nil))))
+
+(defn run-once (cmd n timeout &optional (extra-env {}) (pin nil) (settle 0.0))
+  "Run `cmd` under `/usr/bin/time -v` with BENCH_N=n. Answers `{:ok :wall :rss :cpu
+:out}`. `pin` (a taskset core list like \"11\" or \"0-11\") confines the process to those
+CPUs so it isn't migrated and contends less with system noise; `settle` idles that many
+seconds first so the previous run's teardown (freeing RSS, reaping threads) doesn't bleed
+into this measurement. Both are the isolation knobs."
+  (let (full (into (into (if pin ["taskset" "-c" pin] []) ["/usr/bin/time" "-v"]) cmd)
+        env (merge {"BENCH_N" (str n)} (or extra-env {})))
+    (sleep-seconds settle)
+    (let (t0 (os/now-ns)
+          p (child-cmd (first full) (vec (rest full)) {:env env :timeout-ms (* timeout 1000)})
+          wall (/ (- (os/now-ns) t0) 1000000.0))
+      (if (get p :timed-out)
+        {:ok false :wall (* timeout 1000.0) :rss nil :cpu nil :out "TIMEOUT"}
+        (let (stderr (get p :stderr "")
+              rss (first-group-int rss-re stderr)
+              cpu (first-group-int cpu-re stderr))
+          (if (not (= (get p :exit) 0))
+            (let (lines (string/split (string/trim stderr) "\n")
+                  tail (if (= (string/trim stderr) "") [] [(last lines)]))
+              {:ok false
+               :wall wall
+               :rss rss
+               :cpu cpu
+               :out (str "EXIT " (get p :exit) ": " (py-repr tail))})
+            {:ok true
+             :wall wall
+             :rss rss
+             :cpu cpu
+             :out (string/trim (regex/replace ansi-re (get p :stdout "") ""))}))))))
+
+(defn warmup (langs timeout ctx hooks)
+  "One discarded `startup` run per language, before anything is measured. It takes
+once-per-binary cold-start costs out of the measured runs — for Brood, the first run after
+a rebuild populates its boot cache (~50 ms / ~29 MB against ~12 ms / ~19 MB warm), and
+since the RSS reported is the MAX across runs, that populate run would land in the memory
+column and only there. Every language gets the same discarded run."
+  (say hooks "## warmup — one discarded run per language (populates cold caches)")
+  (doseq (lang langs)
+    (let (path (bench-path lang "startup"))
+      (when (file/exists? path)
+        (run-once (lang-cmd lang path ctx) 0 timeout (lang-env lang))
+        (say hooks (str "  " (string/pad-right lang 8) " warmed"))))))
+
+(defn- round1 (x) (string/->number (fixed x 1)))
+
+(defn- bench-runs (cmd n runs timeout env pin settle metric-key state)
+  (if (= runs 0)
+    state
+    (let (r (run-once cmd n timeout env pin settle))
+      (if (not (get r :ok))
+        {:failed {:error (get r :out) :wall_ms (get r :wall) :rss_kb (get r :rss)}}
+        (let ([metrics out] (split-metrics (get r :out))
+              wall (get r :wall)
+              score (if metric-key (get metrics (keyword metric-key)) wall)
+              better? (and (not (nil? score))
+                        (or (nil? (get state :best-score)) (< score (get state :best-score))))
+              state (if better?
+                      (assoc state
+                        :best-score score
+                        :best-metrics metrics
+                        :wall-at-best wall
+                        :cpu-at-best (get r :cpu))
+                      state)
+              state (if (and (nil? metric-key)
+                          (or (nil? (get state :best-wall)) (< wall (get state :best-wall))))
+                      (assoc state :cpu-at-best (get r :cpu))
+                      state)
+              state (assoc state
+                      :best-wall
+                        (if (nil? (get state :best-wall))
+                          wall
+                          (math/min wall (get state :best-wall)))
+                      :rss-peak
+                        (if (get r :rss)
+                          (math/max (get state :rss-peak) (get r :rss))
+                          (get state :rss-peak))
+                      :checksum out))
+          (bench-runs cmd n (dec runs) timeout env pin settle metric-key state))))))
+
+(defn bench-lang (lang name n runs timeout pin settle ctx)
+  "Measure row `name` in `lang`: the best of `runs` runs (by wall, or by the row's metric),
+the peak RSS across them, and the CPU% of the run that was reported. nil when that
+language has no port of the row; `{:error …}` when a run failed."
+  (let (path (bench-path lang name))
+    (when (file/exists? path)
+      (let (metric-key (get metric-rows name)
+            state (bench-runs (lang-cmd lang path ctx)
+                    n
+                    runs
+                    timeout
+                    (merge (lang-env lang) (get ctx :extra-env {}))
+                    pin
+                    settle
+                    metric-key
+                    {:rss-peak 0 :best-metrics {}}))
+        (if (get state :failed)
+          (get state :failed)
+          (let (record {:wall_ms (round1 (if metric-key
+                                           (get state :wall-at-best)
+                                           (get state :best-wall)))
+                        :rss_kb (get state :rss-peak)
+                        :cpu_pct (get state :cpu-at-best)
+                        :checksum (get state :checksum)})
+            (if (empty? (get state :best-metrics))
+              record
+              (assoc record :metrics (get state :best-metrics)))))))))
+
+;; ---- the http row's server -----------------------------------------------------------
+;; Benchmarks that need a local HTTP server running while they execute. The server
+;; (`bench/httpserver`) is started before the row's languages run and torn down after.
+;; The port is chosen fresh each time so a process squatting on a fixed port can't be
+;; mistaken for our server; the clients read it from BENCH_HTTP_PORT.
+(def server-for #{"http"})
+
+(defn pick-free-port ()
+  "An OS-assigned free TCP port on the loopback interface."
+  (let (listener (tcp/listen "127.0.0.1" 0)
+        port (tcp/local-port listener))
+    (tcp/close listener)
+    port))
+
+(defn- nest-binary ()
+  ;; The nest this harness runs under, so the server is the same build; `nest` otherwise.
+  (let (exe (os/exe-path)) (if (and exe (string/ends-with? exe "nest")) exe "nest")))
+
+(defn- probe-server (port)
+  ;; One GET with a 0.5 s budget; true when it answered 200 `ok`.
+  (let (me (self)
+        tag (os/now-ns))
+    (spawn (send me
+             [:probe
+               tag
+               (check-allow :discarded-catch
+                 (try (http/fetch (str "http://127.0.0.1:" port "/")) (catch _e nil)))]))
+    (receive
+      ([:probe ^tag resp] (and resp (= (get resp :status) 200) (= (http/body-text resp) "ok")))
+      (after 500 false))))
+
+(defn- drain-stderr (proc acc)
+  (receive ([:proc-err ^proc data] (drain-stderr proc (str acc data))) (after 0 acc)))
+
+(defn- await-server (proc port deadline)
+  (let (exited (receive ([:proc-exit ^proc code] [code]) (after 0 nil)))
+    (cond
+      exited
+        (error (str "http server exited before serving on :"
+                 port
+                 "\n"
+                 (string/trim (drain-stderr proc "")))
+          "")
+      (probe-server port) proc
+      (> (os/now-ns) deadline)
+        (do
+          (os/signal proc :term)
+          (error (str "http server on :"
+                   port " never answered with a correct 200 — "
+                   "something else may be holding the port")
+            ""))
+      else (do (receive (after 50 nil)) (await-server proc port deadline)))))
+
+(defn start-http-server (port)
+  "Launch the local HTTP server on `port` and wait until *our* server answers correctly —
+a GET returning 200 with the body `ok`. A bare connect check isn't enough: a foreign
+listener (or a stale server) on the port would satisfy it, and the benchmark would then
+silently measure the wrong server. If our process dies on bind, surface its stderr."
+  (let (proc (os/spawn (nest-binary) ["run" "--" "httpserver" (str port)] {:env child-env}))
+    (await-server proc port (+ (os/now-ns) 10000000000))))
+
+(defn- flush-proc (proc)
+  (receive
+    ([:proc ^proc _] (flush-proc proc))
+    ([:proc-err ^proc _] (flush-proc proc))
+    ([:proc-exit ^proc _] (flush-proc proc))
+    ([:proc-closed ^proc _] (flush-proc proc))
+    ([:probe _ _] (flush-proc proc))
+    (after 0 nil)))
+
+(defn stop-http-server (proc)
+  "Terminate the server, killing it if it has not exited within 5 s."
+  (os/signal proc :term)
+  (receive
+    ([:proc-exit ^proc _] nil)
+    (after 5000 (check-allow :discarded-catch (try (os/signal proc :kill) (catch _e nil)))))
+  (flush-proc proc))
+
+;; ---- the guards ----------------------------------------------------------------------
+(defn- row-key (name) (keyword name))
+
+(defn- ordered-rows (results)
+  (in-order (map (keys results) ->string) row-names))
+
+(defn- ordered-langs (langs-map)
+  (in-order (map (keys langs-map) ->string) lang-order))
+
+(defn verify-checksums (data)
+  "`[data sums]`: when the languages that produced a checksum disagree, `data` gains
+`:checksum_mismatch` (so the report flags the row) and `sums` is the `{lang checksum}`
+map; otherwise `data` unchanged and nil. The caller fails the run on a mismatch — a
+differing checksum means the languages did NOT do equivalent work."
+  (let (langs (get data :langs)
+        sums (fold (ordered-langs langs)
+               []
+               (fn (acc l)
+                 (let (d (get langs (keyword l)))
+                   (if (contains? d :checksum) (conj acc [l (get d :checksum)]) acc))))
+        uniq (into #{} (map sums second)))
+    (if (> (count uniq) 1)
+      [(assoc data :checksum_mismatch (into {} (map sums (fn ([l c]) [(keyword l) c])))) sums]
+      [data nil])))
+
+(defn- sums-repr (sums)
+  (str "{" (string/join (map sums (fn ([l c]) (str (py-repr l) ": " (py-repr c)))) ", ") "}"))
+
+(defn- startup-walls (results)
+  (let (langs (get (get results :startup) :langs))
+    (into {}
+      (seq/filter (map (or langs {}) (fn ([l d]) [(->string l) (get d :wall_ms)]))
+        (fn ([l w])
+          (let (d (get langs (keyword l)))
+            (and (contains? d :wall_ms) (not (contains? d :error)))))))))
+
+(defn verify-compute-floor (results)
+  "`[bad results]`: the cells where `compute = wall − startup` came out <= 0, each
+`[name lang wall startup]`, and `results` with those rows marked `:compute_clamped`.
+
+That is never a real measurement: a program cannot run in less time than its own runtime
+takes to boot. It means this run's `startup` sample for that language is an over-estimate,
+and every row of that language is under-reported — the ones that clamp are just the visible
+tip. The clamped cells are actively wrong rather than imprecise: a 0.0ms compute sorts to
+*1st place* and turns every ratio against it into nonsense (2026-07-28: Brood's `bintree`
+printed `103x` where it is `12x`). A run without a `startup` row has nothing to check."
+  (if (not (contains? results :startup))
+    [[] results]
+    (let (startup (startup-walls results))
+      (fold (ordered-rows results)
+        [[] results]
+        (fn (acc name)
+          (if (= name "startup")
+            acc
+            (let ([bad res] acc
+                  data (get res (row-key name))
+                  langs (get data :langs {})
+                  clamped (seq/filter (ordered-langs langs)
+                            (fn (l)
+                              (let (d (get langs (keyword l)))
+                                (and (contains? d :wall_ms)
+                                  (not (contains? d :error))
+                                  (contains? startup l)
+                                  (<= (- (get d :wall_ms) (get startup l)) 0.0))))))
+              (if (empty? clamped)
+                acc
+                [(into bad
+                   (map clamped
+                     (fn (l) [name l (get (get langs (keyword l)) :wall_ms) (get startup l)])))
+                  (assoc res
+                    (row-key name)
+                      (assoc data
+                        :compute_clamped (into (vec (get data :compute_clamped [])) clamped)))]))))))))
+
+;; ---- the report ----------------------------------------------------------------------
+(defn fmt-ms (ms)
+  "`ms` as the report spells a time: seconds past 1000 ms, else milliseconds.
+
+    (bench/harness/fmt-ms 1234.5)   → \"1.234s\"
+    (bench/harness/fmt-ms 71.8)   → \"71.8ms\""
+  (if (>= ms 1000) (str (fixed (/ (* 1.0 ms) 1000) 3) "s") (str (fixed ms 1) "ms")))
+
+;; The report's column order. Go is not in it — Python's harness never added it here, so
+;; `report.md` has no Go rows (the JSON and the docs do); kept as it was, not fixed in a port.
+(def report-order ["brood" "clojure" "elixir" "python" "node" "ruby" "dotnet" "c"])
+
+(defn- truthy-num? (x) (and (not (nil? x)) (not (= x 0))))
+
+(defn- rank-map (names value-of)
+  ;; 1-based rank by `value-of`, ties kept in `names` order (Python's stable `sorted`).
+  (let (ranked (sort-by names value-of))
+    (into {} (map (range (count ranked)) (fn (i) [(nth ranked i) (inc i)])))))
+
+(defn- metric-text (m k) (let (v (get m (keyword k))) (if (nil? v) "-" (str v))))
+
+(defn- row-section (name data startup focus)
+  (let (langs (get data :langs)
+        names (ordered-langs langs)
+        head [(str "## " name " — " (get data :what) "  (N=" (get data :n) ")") ""]
+        clamp (if (contains? data :compute_clamped)
+                [(str "> ⚠️ **COMPUTE CLAMPED** for `"
+                   (string/join (get data :compute_clamped) "`, `")
+                   "` — wall came out at or below that language's own startup sample, so its "
+                   "compute here is not a measurement. This run is **not** publishable; re-run "
+                   "(see `--startup-runs`).")
+                  ""]
+                [])
+        mismatch (if (contains? data :checksum_mismatch)
+                   (let (m (get data :checksum_mismatch))
+                     [(str "> ⚠️ **CHECKSUM MISMATCH** — the languages did not agree (`"
+                        (sums-repr (map (ordered-langs m) (fn (l) [l (get m (keyword l))])))
+                        "`); these rows are **not** comparable.")
+                       ""])
+                   [])
+        metric (get metric-rows name)
+        metric-lines (if (nil? metric)
+                       []
+                       (let (mrows (seq/filter names
+                                     (fn (l) (get (get langs (keyword l)) :metrics)))
+                             intro [(str "> **Ranked by `"
+                                      metric "`, not by wall.** Every runtime is handed "
+                                      "the same fixed arrival schedule, so wall time is N/rate by construction and "
+                                      "says nothing about which is faster — the percentile table below is the "
+                                      "result. `compute` and `pos` in the standard table are not meaningful here.")
+                                     ""])
+                         (if (empty? mrows)
+                           intro
+                           (into intro
+                             (into ["| lang | p50 | **p99** | p99.9 | max | ordinary reqs | sustained |"
+                                     "|------|-----|---------|-------|-----|---------------|-----------|"]
+                               (conj (vec (map (sort-by mrows
+                                                 (fn (l)
+                                                   (let (v (get (get (get langs (keyword l))
+                                                                  :metrics)
+                                                             :p99_us))
+                                                     (if (nil? v) 1e300 v))))
+                                            (fn (l)
+                                              (let (m (get (get langs (keyword l)) :metrics))
+                                                (str "| "
+                                                  l
+                                                  " | "
+                                                  (metric-text m "p50_us")
+                                                  "µs | **"
+                                                  (metric-text m "p99_us")
+                                                  "µs** | "
+                                                  (metric-text m "p999_us")
+                                                  "µs | "
+                                                  (metric-text m "max_us")
+                                                  "µs | "
+                                                  (metric-text m "ordinary_n")
+                                                  " | "
+                                                  (metric-text m "sustained_rps")
+                                                  "/s |")))))
+                                 ""))))))
+        table-head ["| lang | compute | vs fastest | pos | wall | startup | peak RSS | mem | cores | CPU·s | vs best CPU | checksum |"
+                     "|------|---------|------------|-----|------|---------|----------|-----|-------|-------|-------------|----------|"]
+        oks (seq/filter names
+              (fn (l)
+                (let (d (get langs (keyword l)))
+                  (and (contains? d :wall_ms) (not (contains? d :error))))))
+        rec (fn (l) (get langs (keyword l)))
+        n (count oks)
+        startup-bench? (= name "startup")
+        compute-ms (into {}
+                     (map oks
+                       (fn (l)
+                         (let (wall (get (rec l) :wall_ms))
+                           [l
+                             (cond
+                               startup-bench? wall
+                               (not (nil? (get startup l))) (math/max 0.0 (- wall (get startup l)))
+                               else wall)]))))
+        fastest (if (empty? oks) nil (apply math/min (map oks (fn (l) (get compute-ms l)))))
+        ;; Floor the denominator at 1ms so a compute under startup variance cannot collapse
+        ;; every ratio through a division by zero.
+        ratio-denom (if (nil? fastest) 1.0 (math/max fastest 1.0))
+        compute-rank (rank-map oks (fn (l) (get compute-ms l)))
+        mem-rank (rank-map oks (fn (l) (get (rec l) :rss_kb)))
+        ;; A CPU-bound program that finishes in W seconds must burn AT LEAST W CPU-seconds.
+        ;; Materially less means work ran in processes whose CPU was never charged back
+        ;; (Python 3.14's forkserver pool read 4% CPU on a run that used 10.6 cores). Such
+        ;; readings are excluded from the "best CPU" denominator and marked.
+        suspect (into #{}
+                  (seq/filter oks
+                    (fn (l)
+                      (let (d (rec l))
+                        (and (not (nil? (get d :cpu_pct)))
+                          (not (contains? blocking-rows name))
+                          (> (get d :wall_ms) 200.0)
+                          (< (get d :cpu_pct) 50))))))
+        cpu-s (into {}
+                (map (seq/filter oks (fn (l) (truthy-num? (get (rec l) :cpu_pct))))
+                  (fn (l)
+                    (let (d (rec l)) [l (* (/ (get d :wall_ms) 1000.0) (/ (get d :cpu_pct) 100.0))]))))
+        honest (seq/filter (keys cpu-s) (fn (l) (not (contains? suspect l))))
+        best-cpu (if (empty? honest) nil (apply math/min (map honest (fn (l) (get cpu-s l)))))
+        suspect-lines (if (empty? suspect)
+                        []
+                        [(str "> ⚠️ **CPU time under-reported** for: "
+                           (string/join (sort (vec suspect)) ", ")
+                           " — under 50% CPU on a >200ms run means work ran in processes whose CPU was not "
+                           "charged back (unreaped children). Their CPU·s is marked `?` and excluded from the "
+                           "ranking.")
+                          ""])
+        lang-lines (fold report-order
+                     []
+                     (fn (acc l)
+                       (let (d (get langs (keyword l)))
+                         (cond
+                           (nil? d) acc
+                           (and (not (= focus "")) (not (= l focus))) acc
+                           (contains? d :error)
+                             (conj acc
+                               (str "| " l " | — | — | — | — | — | — | — | — | — | — | ERROR |"))
+                           else
+                             (let (r (/ (get compute-ms l) ratio-denom)
+                                   ratio-str (if (< r 1.0) "< 1×" (str (fixed r 1) "×"))
+                                   s (get startup l)
+                                   wall (get d :wall_ms)
+                                   comp-start (cond
+                                                startup-bench? [(fmt-ms wall) "—"]
+                                                (nil? s) ["—" "—"]
+                                                else [(fmt-ms (math/max 0.0 (- wall s))) (fmt-ms s)])
+                                   cpu (get d :cpu_pct)
+                                   cores-str (if (truthy-num? cpu)
+                                               (str (fixed (/ cpu 100.0) 1) "×")
+                                               "—")
+                                   cpu-strs (cond
+                                              (and (contains? cpu-s l) (not (contains? suspect l)))
+                                                (let (cs (get cpu-s l))
+                                                  [(fixed cs 2)
+                                                    (if (and best-cpu (> best-cpu 0))
+                                                      (str (fixed (/ cs best-cpu) 1) "×")
+                                                      "—")])
+                                              (contains? cpu-s l)
+                                                [(str (fixed (get cpu-s l) 2) "?") "?"]
+                                              else ["—" "—"]))
+                               (conj acc
+                                 (str "| "
+                                   l
+                                   " | "
+                                   (first comp-start)
+                                   " | "
+                                   ratio-str
+                                   " | "
+                                   (get compute-rank l)
+                                   "/"
+                                   n
+                                   " | "
+                                   (fmt-ms wall)
+                                   " | "
+                                   (second comp-start)
+                                   " | "
+                                   (fixed (/ (* 1.0 (get d :rss_kb)) 1024) 1)
+                                   " MB | "
+                                   (get mem-rank l)
+                                   "/"
+                                   n
+                                   " | "
+                                   cores-str
+                                   " | "
+                                   (first cpu-strs)
+                                   " | "
+                                   (second cpu-strs)
+                                   " | "
+                                   (get d :checksum)
+                                   " |"))))))))
+    (if (empty? langs)
+      []
+      (append head clamp mismatch metric-lines table-head suspect-lines lang-lines [""]))))
+
+(defn build-report (results options meta)
+  "The markdown report for `results` (keyword-keyed rows, no `:_meta`), as Python's
+`build_report` wrote it. `options` carries `:quick :runs :startup-runs :focus`."
+  (let (rows (ordered-rows results)
+        present (seq/filter report-order
+                  (fn (l)
+                    (any? rows
+                      (fn (r) (contains? (get (get results (row-key r)) :langs) (keyword l))))))
+        title (str (string/join (map present (fn (l) (get nice l))) " vs ") " — benchmark results")
+        meta-lines (if (nil? meta)
+                     []
+                     (let (versions (get meta :versions {})
+                           vers (string/join (map (seq/filter (ordered-langs versions)
+                                                    (fn (l) (get versions (keyword l))))
+                                               (fn (l)
+                                                 (str (get nice l) " " (get versions (keyword l)))))
+                                  "; "))
+                       (append [(str "> **Machine:** `"
+                                  (get meta :host)
+                                  "` ("
+                                  (get meta :cores)
+                                  " cores), "
+                                  (get meta :platform)
+                                  " — "
+                                  (get meta :date)
+                                  ".")
+                                 (str "> **Runtimes:** " vers ".")]
+                         (if (get meta :isolation)
+                           [(str "> **Isolation:** " (get meta :isolation) ".")]
+                           [])
+                         (if (get meta :warmup) [(str "> **Warmup:** " (get meta :warmup) ".")] [])
+                         [""])))
+        runs (get options :runs)
+        mode (if (get options :quick) "quick" "full")
+        ;; Mirrors the measurement default (`max(runs, 9)`), not `runs`.
+        startup-runs (or (get options :startup-runs) (math/max runs 9))
+        noisy-n (math/max runs noisy-runs)
+        bits (append [(str "best of " runs " runs")]
+               (if (not (= startup-runs runs)) [(str "startup best of " startup-runs)] [])
+               (if (not (= noisy-n runs)) [(str "spawn/pfib/http best of " noisy-n)] []))
+        runs-note (str (string/join bits "; ") " per program")
+        intro [(str "_"
+                 runs-note "; " mode " sizes. "
+                 "**compute = wall − startup** (startup is that language's own boot time "
+                 "from its `startup`-row wall). Rankings and ratios are by **compute** so "
+                 "a slow-booting runtime's real work speed is visible (e.g. the BEAM "
+                 "boots ~400ms but computes fast). On the `startup` row itself rankings "
+                 "are by wall (compute ≈ 0). RSS = peak resident memory. "
+                 "`pos` = rank by compute, `mem` = rank by RSS (1 = best), out of the "
+                 "languages with a port._")
+                ""]
+        startup (startup-walls results)
+        sections (mapcat rows
+                   (fn (r)
+                     (row-section r (get results (row-key r)) startup (or (get options :focus) "")))))
+    (string/join (append [(str "# " title) ""] meta-lines intro sections) "\n")))
+
+;; ---- main ----------------------------------------------------------------------------
+(def flags
+  {"runs" {:kind :int :default 3}
+   "startup-runs" {:kind :int :default nil}
+   "timeout" {:kind :int :default 300}
+   "no-warmup" {:kind :flag :default false}
+   "only" {:kind :string :default ""}
+   "langs" {:kind :string :default "brood,clojure,elixir,python,node,ruby,dotnet,go,c"}
+   "quick" {:kind :flag :default false}
+   "out" {:kind :string :default ""}
+   "label" {:kind :string :default ""}
+   "focus" {:kind :string :default ""}
+   "report-from" {:kind :string :default ""}
+   "isolate" {:kind :flag :default false}
+   "no-isolate" {:kind :flag :default false}
+   "pin-cores" {:kind :int :default 4}
+   "settle" {:kind :float :default 0.25}})
+
+(defn- split-list (s) (seq/filter (string/split s ",") (fn (x) (not (= x "")))))
+
+(defn prepare-langs (langs hooks)
+  "`[langs ctx]`: `langs` without the ones whose runtime is missing (each skipped with a
+warning, not fatal), every compiled column built. `dotnet`, `c` and `go` point at build
+artifacts that do not exist until their build has run, so they are checked by toolchain."
+  (let (probe (fn (acc l)
+                (let (binary (first (lang-cmd l "x" {})))
+                  (if (and (not (contains? #{"dotnet" "c" "go"} l)) (nil? (os/which binary)))
+                    (do
+                      (warn hooks (str "warning: `" binary "` not found on PATH — skipping " l "."))
+                      acc)
+                    (conj acc l))))
+        langs (fold langs [] probe)
+        drop (fn (langs l tool message)
+               (if (and (includes? langs l) (nil? (os/which tool)))
+                 (do (warn hooks message) (vec (seq/filter langs (fn (x) (not (= x l))))))
+                 langs))
+        langs (drop langs "go" "go" "warning: `go` not found on PATH — skipping the Go column")
+        langs (drop langs "c" "gcc" "warning: `gcc` not found on PATH — skipping the C column.")
+        langs (drop langs
+                "dotnet"
+                "dotnet"
+                (str "warning: `dotnet` not found on PATH — skipping the .NET column. "
+                  "Install it with `sudo apt install dotnet-sdk-10.0`."))
+        langs (drop langs
+                "clojure" "clojure"
+                "warning: `clojure` not found on PATH — skipping the Clojure column."))
+    (when (includes? langs "dotnet") (build-dotnet hooks))
+    (when (includes? langs "c") (build-c hooks))
+    (when (includes? langs "go") (build-go hooks))
+    (when (includes? langs "brood") (build-brood hooks))
+    (when (includes? langs "elixir") (build-beam hooks))
+    [langs (if (includes? langs "clojure") (build-clojure hooks {}) {})]))
+
+(def real-hooks
+  (merge default-hooks
+    {:prepare prepare-langs
+     :warmup warmup
+     :bench-lang bench-lang
+     :collect-meta collect-meta}))
+
+(defn- out-paths (options)
+  (let (dir (if (= (get options :out) "") "results" (get options :out))
+        suffix (if (= (get options :label) "") "" (str "." (get options :label))))
+    (file/mkdir dir)
+    [(str dir "/results" suffix ".json") (str dir "/report" suffix ".md")]))
+
+(defn- report-from (options hooks)
+  (let (data (read-json (get options :report-from))
+        meta (get data :_meta)
+        results (dissoc data :_meta)
+        [_json report-path] (out-paths options)
+        report (build-report results options meta))
+    (file/spit report-path report)
+    (say hooks (str "Wrote " report-path))
+    (say hooks (str "\n" report))
+    0))
+
+(defn- result-line (lang r)
+  (if (contains? r :error)
+    (str "  " (string/pad-right lang 8) " ERROR  " (get r :error))
+    (let (cpu (get r :cpu_pct)
+          cores (if (truthy-num? cpu) (str (fixed (/ cpu 100.0) 1) "x") "  - ")
+          cs (if (truthy-num? cpu) (* (/ (get r :wall_ms) 1000.0) (/ cpu 100.0)) nil)
+          cstr (if (nil? cs) "     -" (string/format "%6.2f" cs))
+          m (get r :metrics)
+          extra (if m
+                  (str "  p50="
+                    (metric-text m "p50_us")
+                    "us p99="
+                    (metric-text m "p99_us")
+                    "us max="
+                    (metric-text m "max_us")
+                    "us")
+                  ""))
+      (str "  "
+        (string/pad-right lang 8)
+        " "
+        (string/format "%9.1f" (* 1.0 (get r :wall_ms)))
+        " ms   "
+        (string/pad-left (if (nil? (get r :rss_kb)) "None" (str (get r :rss_kb))) 8)
+        " KB  "
+        (string/pad-left cores 6)
+        " cores "
+        cstr
+        " CPU-s  = "
+        (get r :checksum)
+        extra))))
+
+(defn- run-row (bench options langs ctx isolation hooks)
+  ;; One row: every language that has it, the http server around it when it needs one.
+  (let ([name default-n where what] bench
+        n (if (get options :quick) (get quick name default-n) default-n)
+        runs (cond
+               (= name "startup") (get isolation :startup-runs)
+               (contains? noisy name) (math/max (get options :runs) noisy-runs)
+               else (get options :runs))
+        target (row-langs where)
+        run-langs (seq/filter langs (fn (l) (includes? target l)))
+        [pin settle] (if (get isolation :isolate)
+                       [(if (contains? noisy name)
+                          (get isolation :all-cores)
+                          (get isolation :compute-cores))
+                         (get options :settle)]
+                       [nil 0.0]))
+    (say hooks (str "\n## " name "  (N=" n ") — " what))
+    (let (port (when (contains? server-for name) (pick-free-port))
+          server (when port (start-http-server port))
+          bench-lang-fn (get hooks :bench-lang)
+          ctx (if port (assoc ctx :extra-env {"BENCH_HTTP_PORT" (str port)}) ctx)
+          measured (try
+                     (fold run-langs
+                       {}
+                       (fn (acc lang)
+                         (let (r (bench-lang-fn lang
+                                   name
+                                   n
+                                   runs
+                                   (get options :timeout)
+                                   pin
+                                   settle
+                                   ctx))
+                           (if (nil? r)
+                             acc
+                             (do (say hooks (result-line lang r)) (assoc acc (keyword lang) r))))))
+                     (finally (when server (stop-http-server server)))))
+      {:n n :what what :langs measured})))
+
+(defn- clamp-warning (clamped startup-runs quick? hooks)
+  (warn hooks
+    (str "\n!! COMPUTE CLAMPED in: "
+      (string/join (map clamped (fn ([name lang _ _]) (str name "/" lang))) ", ")))
+  (doseq (cell clamped)
+    (let ([name lang wall start] cell)
+      (warn hooks
+        (str "     " name "/" lang ": wall " (fixed wall 1) "ms <= startup " (fixed start 1) "ms"))))
+  (warn hooks
+    (str "   `compute = wall - startup` went <= 0, which is not a measurement: the "
+      "startup sample for that language is an over-estimate, so its whole column "
+      "is under-reported and the clamped cells sort to a false 1st place. DO NOT "
+      "PUBLISH this run — re-run it (raise --startup-runs, currently " startup-runs
+      ", and keep the machine quiet)."))
+  ;; `--quick` runs deliberately tiny sizes (bintree N=8), so a slow-booting runtime clamps
+  ;; there BY CONSTRUCTION — it is a smoke test, not a measurement. Failing it every time
+  ;; would train the reader to ignore this check, so quick mode warns and carries on.
+  (when quick?
+    (warn hooks
+      (str "   (--quick: sizes are smoke-test tiny, so this is expected here — not "
+        "failing the run. A FULL run that clamps does fail.)"))))
+
+(defn run (arguments hooks)
+  "The harness, with `hooks` supplying the side of it a test replaces: `:say`/`:warn`
+(stdout/stderr lines), `:prepare` (probe + build the runtimes), `:warmup`, `:bench-lang`
+and `:collect-meta`. Answers the exit code."
+  (let (options (bench/cli/parse flags arguments)
+        options (assoc options :warmup (not (get options :no-warmup))))
+    (if (not (= (get options :report-from) ""))
+      (report-from options hooks)
+      (let (only (into #{} (split-list (get options :only)))
+            requested (seq/filter (split-list (get options :langs))
+                        (fn (l) (contains? lang-dirs l)))
+            [langs ctx] ((get hooks :prepare) requested hooks)
+            ;; Isolation: pin each measured process to dedicated CPUs (so it isn't migrated
+            ;; and contends less with system noise) and settle between runs. On by default
+            ;; when taskset is available; compute benchmarks pin to a small core SET, the
+            ;; concurrency ones (noisy) get every core so their parallelism story holds. A
+            ;; set rather than one core because a single-threaded workload still has the
+            ;; runtime's background JIT/GC threads — one core roughly doubles the JVM's time
+            ;; while leaving genuinely single-threaded runtimes unchanged.
+            ncpu (cpu-count)
+            have-taskset (not (nil? (os/which "taskset")))
+            isolate (cond
+                      (get options :no-isolate) false
+                      (get options :isolate) true
+                      else have-taskset)
+            isolate (if (and isolate (not have-taskset))
+                      (do
+                        (warn hooks
+                          "warning: --isolate requested but `taskset` not found — running unpinned.")
+                        false)
+                      isolate)
+            n-compute (math/max 1 (math/min (get options :pin-cores) ncpu))
+            compute-cores (if (= n-compute 1)
+                            (str (dec ncpu))
+                            (str (- ncpu n-compute) "-" (dec ncpu)))
+            all-cores (str "0-" (dec ncpu))
+            ;; `startup` is SUBTRACTED FROM EVERY OTHER ROW, so it is the one measurement whose
+            ;; error propagates everywhere — it gets sampled harder than the rest by default.
+            startup-runs (or (get options :startup-runs) (math/max (get options :runs) 9))
+            isolation {:isolate isolate
+                       :compute-cores compute-cores
+                       :all-cores all-cores
+                       :startup-runs startup-runs})
+        (when isolate
+          (say hooks
+            (str "isolation: taskset pin (compute→cores "
+              compute-cores
+              ", concurrency→"
+              all-cores
+              "), "
+              (get options :settle)
+              "s settle before each run")))
+        (when (get options :warmup) ((get hooks :warmup) langs (get options :timeout) ctx hooks))
+        (let (measured (fold benches
+                         [{} []]
+                         (fn (acc bench)
+                           (let ([results mismatched] acc
+                                 name (first bench))
+                             (if (and (not (empty? only)) (not (contains? only name)))
+                               acc
+                               (let ([data sums] (verify-checksums (run-row bench
+                                                                     options langs ctx isolation
+                                                                     hooks)))
+                                 (when sums
+                                   (say hooks (str "  !! CHECKSUM MISMATCH: " (sums-repr sums))))
+                                 [(assoc results (keyword name) data)
+                                   (if sums (conj mismatched name) mismatched)])))))
+              [results mismatched] measured
+              meta (assoc ((get hooks :collect-meta) langs)
+                     :isolation
+                       (if isolate
+                         (str "taskset pin (compute→cores "
+                           compute-cores
+                           ", concurrency→"
+                           all-cores
+                           "); "
+                           (get options :settle)
+                           "s settle")
+                         "none (unpinned, back-to-back)")
+                     :warmup
+                       (if (get options :warmup)
+                         "one discarded startup run per language"
+                         "none (cold caches land in the measured runs)"))
+              [json-path report-path] (out-paths options)
+              ;; Detect clamped compute BEFORE writing, so the report itself carries the
+              ;; warning banner and a stale corrupt report is self-identifying.
+              [clamped results] (verify-compute-floor results)
+              report (build-report results options meta))
+          (write-json json-path (assoc results :_meta meta))
+          (file/spit report-path report)
+          (say hooks (str "\nWrote " json-path " and " report-path))
+          (say hooks (str "\n" report))
+          (when (not (empty? clamped))
+            (clamp-warning clamped startup-runs (get options :quick) hooks))
+          (cond
+            (and (not (empty? clamped)) (not (get options :quick))) 1
+            (not (empty? mismatched))
+              (do
+                (warn hooks
+                  (str "\n!! CHECKSUM MISMATCH in: "
+                    (string/join mismatched ", ")
+                    " — the languages "
+                    "did not do equivalent work, so these timings are not comparable. "
+                    "The affected rows are flagged in the report."))
+                1)
+            else
+              (do
+                ;; Printed last, because it is the step that gets forgotten: the docs carry
+                ;; ~50 derived figures, and hand-updating them once left six tables, the run
+                ;; date and the brood commit describing the *previous* run.
+                (say hooks
+                  (str "\nnext: nest run -- chart && nest run -- docs   "
+                    "(then write the prose; `nest run -- docs --check` must pass "
+                    "before committing)"))
+                0)))))))
+
+(defn main (& arguments)
+  "`nest run -- harness [flags]` — see the module doc."
+  (system/halt (run arguments real-hooks)))

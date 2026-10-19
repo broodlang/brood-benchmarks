@@ -1,0 +1,97 @@
+(defmodule bench/json-out
+  "Read and write the results files the way Python's `json.dump(…, indent=2)` wrote them —
+same layout, same `\\uXXXX` escaping of anything outside ASCII, and the same key order —
+so a result file this harness rewrites diffs only where a number changed.
+
+`json/encode` writes one line and a Brood map has no key order, so the order is DATA here:
+`*key-order*` lists every key the result files use, in the order the Python harness
+produced them (rows in `bench/rows` order, then `_meta`; a record's fields; the
+`latency` metrics as the program prints them). A key it does not list sorts after the
+listed ones, alphabetically — deterministic, so a second write is byte-identical."
+  (:use bench/rows))
+
+(def *key-order*
+  (into (conj row-names "_meta")
+    (append ["n" "what" "langs" "checksum_mismatch" "compute_clamped"]
+      lang-order
+      ["error" "wall_ms" "rss_kb" "cpu_pct" "checksum" "metrics"]
+      ["fat_units"
+        "fat_measured_us" "ordinary_n" "p50_us" "p99_us" "p999_us" "max_us" "sustained_rps"]
+      ["host"
+        "cores" "platform" "date" "brood_commit" "versions" "isolation" "warmup" "brood_refresh"])))
+
+(defn- key-name (k) (if (string? k) k (->string k)))
+
+(defn read-json (path)
+  "The JSON file at `path`, decoded (object keys become keywords)."
+  (json/decode (file/slurp path)))
+
+(defn- hex4 (n) (string/pad-left (string/format "%x" n) 4 "0"))
+
+(defn- escape-codepoint (c)
+  (cond
+    (= c 34) "\\\""
+    (= c 92) "\\\\"
+    (= c 10) "\\n"
+    (= c 13) "\\r"
+    (= c 9) "\\t"
+    (= c 8) "\\b"
+    (= c 12) "\\f"
+    (< c 32) (str "\\u" (hex4 c))
+    (< c 127) (string/int->char c)
+    (< c 65536) (str "\\u" (hex4 c))
+    else
+      (let (v (- c 65536))
+        (str "\\u" (hex4 (+ 55296 (math/quot v 1024))) "\\u" (hex4 (+ 56320 (math/rem v 1024)))))))
+
+(defn quote-string (s)
+  "`s` as a JSON string literal, escaped as Python's `ensure_ascii` default does."
+  (str "\"" (string/join (map (string/->codepoints s) escape-codepoint) "") "\""))
+
+(defn- scalar (v)
+  (cond
+    (nil? v) "null"
+    (= v true) "true"
+    (= v false) "false"
+    (string? v) (quote-string v)
+    (keyword? v) (quote-string (->string v))
+    (symbol? v) (quote-string (->string v))
+    else (json/encode v)))
+
+(defn- ordered-keys (m)
+  (let (names (map (keys m) key-name)) (in-order names *key-order*)))
+
+(defn- lookup (m key) (let (kw (keyword key)) (if (contains? m kw) (get m kw) (get m key))))
+
+(defn- pretty (v indent)
+  (let (pad (string/repeat " " (+ indent 2))
+        close (string/repeat " " indent))
+    (cond
+      (map? v)
+        (if (empty? v)
+          "{}"
+          (str "{\n"
+            (string/join (map (ordered-keys v)
+                           (fn (k)
+                             (str pad (quote-string k) ": " (pretty (lookup v k) (+ indent 2)))))
+              ",\n")
+            "\n"
+            close
+            "}"))
+      (or (vector? v) (list? v))
+        (if (empty? v)
+          "[]"
+          (str "[\n"
+            (string/join (map v (fn (x) (str pad (pretty x (+ indent 2))))) ",\n")
+            "\n"
+            close
+            "]"))
+      else (scalar v))))
+
+(defn encode-pretty (v)
+  "`v` as JSON text in Python's `indent=2` layout, keys in `*key-order*`."
+  (pretty v 0))
+
+(defn write-json (path v)
+  "Write `v` to `path` as `encode-pretty` lays it out (no trailing newline, as `json.dumps`)."
+  (file/spit path (encode-pretty v)))

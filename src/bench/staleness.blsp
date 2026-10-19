@@ -1,0 +1,103 @@
+(defmodule bench/staleness
+  "Report how far the published Brood column has drifted from the brood being tested.
+
+**Why this exists.** On 2026-09-01 a refresh of the Brood column found every compute row
+4-10% slower than the published numbers. Verified with build-parity A/B it was real, and it
+had ridden in across three releases (0.19.1 -> 0.22.0) unnoticed, because the only thing
+that measures this repo's rows is a hand-run harness and nobody had run it. The correctness
+gate next door (`bench/smoke`, daily) would never have caught it: the rows all still ran and
+produced identical checksums.
+
+**Why a staleness check and not a perf gate.** A CI perf gate on a shared runner is a flake
+generator: even on the dedicated box one harness invocation is a coin flip (the governor
+parks cores at 800 MHz and boosts to ~4.2 GHz), which is why a column refresh is min-of-3
+interleaved invocations. So this measures nothing. It compares two FACTS — the commit the
+published column was measured at and the commit under test — and says how far apart they
+are. Deterministic, zero flake, and it fires on exactly the condition that let the
+regression hide.
+
+    nest run -- staleness --brood ../brood/target/release/brood
+    nest run -- staleness --brood PATH --fail-on-version   ; gate on a version bump
+
+Exits 1 only with `--fail-on-version`, and only when the VERSION has moved — a release
+boundary is a rare, meaningful signal, where \"any new commit\" would nag on every push."
+  (:use bench/cli)
+  (:use bench/json-out))
+
+;; `brood 0.22.0 (60a2f6ec)` -> ["0.22.0" "60a2f6ec"]. `[^\s]`, not `\S`: before brood 0.42.1 the
+;; dialect read `\S` as the letter S, and this must parse on the release it gates.
+(def- version-pattern "brood\\s+([^\\s]+)\\s+\\(([0-9a-f]+)\\)")
+
+(defn parse-version (text)
+  "`[version commit]` from a `brood X.Y.Z (sha)` string, or `[nil nil]`.
+
+    (bench/staleness/parse-version \"brood 0.42.0 (b3deae5a)\")   → [\"0.42.0\" \"b3deae5a\"]
+    (bench/staleness/parse-version \"0.42.0\")   → [nil nil]"
+  (let (found (regex/find version-pattern (or text "")))
+    (if (nil? found)
+      [nil nil]
+      [(get-in found [:groups 0 :text]) (get-in found [:groups 1 :text])])))
+
+(def- spec
+  {"brood" {:kind :string :default "brood"}
+   "fail-on-version" {:kind :flag :default false}
+   "results" {:kind :string :default "results/results.json"}})
+
+(defn- say (& parts) (io/puts (str "staleness: " (string/join parts ""))))
+
+(defn- commit-distance (published now)
+  ;; A nicety: it only works from a checkout that has both commits, which CI does (it
+  ;; checks brood out beside this repo) and a local run may not.
+  (let (checkout (seq/find ["../brood" "brood-src"] (fn (dir) (file/exists? (str dir "/.git"))))
+        result (when checkout
+                 (os/cmd "git" ["rev-list" "--count" (str published ".." now)] {:cwd checkout})))
+    (when (and result (= (get result :exit) 0))
+      (let (n (string/trim (get result :stdout)))
+        (when (int? (string/->number n))
+          (say n " brood commit(s) since the column was measured"))))))
+
+(defn run (options)
+  "The check itself; answers the exit code (0 current or same-version, 1 a version moved
+under `--fail-on-version`, 2 the binary could not be asked)."
+  (let (meta (get (read-json (get options :results)) :_meta {})
+        [published-version parsed-commit] (parse-version (get-in meta [:versions :brood] ""))
+        published-commit (or (get meta :brood_commit) parsed-commit)
+        brood (get options :brood)
+        result (check-allow :discarded-catch
+                 (try (os/cmd brood ["--version"] {:timeout-ms 60000}) (catch _ nil)))
+        [now-version now-commit] (parse-version (get result :stdout)))
+    (cond
+      (nil? result) (do (io/puts (str "staleness: cannot run " brood) :to *err*) 2)
+      (nil? now-version)
+        (do
+          (io/puts (str "staleness: could not parse a version from " (pr-str (get result :stdout)))
+            :to *err*)
+          2)
+      else
+        (do
+          (say "published column  brood " published-version " (" published-commit ")")
+          (say "binary under test brood " now-version " (" now-commit ")")
+          (when (get meta :brood_refresh) (say (get meta :brood_refresh)))
+          (cond
+            (= published-commit now-commit)
+              (do (say "up to date — the published column describes this binary.") 0)
+            else
+              (do
+                (commit-distance published-commit now-commit)
+                (if (not (= published-version now-version))
+                  (do
+                    (io/puts (str "staleness: the published Brood column was measured at "
+                               published-version " and brood is now " now-version
+                               ". Those numbers no longer describe the runtime, and a timing "
+                               "regression in between is invisible to every other gate here (the "
+                               "rows still run and still checksum). Refresh it: install the LEAN "
+                               "build (cd ../brood && make install INSTALL_FEATURES='$(RUN_FEATURES)'), "
+                               "then take the min over 3 interleaved `nest run -- harness "
+                               "-- --langs brood` invocations — see CLAUDE.md.")
+                      :to *err*)
+                    (if (get options :fail-on-version) 1 0))
+                  (do (say "same version, newer commit — a refresh is due but not overdue.") 0))))))))
+
+(defn main (& arguments)
+  "`nest run -- staleness [--brood PATH] [--fail-on-version] [--results FILE]`."
+  (system/halt (run (parse spec arguments))))

@@ -1,0 +1,334 @@
+(defmodule bench/trend
+  "Brood's own rows over time — the chart a field-wide scalar cannot be.
+
+    entry point: (bench/trend/main) — flags: --out PATH, --rows a,b
+    → results/trend.svg (+ a table on stdout); `--rows spawn-live,fib` picks the rows
+
+Why this exists. `overview.svg` ranks the languages by one scalar each, aggregated over 27
+rows. That is the right shape for \"where does this runtime stand\" and the wrong shape for
+\"did the thing I just optimised move\": a 16% win on one row shifts a 27-row geometric mean
+by well under a pixel, so real progress reads as no progress. `spawn-live` went 5362 → 1771
+ms across seven published runs — a 3× improvement completely invisible on that map.
+
+The data is every published `results/results.json` in git history, so this is a record of
+what was actually published, not a re-measurement. One point per published refresh, values
+normalised to each row's first appearance so rows spanning 20 ms and 5 s share an axis.
+
+Caveats it prints rather than hides: the field drifts ~10% run to run, so read shapes and
+not wiggles; and `startup`'s RSS is bimodal (a cold expanded-prelude boot costs ~42 MB
+against ~23 MB warm), so that row tracks boot-cache state at least as much as it tracks the
+runtime's footprint."
+  (:use bench/json-out))
+
+;; Rows worth trending: the concurrency story a field-wide scalar cannot show, plus a couple
+;; of compute rows as controls (if everything moves together it was the machine).
+(def default-rows ["spawn-live" "supervisor" "ring" "pingpong" "fib" "bintree"])
+(def color ["#c0392b" "#8e44ad" "#2980b9" "#27ae60" "#d35400" "#16a085" "#e67e22"])
+
+(defn- float (x) (* 1.0 x))
+
+(defn- git (& arguments) (get (os/cmd "git" (vec arguments)) :stdout))
+
+(defn brood-date (meta)
+  "The date the BROOD column was measured.
+
+NOT `_meta.date`, which is the last full-FIELD run and deliberately stays pinned across
+brood-only refreshes (the other columns really were measured then, and `bench/docs`'
+machine line depends on that). A brood-only refresh records its own date in
+`_meta.brood_refresh`, and this chart plots brood's rows *only*, so that is the date its
+points belong at.
+
+Getting this wrong froze the chart for two weeks: thirteen consecutive publishes
+(2026-08-28 -> 09-10) all carried `_meta.date = 2026-08-28`, so the dedup collapsed twelve
+refreshes onto one point — and because it keeps the NEWEST commit per date, that point
+silently re-plotted each new refresh's numbers under the old label."
+  (let (found (regex/find "re-measured ([0-9]{4}-[0-9]{2}-[0-9]{2})"
+                (or (get meta :brood_refresh) "")))
+    (if (nil? found)
+      (first (string/split (or (get meta :date) "") " "))
+      (get-in found [:groups 0 :text]))))
+
+(defn- decode-or-nil (raw)
+  (check-allow :discarded-catch (try (json/decode raw) (catch _ nil))))
+
+(defn- row-values (d rows)
+  (fold rows
+    {}
+    (fn (acc r)
+      (let (row (get d (keyword r))
+            lang (or (get (get row :langs) :brood) {}))
+        (if (nil? (get lang :wall_ms))
+          acc
+          ;; Carry the row's N: a row whose size changed is NOT comparable across that
+          ;; change, and normalising through one invents a regression. `fib` went N=30 ->
+          ;; 35 and `bintree` 40 -> 200 on 2026-06-14, which read as a 285% blow-up until
+          ;; this was handled.
+          (assoc acc r [(get lang :wall_ms) (get row :n)]))))))
+
+(defn history (rows)
+  "`[[date {row [wall-ms n]}] …]` oldest-first — one entry per PUBLISHED REFRESH.
+
+A refresh is identified by (date, brood commit), not by date alone: the column is
+refreshed several times on a busy day (2026-09-15 had three, each a different runtime), and
+keying on the date collapsed them onto one point, the newest overwriting the rest. Within a
+date the points keep publish order (oldest first); the same refresh re-published (a
+`trend:` regeneration commit carries the same results.json) still counts once."
+  (let (commits (seq/filter (string/split (git "log" "--format=%h" "--" "results/results.json")
+                              "\n")
+                  (fn (c) (not (= c ""))))
+        ;; newest first; a larger index is older
+        seen (fold (seq/zip (range (count commits)) commits)
+               {}
+               (fn (acc pair)
+                 (let ([k c] pair
+                       raw (git "show" (str c ":results/results.json")))
+                   (if (= (string/trim raw) "")
+                     acc
+                     ;; a truncated results.json is in the history; skip rather than die
+                     (let (d (decode-or-nil raw))
+                       (if (not (map? d))
+                         acc
+                         (let (meta (or (get d :_meta) {})
+                               date (brood-date meta)
+                               key [date (or (get meta :brood_commit) "")]
+                               vals (row-values d rows))
+                           (if (or (= date "") (contains? acc key) (empty? vals))
+                             acc
+                             (assoc acc key [k vals])))))))))
+        ordered (sort-by (vec seen) (fn (pair) [(first (first pair)) (- (first (second pair)))])))
+    (vec (map ordered (fn ([key [_ vals]]) [(first key) vals])))))
+
+(defn render (series dates rows)
+  "The trend chart's SVG text, or nil when no row has a value."
+  (let (width 820
+        height 460
+        ml 60
+        mr 150
+        mt 54
+        mb 62
+        pw (- width ml mr)
+        ph (- height mt mb)
+        allv (fold rows
+               []
+               (fn (acc r) (into acc (seq/filter (get series r) (fn (v) (not (nil? v))))))))
+    (if (empty? allv)
+      nil
+      (let (ymax (* (reduce allv math/max) 1.08)
+            ymin (math/min 0.0 (reduce allv math/min))
+            n (count dates)
+            x-of (fn (i) (+ ml (* (/ (float i) (math/max 1 (- n 1))) pw)))
+            y-of (fn (v) (- (+ mt ph) (* (/ (- v ymin) (- ymax ymin)) ph)))
+            f1 (fn (x) (math/->fixed x 1))
+            head [(str "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\""
+                    width "\" height=\"" height "\" viewBox=\"0 0 " width " " height
+                    "\" font-family=\"system-ui,Segoe UI,Helvetica,Arial,sans-serif\">")
+                   (str "<rect width=\"" width "\" height=\"" height "\" fill=\"#ffffff\"/>")
+                   (str "<text x=\""
+                     (/ (float width) 2)
+                     "\" y=\"24\" text-anchor=\"middle\" font-size=\"17\" "
+                     "font-weight=\"700\" fill=\"#222\">Brood over time — each row vs its own first published run</text>")
+                   (str "<text x=\""
+                     (/ (float width) 2)
+                     "\" y=\"42\" text-anchor=\"middle\" font-size=\"12\" fill=\"#777\">"
+                     "lower is faster; 100% = that row's first appearance</text>")]
+            ;; gridlines every 25%
+            grid (letrec (go (fn (t acc)
+                               (if (> t ymax)
+                                 acc
+                                 (let (y (y-of t))
+                                   (go (+ t 25)
+                                     (conj acc
+                                       (str "<line x1=\""
+                                         ml
+                                         "\" y1=\""
+                                         (f1 y)
+                                         "\" x2=\""
+                                         (+ ml pw)
+                                         "\" y2=\""
+                                         (f1 y)
+                                         "\" stroke=\"#eee\"/>")
+                                       (str "<text x=\""
+                                         (- ml 8)
+                                         "\" y=\""
+                                         (f1 (+ y 4))
+                                         "\" text-anchor=\"end\" "
+                                         "font-size=\"11\" fill=\"#555\">"
+                                         t
+                                         "%</text>")))))))
+                   (go 0 []))
+            hundred [(str "<line x1=\""
+                       ml
+                       "\" y1=\""
+                       (f1 (y-of 100))
+                       "\" x2=\""
+                       (+ ml pw)
+                       "\" y2=\""
+                       (f1 (y-of 100))
+                       "\" stroke=\"#bbb\" stroke-dasharray=\"4,3\"/>")]
+            base (+ mt ph 18)
+            date-labels (fold (seq/zip (range n) dates)
+                          []
+                          (fn (acc pair)
+                            (let ([i d] pair)
+                              (if (or (<= n 12)
+                                    (= (math/rem i (math/max 1 (math/quot n 10))) 0)
+                                    (= i (- n 1)))
+                                (conj acc
+                                  (str "<text x=\""
+                                    (f1 (x-of i))
+                                    "\" y=\""
+                                    base
+                                    "\" text-anchor=\"middle\" "
+                                    "font-size=\"10\" fill=\"#555\" transform=\"rotate(35 "
+                                    (f1 (x-of i))
+                                    " "
+                                    base
+                                    ")\">"
+                                    (string/substring d 5 (string/length d))
+                                    "</text>"))
+                                acc))))
+            lines-and-labels (fold (seq/zip (range (count rows)) rows)
+                               [[] []]
+                               (fn (acc pair)
+                                 (let ([k r] pair
+                                       [out labels] acc
+                                       c (nth color (math/rem k (count color)))
+                                       indexed (seq/zip (range (count (get series r)))
+                                                 (get series r))
+                                       pts (fold indexed
+                                             []
+                                             (fn (ps iv)
+                                               (let ([i v] iv)
+                                                 (if (nil? v) ps (conj ps [(x-of i) (y-of v)]))))))
+                                   (if (empty? pts)
+                                     acc
+                                     (let (poly (str "<polyline fill=\"none\" stroke=\""
+                                                  c
+                                                  "\" stroke-width=\"2.2\" "
+                                                  "stroke-opacity=\"0.9\" points=\""
+                                                  (string/join (map pts
+                                                                 (fn ([x y])
+                                                                   (str (f1 x) "," (f1 y))))
+                                                    " ")
+                                                  "\"/>")
+                                           circles (map pts
+                                                     (fn ([x y])
+                                                       (str "<circle cx=\""
+                                                         (f1 x)
+                                                         "\" cy=\""
+                                                         (f1 y)
+                                                         "\" r=\"2.6\" fill=\""
+                                                         c
+                                                         "\"/>")))
+                                           last-v (last (seq/filter (get series r)
+                                                          (fn (v) (not (nil? v))))))
+                                       [(into (conj out poly) circles)
+                                         (conj labels [(second (last pts)) c r last-v])])))))
+            ;; Push the right-hand labels apart: several rows converge near the same value,
+            ;; and stacked text is unreadable exactly where the interesting rows are.
+            pushed (fold (sort (second lines-and-labels))
+                     []
+                     (fn (acc lab)
+                       (if (and (not (empty? acc)) (< (- (first lab) (first (last acc))) 15))
+                         (conj acc (assoc lab 0 (+ (first (last acc)) 15)))
+                         (conj acc lab))))
+            label-text (map pushed
+                         (fn ([y c r last-v])
+                           (str "<text x=\""
+                             (+ ml pw 10)
+                             "\" y=\""
+                             (f1 (+ y 4))
+                             "\" font-size=\"12\" font-weight=\"600\" "
+                             "fill=\""
+                             c
+                             "\">"
+                             r
+                             " <tspan font-weight=\"400\" fill=\"#777\">"
+                             (math/->fixed last-v 0)
+                             "%</tspan></text>")))
+            footer [(str "<text x=\""
+                      (+ ml (/ (float pw) 2))
+                      "\" y=\""
+                      (- height 10)
+                      "\" text-anchor=\"middle\" "
+                      "font-size=\"12\" fill=\"#333\">published run date — the field drifts ~10% run to run, "
+                      "so read shapes not wiggles</text>")
+                     "</svg>"])
+        (string/join (append head
+                       grid
+                       hundred
+                       date-labels
+                       (first lines-and-labels)
+                       label-text
+                       footer)
+          "\n")))))
+
+(defn- latest-n (hist r)
+  (let (found (seq/find (reverse hist) (fn ([_ v]) (contains? v r))))
+    (if (nil? found) nil (second (get (second found) r)))))
+
+(defn main (& arguments)
+  "Write `results/trend.svg` (or `--out PATH`) from every published results.json, and print
+the first/latest table; exits 1 when there is no history."
+  (let (options (bench/cli/parse {"rows" {:kind :string :default nil}
+                                  "out" {:kind :string :default "results/trend.svg"}}
+                  arguments)
+        rows (if (nil? (get options :rows)) default-rows (string/split (get options :rows) ","))
+        hist (history rows))
+    (when (empty? hist)
+      (io/puts "no published results.json found in history")
+      (system/halt 1))
+    (let (dates (map hist first)
+          ;; Compare only runs at the row's CURRENT size; earlier runs at a different N
+          ;; measure different work and are dropped rather than silently rebased.
+          built (fold rows
+                  [{} {} {}]
+                  (fn (acc r)
+                    (let ([series first-wall skipped] acc
+                          want (latest-n hist r)
+                          step (fold hist
+                                 [[] (get first-wall r) (get skipped r 0)]
+                                 (fn (st entry)
+                                   (let ([vals f s] st
+                                         got (get (second entry) r))
+                                     (cond
+                                       (nil? got) [(conj vals nil) f s]
+                                       (not (= (second got) want)) [(conj vals nil) f (inc s)]
+                                       else
+                                         (let (f2 (if (nil? f) (first got) f))
+                                           [(conj vals (* (/ (float (first got)) f2) 100.0)) f2 s])))))
+                          [vals f s] step)
+                      [(assoc series r vals)
+                        (if (nil? f) first-wall (assoc first-wall r f))
+                        (if (= s 0) skipped (assoc skipped r s))])))
+          [series first-wall skipped] built)
+      (doseq (pair (sort (vec skipped)))
+        (io/puts (str "  note: "
+                   (first pair)
+                   " — "
+                   (second pair)
+                   " earlier run(s) dropped (ran at a different N)")))
+      (let (svg (render series dates rows))
+        (when svg
+          (file/spit (get options :out) svg)
+          (io/puts (str "wrote "
+                     (get options :out)
+                     " — "
+                     (count dates)
+                     " runs, "
+                     (count rows)
+                     " rows"))))
+      (io/puts (str "\n"
+                 (string/format "%-12s%12s%12s%10s" "row" "first" "latest" "change")
+                 "  (runs at the current N only)"))
+      (doseq (r rows)
+        (let (pct (seq/filter (get series r) (fn (v) (not (nil? v)))))
+          (if (empty? pct)
+            (io/puts (string/format "%-12s%12s" r "—"))
+            (let (a (get first-wall r)
+                  b (/ (* (float a) (last pct)) 100.0))
+              (io/puts (string/format "%-12s%10.0fms%10.0fms%9.1f%%"
+                         r
+                         (float a)
+                         b
+                         (- (last pct) 100))))))))))

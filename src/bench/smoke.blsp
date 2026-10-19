@@ -1,0 +1,441 @@
+(defmodule bench/smoke
+  "Run every benchmark row at a tiny size and report the ones that do not run.
+
+Why this exists. Twice now a brood stdlib rename has left rows in this repo dead for days,
+because nothing here runs these programs for *correctness*: the harness runs them for
+*timing*, takes tens of minutes, and is invoked by hand.
+
+  - 2026-08-14 (KI-42) — ADR-227 moved `sqrt` to `std/math.blsp` and stage 4 dropped the
+    `json-` export prefix. `nbody` died on `unbound symbol: sqrt`, `json` on `unbound
+    symbol: json/json-parse`. Three days unnoticed.
+  - 2026-08-25 (KI-44) — the v0.9.0 + v0.10.0 namespacing waves (core: 613 -> 337 published
+    names) took `getenv` -> `os/getenv`, `now-ns` -> `os/now-ns`, `(table)` ->
+    `(table/new)`, `start-supervisor`/`stop-supervisor` -> `supervisor/start`/`gen/stop`,
+    `http/http-get` -> `http/fetch`, and removed `require` outright. **30 of 31 brood rows**
+    were dead; only `startup` still ran.
+
+Both times the brood repo's own migration sweep covered `breakage/`, `examples/`,
+`stress/`, `std/` and `crates/` — it could not see this repo at all. KI-44's writeup says a
+\"every bench row still runs at BENCH_N=50\" check would have caught it in seconds. This is
+that check.
+
+    nest run -- smoke                       ; every brood row, at QUICK sizes
+    nest run -- smoke --only nbody,json
+    nest run -- smoke --brood ../brood/target/release/brood
+    nest run -- smoke --langs all        ; every port + cross-language checksums
+    nest run -- smoke --langs brood,node,python
+
+Exits 1 if any row fails, so it can gate.
+
+TWO things are checked, and the second is the one that matters:
+
+1. The process exits 0 within the timeout.
+2. **No `unbound symbol` appears anywhere in stdout or stderr.** Exit status alone is not
+   enough. Brood reports an unbound name at *compile* time as a `warning:` line and only
+   *errors* when the reference is actually evaluated — so a rename inside a branch this
+   size of run never takes exits 0, prints the right checksum, and is still broken at the
+   size the harness uses. Grepping the output is what makes the gate honest; relying on the
+   exit code is what lets the rot back in.
+
+With `--langs` naming more than one language, the rows' printed checksums are compared
+across the languages that ran them — the same cross-language correctness check the harness
+does, minus the tens of minutes of timing. That is how a row that \"runs\" but computes the
+wrong thing gets caught."
+  (:use bench/rows)
+  (:use bench/cli))
+
+;; Substrings that mean "this row is broken" even when the process exits 0. See the module
+;; doc: brood's unbound-symbol diagnostic is a compile-time *warning* until the reference is
+;; evaluated, so the only reliable signal at a tiny BENCH_N is the text.
+(def poison ["unbound symbol"])
+
+;; ---- what the harness knows ------------------------------------------------------------
+;; The Python smoke imported the harness as its single source of truth for row sizes,
+;; per-language run commands and the build steps the compiled ports need. The table of rows
+;; is `bench/rows`; the sizes, commands and builds below mirror `bench/harness`'s and should
+;; be read from it once it exposes them — duplicating them is the drift this tool exists to
+;; catch.
+
+;; Each row's smallest known-good `BENCH_N`. A single constant cannot work: `BENCH_N` is an
+;; iteration count on some rows and a *problem size* on others, so 50 means "trivial" for
+;; `loop` and "fib(50)" or a 50x50 board for `pfib`/`nqueens`. The harness's own QUICK table,
+;; and its full N where no quick size exists.
+(def quick
+  {"fib" 25
+   "loop" 300000
+   "reduce" 100000
+   "primes" 5000
+   "collatz" 5000
+   "mandelbrot" 48
+   "matmul" 40
+   "strings" 10000
+   "wordcount" 20000
+   "bintree" 8
+   "sort" 10000
+   "nqueens" 8
+   "pipeline" 50000
+   "spawn" 5000
+   "pfib" 24
+   "http" 100
+   "supervisor" 2000
+   "latency" 5000})
+
+(defn- row-sizes ()
+  (into (into {} (map benches (fn ([name n _where _what]) [name n]))) quick))
+
+(defn- row-langs-table ()
+  (into {} (map benches (fn ([name _n where _what]) [name (row-langs where)]))))
+
+(def- beam-dir "bench/elixir/_build")
+
+(defn- beam-module (name) (str "B" (regex/replace "[^a-zA-Z0-9]" name "")))
+
+;; ext + how to invoke a single source file, and the env merged over the inherited one.
+;; brood pins BROOD_TIER=2 (the full tier, native code included) so an inherited lower
+;; ceiling cannot silently drop a row onto a slower tier. `ctx` carries what a build step
+;; resolved (the Clojure classpath).
+(def lang-specs
+  {"brood" {:dir "brood" :ext "blsp" :env {"BROOD_TIER" "2"}}
+   "clojure" {:dir "clojure" :ext "clj"}
+   "elixir" {:dir "elixir" :ext "ex"}
+   "python" {:dir "python" :ext "py"}
+   "node" {:dir "node" :ext "js"}
+   "ruby" {:dir "ruby" :ext "rb"}
+   "dotnet" {:dir "dotnet" :ext "cs"}
+   "go" {:dir "go" :ext "go"}
+   "c" {:dir "c" :ext "c"}})
+
+(defn- lang-cmd (lang path ctx brood-bin)
+  (let (stem (path/stem path))
+    (case lang
+      "brood" [brood-bin path]
+      "clojure" ["java" "-cp" (get ctx :clojure-cp) "clojure.main" path]
+      "elixir" ["elixir" "-pa" beam-dir "-e" (str (beam-module stem) ".main()")]
+      ;; -P isolates sys.path from the script's own dir, so bench files named after a
+      ;; stdlib module (json.py, base64.py) don't shadow the stdlib for sibling scripts.
+      "python" ["python3" "-P" path]
+      "node" ["node" path]
+      "ruby" ["ruby" path]
+      "dotnet" ["bench/dotnet/publish/brood-bench" stem]
+      "go" [(str "bench/go/build/" stem)]
+      "c" [(str "bench/c/build/" stem)]
+      (error "smoke: no command for language: " lang))))
+
+(defn- run-checked (label prog args &optional (opts {}))
+  (let (r (os/cmd prog args opts))
+    (if (= (get r :exit) 0)
+      r
+      (error (str label " failed:\n" (get r :stdout) (get r :stderr)) ""))))
+
+(defn- sources (dir ext)
+  (sort (seq/filter (or (file/list-files dir) []) (fn (f) (string/ends-with? f (str "." ext))))))
+
+(defn- build-clojure (ctx)
+  (io/puts "resolving Clojure classpath (clojure -Spath)…")
+  (assoc ctx
+    :clojure-cp
+      (string/trim (get (run-checked "clojure -Spath" "clojure" ["-Spath"] {:cwd "bench/clojure"})
+                     :stdout))))
+
+(defn- build-dotnet (ctx)
+  (io/puts "building .NET project (Release)…")
+  (run-checked "dotnet build"
+    "dotnet"
+    ["build" "-c" "Release" "-o" "publish"]
+    {:cwd "bench/dotnet"})
+  ctx)
+
+(defn- build-beam (ctx)
+  (io/puts "compiling Elixir modules (elixirc → _build)…")
+  (file/mkdir beam-dir)
+  (let (files (map (sources "bench/elixir" "ex") (fn (f) (str "bench/elixir/" f))))
+    (when (empty? files) (error "no Elixir sources found in " "bench/elixir"))
+    (run-checked "elixirc" "elixirc" (into ["-o" beam-dir] files))
+    ctx))
+
+(defn- build-c (ctx)
+  (io/puts "compiling C benches (gcc -O2 -march=native)…")
+  (file/mkdir "bench/c/build")
+  (let (files (sources "bench/c" "c"))
+    (when (empty? files) (error "no C sources found in " "bench/c"))
+    (doseq (f files)
+      (let (r (run-checked (str "gcc on " f)
+                "gcc"
+                ["-O2"
+                  "-march=native"
+                  "-std=c11"
+                  "-Wall"
+                  "-Wextra"
+                  (str "bench/c/" f)
+                  "-o"
+                  (str "bench/c/build/" (path/stem f))
+                  "-lm"]))
+        (when (not (= (string/trim (get r :stderr)) ""))
+          (io/puts (str "  warning ("
+                     f
+                     "): "
+                     (first (string/split (string/trim (get r :stderr)) "\n")))))))
+    ctx))
+
+(defn- build-go (ctx)
+  (io/puts "compiling Go benches (go build)…")
+  (file/mkdir "bench/go/build")
+  (let (files (seq/filter (sources "bench/go" "go") (fn (f) (not (= f "bench.go")))))
+    (when (empty? files) (error "no Go sources found in " "bench/go"))
+    (doseq (f files)
+      (run-checked (str "go build on " f)
+        "go"
+        ["build" "-o" (str "build/" (path/stem f)) "bench.go" f]
+        {:cwd "bench/go"}))
+    ctx))
+
+;; ---- checksums -------------------------------------------------------------------------
+
+;; Strip ANSI colour/SGR escapes before checksumming — a runtime that auto-colourises prints
+;; the SAME integer wrapped in escapes.
+(defn- strip-ansi (s) (regex/replace "\u{1b}\\[[0-9;]*m" s ""))
+
+(def- metric-pattern "^#metric\\s+([A-Za-z0-9_]+)=(-?[\\d.]+)\\s*$")
+
+(defn split-metrics (out)
+  "`[metrics checksum]` — pull `#metric k=v` lines out of a program's stdout; the rest,
+joined and trimmed, is the checksum."
+  (let (lines (string/split out "\n")
+        found (fold lines
+                [{} []]
+                (fn (acc line)
+                  (let ([metrics kept] acc
+                        m (regex/find metric-pattern (string/trim line)))
+                    (if (nil? m)
+                      [metrics (conj kept line)]
+                      (let (raw (get (nth (get m :groups) 1) :text))
+                        [(assoc metrics (get (nth (get m :groups) 0) :text) (string/->number raw))
+                          kept]))))))
+    [(first found) (string/trim (string/join (second found) "\n"))]))
+
+;; ---- the http fixture ------------------------------------------------------------------
+;; The `http` row needs a server to call; the harness starts one, so smoke does too rather
+;; than declaring the row unrunnable and leaving it unguarded. It runs in this image: one
+;; process per connection, each request held 20 ms then answered `ok`. The listening socket
+;; is this process's own, bound on an OS-assigned port, so a foreign listener on the port
+;; cannot be mistaken for it.
+(def- sleep-ms 20)
+
+(defn- fixture-handler (_request)
+  (sleep sleep-ms)
+  (http/response 200 {"Content-Type" "text/plain"} "ok"))
+
+(defn- start-http-server ()
+  (let (me (self)
+        pid (spawn (let (ls (http/listen 0))
+                     (send me [:fixture-port (tcp/local-port ls)])
+                     (http/serve-loop ls fixture-handler))))
+    (receive
+      ([:fixture-port port] [pid port])
+      (after 10000 (error "http fixture never reported its port" "")))))
+
+;; ---- one row ---------------------------------------------------------------------------
+
+(defn- diagnosis? (line)
+  (and (not (nil? (regex/find "(undefined|unbound|no function|not available|cannot|Error|error:)"
+                    line)))
+    (nil? (regex/find "^\\s*\\(" line))))
+
+(defn- failure-detail (r)
+  ;; brood puts the useful text (the unbound symbol) on its LAST stderr line. Other runtimes
+  ;; do the opposite: an Elixir failure ends with a stack FRAME, so `json/elixir` once
+  ;; reported `(elixir 1.17.3) lib/code.ex:572: Code.validated_eval_string/3` and threw away
+  ;; the line that said `JSON.encode!/1 is undefined`. The message is the part you act on,
+  ;; so keep a window and let the reader see both ends: prefer a line that looks like a
+  ;; diagnosis over one that looks like a frame.
+  (let (text (if (= (string/trim (get r :stderr "")) "") (get r :stdout "") (get r :stderr ""))
+        lines (seq/filter (map (string/split text "\n") string/trim) (fn (l) (not (= l "")))))
+    (if (empty? lines)
+      (str "exit " (get r :exit))
+      (let (blame (seq/find lines diagnosis?)
+            final (last lines))
+        (cond
+          (nil? blame) final
+          (= blame final) blame
+          else (str blame "  [at: " final "]"))))))
+
+(defn- run-row (lang row n brood-bin extra-env ctx timeout)
+  ;; `[ok detail checksum]` for one row in one language; ok is nil when there is no port.
+  (let (spec (get lang-specs lang)
+        path (str "bench/" (get spec :dir) "/" row "." (get spec :ext)))
+    (if (not (file/exists? path))
+      [nil "no port" nil]
+      (let (cmd (lang-cmd lang path ctx brood-bin)
+            env (into (into {"BENCH_N" (str n)} (get spec :env {})) extra-env)
+            r (try
+                (os/cmd (first cmd) (vec (rest cmd)) {:env env :timeout-ms (* timeout 1000)})
+                (catch e {:cannot-run (error-message e)})))
+        (cond
+          (contains? r :cannot-run) [false (str "cannot run: " (get r :cannot-run)) nil]
+          (get r :timed-out) [false (str "timed out after " timeout "s") nil]
+          else
+            (let (blob (str (get r :stdout "") (get r :stderr ""))
+                  bad (seq/find poison (fn (p) (includes? blob p))))
+              (cond
+                (not (nil? bad))
+                  [false
+                    (or (seq/find (map (string/split blob "\n") string/trim)
+                          (fn (l) (includes? l bad)))
+                      bad)
+                    nil]
+                (not (= (get r :exit) 0)) [false (failure-detail r) nil]
+                else
+                  [true "" (second (split-metrics (string/trim (strip-ansi (get r :stdout "")))))])))))))
+
+;; ---- reporting -------------------------------------------------------------------------
+
+(defn- sums-repr (sums)
+  ;; Printed the way the Python tool printed its dict, in run order.
+  (str "{"
+    (string/join (map sums
+                   (fn ([lang sum])
+                     (str "'"
+                       lang
+                       "': '"
+                       (string/replace (string/replace (or sum "None") "\\" "\\\\") "\n" "\\n")
+                       "'")))
+      ", ")
+    "}"))
+
+(defn- distinct-count (sums) (count (into #{} (map sums second))))
+
+;; A missing runtime is a skip, not a failure — the gate's job is to catch rot in the rows,
+;; and crying wolf about an absent .NET SDK gets it ignored.
+(def- probes
+  {"python" "python3"
+   "node" "node"
+   "ruby" "ruby"
+   "elixir" "elixirc"
+   "clojure" "clojure"
+   "dotnet" "dotnet"
+   "go" "go"
+   "c" "gcc"})
+
+(defn- available (langs)
+  (let (keep (seq/filter langs
+               (fn (lang)
+                 (let (probe (get probes lang))
+                   (if (and probe (nil? (os/which probe)))
+                     (do (io/puts (str "  skip lang " lang " (no " probe " on PATH)")) false)
+                     true))))
+        ;; a build failure IS a failure
+        ctx (try
+              (let (c0 {}
+                    c1 (if (includes? keep "clojure") (build-clojure c0) c0)
+                    c2 (if (includes? keep "dotnet") (build-dotnet c1) c1)
+                    c3 (if (includes? keep "elixir") (build-beam c2) c2)
+                    c4 (if (includes? keep "c") (build-c c3) c3))
+                (if (includes? keep "go") (build-go c4) c4))
+              (catch e
+                (io/puts (str "smoke: build step failed: " (error-message e)) :to *err*)
+                (throw e))))
+    [(vec keep) ctx]))
+
+(def- flags
+  {"brood" {:kind :string :default nil}
+   "only" {:kind :string :default ""}
+   "langs" {:kind :string :default "brood"}
+   "timeout" {:kind :int :default 180}})
+
+(defn- split-list (s)
+  (seq/filter (map (string/split s ",") string/trim) (fn (x) (not (= x "")))))
+
+(defn- run-rows (rows langs ctx options)
+  ;; One pass over the rows; answers `[failed mismatched ran]`.
+  (let (sizes (row-sizes)
+        langs-for (row-langs-table)
+        brood-bin (get options :brood)
+        timeout (get options :timeout)
+        multi? (> (count langs) 1))
+    (fold rows
+      [[] [] 0]
+      (fn (acc row)
+        (let ([failed mismatched ran] acc
+              n (get sizes row 50)
+              server (if (= row "http")
+                       (try
+                         (start-http-server)
+                         (catch e
+                           (io/puts (str "  skip    "
+                                      row
+                                      " (http fixture would not start: "
+                                      (error-message e)
+                                      ")"))
+                           :skip))
+                       nil))
+          (if (= server :skip)
+            acc
+            (let (extra-env (if server {"BENCH_HTTP_PORT" (str (second server))} {})
+                  step (fold (seq/filter langs (fn (l) (includes? (get langs-for row []) l)))
+                         [failed [] ran]
+                         (fn (inner lang)
+                           (let ([failed-now sums ran-now] inner
+                                 [ok detail checksum] (run-row lang
+                                                        row n brood-bin extra-env ctx timeout)
+                                 tag (if multi? (str row "/" lang) row))
+                             (cond
+                               (nil? ok) (do (io/puts (str "  skip    " tag " (" detail ")")) inner)
+                               ok
+                                 (do
+                                   (io/puts (str "  ok      "
+                                              tag
+                                              (if multi? (str "  = " checksum) "")))
+                                   [failed-now (conj sums [lang checksum]) (inc ran-now)])
+                               else
+                                 (do
+                                   (io/puts (str "  FAIL    " tag ": " detail))
+                                   [(conj failed-now [tag detail]) sums ran-now])))))
+                  [failed-after sums ran-after] step)
+              (when server (exit (first server) :kill))
+              (if (and (> (count sums) 1) (> (distinct-count sums) 1))
+                (do
+                  (io/puts (str "  MISMATCH " row ": " (sums-repr sums)))
+                  [failed-after (conj mismatched [row sums]) ran-after])
+                [failed-after mismatched ran-after]))))))))
+
+(defn run (arguments)
+  "The whole smoke run over `arguments` (the words after `--`); answers the exit code."
+  (let (options (parse flags arguments)
+        options (if (get options :brood)
+                  options
+                  (assoc options :brood (or (os/which "brood") "brood")))
+        requested (if (= (get options :langs) "all") all-langs-c (split-list (get options :langs)))
+        unknown (seq/filter requested (fn (l) (not (contains? lang-specs l)))))
+    (if (not (empty? unknown))
+      (do (io/puts (str "smoke: unknown language(s): " (string/join unknown ", ")) :to *err*) 1)
+      (let ([langs ctx] (available requested)
+            wanted (into #{} (split-list (get options :only)))
+            rows (seq/filter row-names (fn (r) (or (empty? wanted) (contains? wanted r))))
+            unmatched (sort (seq/filter (vec wanted) (fn (r) (not (includes? rows r))))))
+        (cond
+          (not (empty? unmatched))
+            (do (io/puts (str "smoke: no such row(s): " (string/join unmatched ", ")) :to *err*) 1)
+          (empty? rows) (do (io/puts "smoke: no rows selected" :to *err*) 1)
+          else
+            (let ([failed mismatched ran] (run-rows rows langs ctx options))
+              (io/puts "")
+              (if (or (not (empty? failed)) (not (empty? mismatched)))
+                (do
+                  (when (not (empty? failed))
+                    (io/puts (str "smoke: " (count failed) " row(s) do not run:"))
+                    (doseq ([name why] failed) (io/puts (str "  " name ": " why))))
+                  (when (not (empty? mismatched))
+                    (io/puts (str "smoke: " (count mismatched) " row(s) disagree across languages:"))
+                    (doseq ([name sums] mismatched) (io/puts (str "  " name ": " (sums-repr sums)))))
+                  1)
+                (do
+                  (io/puts (str "smoke: all "
+                             ran
+                             " row/language combinations run"
+                             (if (> (count langs) 1) " and agree on their checksums." ".")))
+                  0))))))))
+
+(defn main (& arguments)
+  "`nest run -- smoke [--brood PATH] [--only rows] [--langs l,…|all]
+[--timeout S]` — run it and exit with its code."
+  (system/halt (run arguments)))

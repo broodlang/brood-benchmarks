@@ -1,0 +1,63 @@
+(defmodule bench/httpserver
+  "The local HTTP server the `http` row's clients call: `nest run -- httpserver PORT`.
+
+Every request sleeps a fixed time, then returns a 2-byte `ok`. The fixed sleep is the
+whole point: it turns each request into a known, identical unit of *waiting*, so the
+benchmark measures how well a client OVERLAPS in-flight requests (its I/O-concurrency
+model) rather than network speed or server compute. A client that fires all N requests
+concurrently finishes in ~SLEEP; one that serialises them takes ~N*SLEEP.
+
+One process per connection, so the server itself is never the bottleneck: thousands of
+sleeping requests are thousands of parked processes. HTTP/1.1 keep-alive: a connection
+serves request after request until the client closes it.")
+
+(def sleep-ms 20)
+
+(def response
+  "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: 2\r\n\r\nok")
+
+(defn keep-alive? (head)
+  "Whether the connection stays open after answering the request whose head is `head`
+(a string) — the rule Python's `BaseHTTPRequestHandler` applies: HTTP/1.1 stays open unless
+the client says `Connection: close`; HTTP/1.0 closes unless it says `Connection:
+keep-alive`. A client that reads its body to EOF (brood's `http/fetch` is HTTP/1.0)
+would otherwise wait forever.
+
+    (bench/httpserver/keep-alive? \"GET / HTTP/1.1\\r\\nHost: h\\r\\n\\r\\n\")   → true
+    (bench/httpserver/keep-alive? \"GET / HTTP/1.0\\r\\nConnection: close\\r\\n\\r\\n\")   → false"
+  (let (lower (string/lower head)
+        first-line (first (string/split lower "\r\n"))
+        says (fn (token) (regex/matches? (str "(?m)^connection:[ \t]*" token) lower)))
+    (if (string/ends-with? first-line "http/1.0") (says "keep-alive") (not (says "close")))))
+
+(defn- serve-connection (sock seed)
+  (let (frame (tcp/read-until sock "\r\n\r\n" {:seed seed}))
+    (if (keyword? (first frame))
+      (tcp/close sock)
+      (do
+        (receive (after sleep-ms nil))
+        (tcp/send sock response)
+        (if (keep-alive? (string/bytes-> (first frame)))
+          (serve-connection sock (second frame))
+          (tcp/close sock))))))
+
+(defn- handle (sock)
+  (receive ([:go] (serve-connection sock (string/->bytes "")))))
+
+(defn- accept-loop (listener)
+  (receive
+    ([:tcp-accept ^listener client] (let (pid (spawn (handle client)))
+                                      (tcp/controlling-process client pid)
+                                      (send pid [:go])
+                                      (accept-loop listener)))
+    (_ (accept-loop listener))))
+
+(defn serve (port)
+  "Listen on 127.0.0.1:`port` and serve until killed."
+  (accept-loop (tcp/listen "127.0.0.1" port)))
+
+(defn main (& arguments)
+  "`nest run -- httpserver PORT` (default 8089)."
+  (let (word (first arguments)
+        port (if (nil? word) 8089 (string/->number word)))
+    (if (int? port) (serve port) (error "httpserver: the port must be an integer: " word))))

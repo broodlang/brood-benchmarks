@@ -1,0 +1,91 @@
+(defmodule bench/common
+  "Shared vocabulary for the reporting tools — one definition per concept.
+
+`bench/chart` and `bench/docs` both need the aggregate's row set, the language-name
+mapping and `compute = wall − startup`. Each had its own copy once, which is how the chart
+and the doc could in principle disagree about what \"aggregate\" means.
+
+`bench/harness` deliberately does **not** use this: it is the measuring half and must not
+depend on the reporting half. Both read `bench/rows`, which is data."
+  (:use bench/rows)
+  (:use bench/json-out))
+
+(def results-path "results/results.json")
+
+;; The rows the aggregate covers: single-threaded core compute, same algorithm and same
+;; data structures in every language. Deliberately excludes the concurrency, error-handling
+;; and native-library rows — folding those in would swamp the figure with library and
+;; representation outliers rather than core language speed.
+(def compute-rows
+  ["fib"
+    "loop" "reduce" "primes" "collatz" "mandelbrot" "matmul" "strings" "wordcount" "bintree" "sort"])
+
+;; Rows the POSITIONING CHART aggregates. `compute-rows` is the eleven pure single-threaded
+;; rows and stays that, because "aggregate single-threaded compute" in the standings is a
+;; claim about exactly those. The chart is a different claim — "where does this runtime land
+;; overall" — so it takes every row all the languages implement. Excluded: `startup` (it is
+;; subtracted from every other row), `latency` (percentiles, no wall to aggregate),
+;; `supervisor` (two languages is too few to place anyone); `spawn-live` is the overlay.
+(def chart-rows
+  ["fib"
+    "loop" "reduce" "primes" "collatz" "mandelbrot" "matmul" "strings" "wordcount" "bintree" "sort"
+    "nqueens" "errors" "errors-deep" "pipeline" "ackermann" "sieve" "persistent-map" "nbody" "json"
+    "regex" "base64" "spawn" "pfib" "http" "pingpong" "ring"])
+
+;; The process-model row. Only five ports have it, so it cannot go in an aggregate compared
+;; across all of them without comparing different work; the chart plots it as a second
+;; marker for those five.
+(def chart-overlay-row "spawn-live")
+
+;; Markdown column heading -> results key, and back.
+(def lang-col
+  {"C" "c"
+   ".NET" "dotnet"
+   "Elixir" "elixir"
+   "Node" "node"
+   "Brood" "brood"
+   "Ruby" "ruby"
+   "Python" "python"
+   "Clojure" "clojure"
+   "Go" "go"})
+
+(def pretty (into {} (map lang-col (fn ([heading key]) [key heading]))))
+
+(defn row (results name)
+  "The record of row `name` (a string) in decoded `results`, or nil."
+  (get results (keyword name)))
+
+(defn cell (results name lang)
+  "Row `name`'s record for `lang` (both strings), or nil."
+  (get (get (row results name) :langs) (keyword lang)))
+
+(defn load-results (&optional (path results-path))
+  "`[results startup-wall-by-lang]` — the two things every consumer needs. Startup walls
+are keyed by language string."
+  (let (results (read-json path)
+        starts (into {}
+                 (map (get (row results "startup") :langs)
+                   (fn ([lang record]) [(->string lang) (get record :wall_ms)]))))
+    [results starts]))
+
+(defn compute (results starts name lang)
+  "`wall − startup` in ms for row `name` and `lang`; nil when that language has no port or
+no sample. Clamped at 0: a row whose wall lands under that language's own boot time is a
+measurement artefact, not negative work (the harness fails such a run, so the clamp here
+should never be load-bearing)."
+  (let (record (cell results name lang)
+        wall (get record :wall_ms))
+    (cond
+      (nil? wall) nil
+      (= name "startup") wall
+      else (math/max 0.0 (- wall (get starts lang 0))))))
+
+(defn geomean (values)
+  "The geometric mean of the positive `values` (nil when there are none) — the right
+average for ratios and for times spanning orders of magnitude. On this field the arithmetic
+mean is dominated by whichever language is slowest; the geometric mean is a claim that
+survives contact with the numbers."
+  (let (vals (seq/filter values (fn (v) (and (not (nil? v)) (> v 0)))))
+    (if (empty? vals)
+      nil
+      (math/exp (/ (math/sum (map vals math/ln)) (count vals))))))

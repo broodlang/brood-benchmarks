@@ -11,8 +11,8 @@ machine-floor reference so ratios mean "vs roughly what the hardware does" rathe
 the fastest managed runtime". A row opts in with the `"all+c"` sentinel rather than `"all"` —
 C is *not* in `ALL`, so a missing C port is a loud absence rather than an empty cell. Two
 consequences worth knowing before touching it:
-- **Adding a partial column narrows the field-wide aggregate for everyone.** Both `chart.py`
-  and `docs.py:overall_numbers` intersect the rows every column implements, so C landing took
+- **Adding a partial column narrows the field-wide aggregate for everyone.** Both `bench/chart`
+  and `bench/docs`'s `overall-numbers` intersect the rows every column implements, so C landing took
   that set 27 → 15 and moved the reference from .NET to C. Field-wide figures are therefore
   **not comparable across that date**; the per-row tables and `trend.svg` are.
 - **Watch for C numbers that are too SLOW.** The first C run lost to Brood on `reduce` and
@@ -33,15 +33,26 @@ its wall is fixed by the arrival schedule, so wall says nothing about which runt
 ## Running
 
 ```sh
-python3 bench/smoke.py                # does every brood row still RUN? (~7 s) — run this first
-python3 bench/smoke.py --langs all    # every port + cross-language checksums (~3 min)
-python3 bench/harness.py              # full suite → results/results.json + report.md
-python3 bench/test_guard.py           # regression test for the corruption guard (instant)
-python3 bench/harness.py --quick      # smaller sizes, smoke test
-python3 bench/harness.py --only fib   # subset (comma-separated)
-python3 bench/harness.py --langs brood,node
-python3 bench/chart.py                # regenerate results/overview.svg from results.json
+nest run -- smoke                # does every brood row still RUN? (~7 s) — run this first
+nest run -- smoke --langs all    # every port + cross-language checksums (~3 min)
+nest run -- harness              # full suite → results/results.json + report.md
+nest test tests/guard_test.blsp           # regression test for the corruption guard (instant)
+nest run -- harness --quick      # smaller sizes, smoke test
+nest run -- harness --only fib   # subset (comma-separated)
+nest run -- harness --langs brood,node
+nest run -- chart                # regenerate results/overview.svg from results.json
 ```
+
+- **The tooling is Brood** (`src/bench/`, one module per tool, routed by `src/main.blsp`):
+  `nest run -- <tool>`. It was Python until 2026-10-19; `python3` is now needed only as the
+  Python column's runtime. `bench/rows` holds the benchmark table as data, which both the
+  measuring half (`bench/harness`) and the reporting half (`bench/common` and the tools on
+  it) read. `bench/json-out` writes the result files in the layout and key order the Python
+  wrote, so a rewrite diffs only where a number moved.
+- **`nest run` arms contracts and exports `BROOD_CONTRACTS=1` to its children**, so the
+  harness unsets it (and `RUST_BACKTRACE`) for every program it measures. With it inherited,
+  quick `fib` measured 37.4 ms against 27.9 ms, and `nest stdimage` refused to build. Any
+  new place that starts a measured child must go through the harness's child environment.
 
 - **A Brood-only column refresh MUST be the min over ≥3 interleaved harness
   invocations — one invocation is a coin flip.** This box's `powersave` governor
@@ -86,25 +97,25 @@ python3 bench/chart.py                # regenerate results/overview.svg from res
   hand-picked, so expect the next refresh to swing it back.
 
 - **A published column that has stopped describing the runtime hides regressions, and no
-  other gate here can see that.** `smoke.py` proves the rows *run* and that their checksums
+  other gate here can see that.** `bench/smoke` proves the rows *run* and that their checksums
   *agree*; both stay green through an arbitrarily large slowdown. On 2026-09-01 the Brood
   column was three releases stale and had a real 4–10% compute regression in it (see
-  FRONTIER.md). `python3 bench/staleness.py --brood <path>` compares the commit the column
+  FRONTIER.md). `nest run -- staleness --brood <path>` compares the commit the column
   was measured at against the binary under test; the daily workflow runs it with
   `--fail-on-version`, so a release boundary nags and ordinary pushes do not. It measures
   nothing on purpose — a timing gate on a shared CI runner cannot tell a 7% regression from
   a turbo plateau, and a gate that cries wolf gets ignored.
 
 - **Run the cross-language gate ONCE per code change, then iterate Brood-only.** After
-  editing benchmark programs, run `python3 bench/smoke.py --langs all` **once** to establish
+  editing benchmark programs, run `nest run -- smoke --langs all` **once** to establish
   that every port still runs and the checksums agree. After that, while iterating, run
-  `python3 bench/smoke.py` (Brood only) — the other columns cannot have changed if you have
+  `nest run -- smoke` (Brood only) — the other columns cannot have changed if you have
   not touched them, and each cross-language pass spawns a JVM, a BEAM and a .NET host per
   row, which costs minutes for information you already have. The same holds for the full
-  harness: `bench/harness.py` across all eight languages is a *publishing* step, not an
+  harness: `bench/harness` across all eight languages is a *publishing* step, not an
   iteration step. Use `--langs brood` while working.
 
-- **`bench/smoke.py` is the gate; run it before anything else and after any brood
+- **`nest run -- smoke` is the gate; run it before anything else and after any brood
   upgrade.** The rows in this repo have now died wholesale *three* times from renames
   made in the brood repo — ADR-227's `sqrt` move (KI-42, two rows, three days
   unnoticed), then the v0.9.0/v0.10.0 namespacing waves (KI-44: `getenv`→`os/getenv`,
@@ -136,7 +147,7 @@ python3 bench/chart.py                # regenerate results/overview.svg from res
   a high Elixir boot sample (197 ms against a true ~182 ms) exceeded its *wall* on six
   short rows, so `compute = max(0, wall − startup)` clamped them to `0.0 ms`, which sorts
   to **1st place** and made Brood's ratios against it nonsense (`bintree` `103×` where it
-  is `12×`). Two mechanisms close that off, both in `harness.py`:
+  is `12×`). Two mechanisms close that off, both in `bench/harness`:
   - `startup` now defaults to **best of `max(runs, 9)`** — it is the one measurement whose
     error propagates everywhere, so it is sampled hardest. `--startup-runs` still overrides.
   - `verify_compute_floor` fails the run (**exit 1**, named cells on stderr, a banner in
@@ -144,7 +155,7 @@ python3 bench/chart.py                # regenerate results/overview.svg from res
     warns without failing, because its smoke-test sizes clamp by construction.
   Exposure scales with how close a runtime's boot variance is to a row's total work, so
   Elixir (~±6 ms boot, rows of 4–10 ms) is the one that bites; nothing about it is
-  Elixir-specific though. `python3 bench/test_guard.py` pins all of this — the guard
+  Elixir-specific though. `nest test tests/guard_test.blsp` pins all of this — the guard
   cannot be exercised on demand from a real run (whether one clamps is boot-sample luck),
   so it is tested against fabricated timings instead.
 - The harness runs `brood` from PATH (`~/.local/bin/brood` on this machine).
@@ -196,28 +207,28 @@ python3 bench/chart.py                # regenerate results/overview.svg from res
 the canonical numbers. Then, in this order:
 
 ```sh
-python3 bench/merge_brood.py <commit> "<version>" n1 n2 n3   # 0. brood-only refresh only
-python3 bench/chart.py     # 1. the README's overall-speed chart (results/overview.svg)
-python3 bench/docs.py      # 2. every derivable number in BENCHMARKS.md + README.md
-python3 bench/docs.py --check   # 3. must exit 0 before you commit
+nest run -- merge-brood <commit> "<version>" n1 n2 n3   # 0. brood-only refresh only
+nest run -- chart     # 1. the README's overall-speed chart (results/overview.svg)
+nest run -- docs      # 2. every derivable number in BENCHMARKS.md + README.md
+nest run -- docs --check   # 3. must exit 0 before you commit
 git commit ...             # 4. COMMIT, then:
-python3 bench/trend.py     # 5. results/trend.svg — AFTER the commit, see below
+nest run -- trend     # 5. results/trend.svg — AFTER the commit, see below
 ```
 
-**`trend.py` runs AFTER the commit, and that is not a style preference.** It reads
+**`bench/trend` runs AFTER the commit, and that is not a style preference.** It reads
 `git show <commit>:results/results.json` over `git log` — committed history only, never
 the working tree — so running it in step 1-3 renders a chart that cannot contain the run
 you just measured. Commit `results/results.json` first, then regenerate `trend.svg` and
 commit that.
 
 Getting this wrong is not loud. A brood-only refresh does not change `_meta.date` (the
-other columns really were measured at the field run, and `docs.py`'s machine line depends
-on that), so before 2026-09-11 `trend.py` keyed its points on a date that thirteen
+other columns really were measured at the field run, and `bench/docs`'s machine line depends
+on that), so before 2026-09-11 `bench/trend` keyed its points on a date that thirteen
 consecutive publishes shared, silently collapsing twelve refreshes onto one point — and,
 since the dedup keeps the newest commit per date, re-plotting each new refresh's numbers
-under the old label. It keys on `_meta.brood_refresh` now, which `merge_brood.py` writes.
+under the old label. It keys on `_meta.brood_refresh` now, which `bench/merge-brood` writes.
 
-**Then write the prose by hand — and only the prose.** `docs.py` owns the machine/date/commit
+**Then write the prose by hand — and only the prose.** `bench/docs` owns the machine/date/commit
 line, the **Overall rating** block, the `latency` percentile table, both `spawn-live` tables,
 README's standings table and environment sentence, and all six ordered per-row tables
 (times, `Brood rank`, `vs best`). Anything inside a `<!-- BEGIN NAME -->` / `<!-- END NAME -->`
@@ -233,7 +244,7 @@ brood commit** describing the previous run while the prose around them described
 and a hand-converted `1613 MB → 1.61 GB` was wrong in four places because this repo's GB is
 binary (`kB/1048576`, which is what the generator does).
 
-**Publish at the harness defaults — `python3 bench/harness.py`, no `--runs` flag.**
+**Publish at the harness defaults — `nest run -- harness`, no `--runs` flag.**
 That is **best of 3** for the ordinary rows, and the defaults already sample the two
 error-prone cases harder on their own: `startup` at best of `max(runs, 9)` (its error
 propagates into every other row via `compute = wall − startup`) and `spawn`/`pfib`/`http`
@@ -270,7 +281,7 @@ row, and that check is what exposed this.
   the fairness rules live in the README.
 - Files are named identically per benchmark (`fib.blsp`/`fib.clj`/`fib.ex`/`fib.c`/…)
   so they diff side by side. A new benchmark needs all eight ports plus a
-  `BENCHES` entry in `bench/harness.py` (and a C port if the row is compute and you
+  `benches` entry in `src/bench/rows.blsp` (and a C port if the row is compute and you
   want the floor — use `"all+c"`).
 - For Brood idioms read `docs/brood-for-claude.md` before writing `.blsp`.
 

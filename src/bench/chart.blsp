@@ -1,0 +1,287 @@
+(defmodule bench/chart
+  "Render `results/overview.svg` from `results/results.json` — the ranked overall-speed
+chart at the top of the README. Plain SVG text (no deps), so it regenerates anywhere and
+renders inline on GitHub.
+
+    entry point: (bench/chart/main) — flags: --out PATH, --results PATH
+
+This replaced a 2-D speed-vs-memory scatter (`positioning.svg`, retired 2026-08-14). The
+scatter was the more complete picture and the worse README opener: it took a paragraph to
+explain, and the memory axis it existed for is reported per language in the standings
+table anyway. `git log -- bench/chart.py` has it if it is ever wanted back."
+  (:use bench/common))
+
+;; Brand-ish colours, kept distinct. C is gold: the one hue region the other seven leave
+;; free, and it clears the lightness/chroma checks the obvious dark-slate pick failed (it
+;; read as grey).
+;;
+;; KNOWN LIMITATION, deliberate: python(blue) vs elixir(purple) sit at ΔE 4.6 under
+;; deuteranopia — a classic blue/purple confusion. Nudging the purple does not fix it
+;; (4.6 -> 5.1); only moving one language out of the blue/purple region would, and trading
+;; away two languages' recognisable colours is the worse deal. Both charts therefore carry a
+;; DIRECT TEXT LABEL on every mark, so identity never depends on colour. Keep it that way if
+;; you restyle either chart.
+(def color
+  {"brood" "#c0392b"
+   "elixir" "#8e44ad"
+   "python" "#2980b9"
+   "node" "#27ae60"
+   "ruby" "#d35400"
+   "dotnet" "#16a085"
+   "clojure" "#e67e22"
+   "c" "#b7950b"
+   "go" "#00add8"})
+
+(def label
+  {"brood" "Brood"
+   "elixir" "Elixir"
+   "python" "Python"
+   "node" "Node"
+   "ruby" "Ruby"
+   "dotnet" ".NET"
+   "clojure" "Clojure"
+   "go" "Go"
+   "c" "C"})
+
+(def- infinity (math/pow 10.0 400))
+
+(defn- float (x) (* 1.0 x))
+
+(defn- truthy-number (v) (and (not (nil? v)) (not (= v 0)) (not (= v 0.0))))
+
+(defn- chart-starts (results)
+  (into {}
+    (fold (get (row results "startup") :langs)
+      []
+      (fn (acc pair)
+        (let ([lang record] pair)
+          (if (and (contains? record :wall_ms) (not (contains? record :error)))
+            (conj acc [(->string lang) (get record :wall_ms)])
+            acc))))))
+
+(defn- geo-over (val rows langset)
+  "Per-row ratio against the fastest of `langset`, geomean'd down to one number per
+language."
+  (let (best (into {}
+               (map rows
+                 (fn (b)
+                   [b
+                     (reduce (map langset
+                               (fn (l) (let (v (val b l)) (if (truthy-number v) v infinity))))
+                       math/min)]))))
+    (into {}
+      (map langset
+        (fn (l)
+          (let (ratios (fold rows
+                         []
+                         (fn (acc b)
+                           (let (bb (get best b))
+                             (if (truthy-number bb)
+                               (conj acc
+                                 (/ (float (let (v (val b l)) (if (truthy-number v) v 0.0))) bb))
+                               acc)))))
+            [l (or (geomean ratios) 1.0)]))))))
+
+(defn- min-key (m) (first (reduce (vec m) (fn (a b) (if (< (second b) (second a)) b a)))))
+
+(defn collect (results)
+  "For each language: `[overall-slowdown base-memory-MB overlay-slowdown-or-nil]`, and the
+number of rows aggregated, as `[points nrows]`.
+
+**Aggregated as a geometric mean of per-row ratios, not a sum of wall times.** The sum this
+used to take is dominated by whichever row is slowest in absolute ms — with 27 rows in play
+`mandelbrot` and `spawn-live` would between them decide everyone's position, and a 16% win
+on a small row could not move the picture at all. A geomean of per-row ratios weights every
+benchmark equally and is what the standings table already reports, so chart and table mean
+the same thing.
+
+Compute **excludes startup** (wall − that language's own startup, per row) — otherwise a
+slow-booting runtime like the BEAM looks slow at compute when it isn't.
+
+The third element is the same geomean *including* `spawn-live`, for the five languages that
+implement it — reported on stdout, not plotted. It was drawn as a second marker briefly and
+removed: one row inside a 28-row geomean shifts a point by ~2 px, so the marker sat on top
+of the filled one and implied a significance it does not have. `spawn-live` belongs in the
+per-row tables, not in a field-wide scalar."
+  (let (starts (chart-starts results)
+        val (fn (b l) (compute results starts b l))
+        langs (fold chart-rows
+                #{}
+                (fn (acc b) (into acc (map (keys (get (row results b) :langs {})) ->string))))
+        ;; **Compare every language over the SAME rows.** Skipping a language's missing
+        ;; rows and aggregating what is left does not penalise a broken run, it REWARDS
+        ;; it. So the row set is the intersection of what every plotted language
+        ;; completed; one language's failure costs that row for everyone and cannot
+        ;; flatter the failer.
+        ran (into {}
+              (seq/filter (map (sort (vec langs))
+                            (fn (l)
+                              [l (into #{} (seq/filter chart-rows (fn (b) (not (nil? (val b l))))))]))
+                (fn (pair) (not (empty? (second pair))))))
+        common (if (empty? ran) [] (sort (vec (reduce (map ran second) set/intersection))))
+        dropped (sort (vec (set/difference (into #{} chart-rows) (into #{} common)))))
+    (when (not (empty? dropped))
+      (io/puts (str "  aggregate excludes (not completed by every language): "
+                 (string/join (map dropped
+                                (fn (b)
+                                  (str b
+                                    " [missing: "
+                                    (string/join (sort (seq/filter (map ran first)
+                                                         (fn (l) (not (contains? (get ran l) b)))))
+                                      ", ")
+                                    "]")))
+                   ", "))))
+    (if (empty? common)
+      (do (io/puts "  WARNING: no row was completed by every language; plotting nothing.") [{} 0])
+      (do
+        (io/puts (str "  aggregating "
+                   (count common)
+                   " rows across "
+                   (count ran)
+                   " languages (geomean of per-row ratios)"))
+        (let (raw (geo-over val common (map ran first))
+              ;; Normalise so the leader reads 1.0x. A geomean of per-row ratios is scored
+              ;; against the best time on EACH row, so a language only reaches 1.0 by
+              ;; winning EVERY row — .NET wins 13 of 27 and scored 2.06 raw, which left an
+              ;; axis labelled "vs the fastest" with nobody at 1x. Dividing through by the
+              ;; leader restores what the label promises; the ordering and every ratio
+              ;; between languages are unchanged.
+              lead (reduce (map raw second) math/min)
+              overall (into {} (map raw (fn ([l v]) [l (/ v lead)])))
+              leader (min-key raw)
+              _ (io/puts (str "  leader "
+                           leader
+                           " raw "
+                           (math/->fixed (get raw leader) 2)
+                           "x vs the per-row best (nobody wins every row) -> normalised to 1.00x"))
+              ;; Overlay: re-aggregate over the languages that have the process-model row,
+              ;; on their own shared row set plus that row. Computed within that subset — a
+              ;; ratio against a language that never ran the row would not mean anything.
+              over-langs (seq/filter (map ran first)
+                           (fn (l) (not (nil? (val chart-overlay-row l)))))
+              overlay (if (>= (count over-langs) 2)
+                        (let (sub (sort (vec (conj (reduce (map over-langs (fn (l) (get ran l)))
+                                                     set/intersection)
+                                               chart-overlay-row)))
+                              o (geo-over val sub over-langs)
+                              olead (reduce (map o second) math/min))
+                          (io/puts (str "  overlay: "
+                                     (count sub)
+                                     " rows incl. "
+                                     chart-overlay-row
+                                     " across "
+                                     (string/join (sort (vec over-langs)) ", ")))
+                          (into {} (map o (fn ([l v]) [l (/ v olead)]))))
+                        {}))
+          [(into {}
+             (map ran
+               (fn ([l _])
+                 (let (srow (cell results "startup" l)
+                       mem (if (contains? srow :rss_kb)
+                             (/ (float (get srow :rss_kb)) 1024)
+                             (let (mems (fold chart-rows
+                                          []
+                                          (fn (acc b)
+                                            (let (v (cell results b l))
+                                              (if (contains? v :rss_kb)
+                                                (conj acc (/ (float (get v :rss_kb)) 1024))
+                                                acc)))))
+                               (if (empty? mems) 0 (reduce mems math/min)))))
+                   [l [(get overall l) mem (get overlay l)]]))))
+            (count common)])))))
+
+(defn- esc (s)
+  (string/replace (string/replace (string/replace s "&" "&amp;") "<" "&lt;") ">" "&gt;"))
+
+(defn render-bars (points)
+  "`results/overview.svg` — the one-glance ranking, for the top of the README.
+
+Answers the blunt question a reader opens with — *how far off the pace is Brood?* — as a
+sorted bar chart, which is what magnitude-across-categories should be.
+
+EMPHASIS, not categorical: Brood is the subject of this repo and the rest are context, so
+Brood carries its own colour, C carries its own as the floor the chart is scaled against,
+and everyone else is one neutral grey. That is the documented form for \"one series is the
+point\" — and it sidesteps the palette's blue/purple CVD clash entirely.
+
+Single measure, so no legend: every bar carries its own name and number, so identity never
+rests on colour at all.
+
+The scale is linear and starts at zero, because bar LENGTH is the encoding — a log axis
+here would make Python's 53x look like a near neighbour of Brood's 9.6x. The price is that
+the fast end is compressed; the per-bar numbers carry the detail the lengths cannot."
+  (let (grey "#b3bac1"
+        order (map (sort-by (vec points) (fn (pair) (first (second pair)))) first)
+        width 760
+        rowh 34
+        top 58
+        left 92
+        right 96
+        height (+ top (* rowh (count order)) 34)
+        worst (reduce (map order (fn (l) (first (get points l)))) math/max)
+        pw (- width left right)
+        head [(str "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\""
+                width "\" height=\"" height "\" viewBox=\"0 0 " width " " height
+                "\" font-family=\"system-ui,Segoe UI,Helvetica,Arial,sans-serif\">")
+               (str "<rect width=\"" width "\" height=\"" height "\" fill=\"#ffffff\"/>")
+               (str "<text x=\""
+                 left "\" y=\"26\" font-size=\"17\" font-weight=\"700\" fill=\"#222\">"
+                 "Overall speed — geomean across the rows every language runs</text>")
+               (str "<text x=\""
+                 left "\" y=\"44\" font-size=\"12\" fill=\"#777\">"
+                 "lower is faster · 1.0× = the leader on this set · C is a machine-floor reference, "
+                 "not a peer</text>")]
+        bars (mapcat (seq/zip (range (count order)) order)
+               (fn ([i l])
+                 (let (g (first (get points l))
+                       y (+ top (* i rowh))
+                       bw (math/max 2.0 (* pw (/ g worst)))
+                       brood? (= l "brood")
+                       c (cond brood? (get color "brood") (= l "c") (get color "c") else grey))
+                   ;; 4px rounded data-end, anchored to the baseline at x=left.
+                   [(str "<rect x=\""
+                      left
+                      "\" y=\""
+                      y
+                      "\" width=\""
+                      (math/->fixed bw 1)
+                      "\" height=\""
+                      (- rowh 12)
+                      "\" rx=\"4\" fill=\""
+                      c
+                      "\"/>")
+                     (str "<text x=\""
+                       (- left 10)
+                       "\" y=\""
+                       (+ y 16)
+                       "\" text-anchor=\"end\" font-size=\"13\" font-weight=\""
+                       (if brood? "700" "500")
+                       "\" fill=\""
+                       (if brood? "#222" "#555")
+                       "\">"
+                       (esc (get label l l))
+                       "</text>")
+                     (str "<text x=\""
+                       (math/->fixed (+ (+ left bw) 8) 1)
+                       "\" y=\""
+                       (+ y 16)
+                       "\" font-size=\"13\" font-weight=\""
+                       (if brood? "700" "400")
+                       "\" fill=\"#444\">"
+                       (math/->fixed g 1)
+                       "×</text>")]))))
+    (string/join (append head bars ["</svg>"]) "\n")))
+
+(defn main (& arguments)
+  "Entry point — write `results/overview.svg` (or `--out PATH`)."
+  (let (options (bench/cli/parse {"out" {:kind :string :default "results/overview.svg"}
+                                  "results" {:kind :string :default results-path}}
+                  arguments)
+        [results _] (load-results (get options :results))
+        [points nrows] (collect results))
+    (file/spit (get options :out) (render-bars points))
+    (io/puts (str "wrote " (get options :out) " — " (count points) " languages over " nrows " rows"))
+    (doseq (pair (sort-by (vec points) (fn (p) (first (second p)))))
+      (let ([l [g m o]] pair)
+        (io/puts (str (string/format "  %-8s %5.2f× slowdown, %5.1f MB" l g (* 1.0 m))
+                   (if o (string/format ", %5.2f× incl. spawn-live" o) "")))))))

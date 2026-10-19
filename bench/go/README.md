@@ -12,7 +12,7 @@ holds and where it does not.
 
 One static binary per row, the way the C column is built, so the `startup` row measures a real
 Go process — runtime init, one write, exit — rather than a switch inside a running one.
-`harness.py:build_go()` does this for every `*.go` here and fails the run on any compile error.
+`bench/harness`'s `build-go` does this for every `*.go` here and fails the run on any compile error.
 Every row is its own `package main` in this one directory (so the files diff side by side with
 the other columns); `bench.go` is the shared `benchN` helper each is compiled with, and the
 explicit two-file build is how Go compiles one `main` out of a directory holding thirty.
@@ -54,5 +54,5 @@ reports what `go build` gives.
 
 The same thing the C column warns about: a Go number that is **too slow** is a bug report
 about this directory, not a finding. The first build of this column was checked row by row
-against Brood's checksums (`bench/smoke.py --langs all` does it across the whole field), but
+against Brood's checksums (`nest run -- smoke --langs all` does it across the whole field), but
 a row that runs correctly and slowly is invisible to that gate.

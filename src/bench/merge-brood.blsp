@@ -1,0 +1,141 @@
+(defmodule bench/merge-brood
+  "Merge N brood-only harness invocations into the published field results.
+
+CLAUDE.md: a Brood-column refresh is the MIN over >=3 interleaved invocations — one
+invocation lands on a turbo plateau and stays there, so best-of-N inside one invocation
+hides nothing while two invocations minutes apart read the same row 17% apart. This picks,
+per row, the whole record from the invocation with the best ranking figure (so
+wall/rss/cpu stay internally consistent rather than being mixed from different runs).
+
+`latency` is ranked by p99 rather than wall: its wall is fixed by the arrival schedule, so
+a min-wall pick there would be a coin flip on a number that says nothing.
+
+    nest run -- merge-brood <commit> \"brood X.Y.Z (sha)\" <label> [label …]
+
+reads `results/results.json` and `results/results.<label>.json`, and writes the merge back
+to `results/results.json`."
+  (:use bench/rows)
+  (:use bench/json-out)
+  (:use bench/staleness :only [parse-version]))
+
+(defn- rank (row-name record)
+  (if (= row-name "latency")
+    (get-in record [:metrics :p99_us] (math/pow 10.0 400))
+    (get record :wall_ms)))
+
+(defn- percent (x) (math/->fixed (* 100.0 x) 1))
+
+(defn- signed-percent (x)
+  ;; Python's `:+.1f`, which `string/format` has no flag for
+  (let (text (percent x)) (if (string/starts-with? text "-") (str text "%") (str "+" text "%"))))
+
+(defn- merge-row (name row runs)
+  "`[record line problems]` for row `name`: the best brood record across `runs`, the
+summary line, and what refuses the merge."
+  (let (candidates (seq/filter (map runs
+                                 (fn ([label run])
+                                   [label (get-in run [(keyword name) :langs :brood])]))
+                     (fn ([_ record]) (not (nil? record))))
+        old (get-in row [:langs :brood] {}))
+    (if (empty? candidates)
+      [nil nil [(str name ": no brood record in any run")]]
+      (let (sums (into #{} (map candidates (fn ([_ record]) (get record :checksum))))
+            ;; A checksum that moved means the program computes something else now; that is
+            ;; a correctness finding, not a timing one, and must not be published quietly.
+            problems (cond
+                       (> (count sums) 1)
+                         [(str name ": checksums disagree across runs: " (pr-str sums))]
+                       (and (get old :checksum) (not (= sums #{(get old :checksum)})))
+                         [(str name
+                            ": checksum moved vs the published column: "
+                            (get old :checksum)
+                            " -> "
+                            (first sums))]
+                       else [])
+            [label best] (first (sort-by candidates (fn ([_ record]) (rank name record))))
+            values (sort (map candidates (fn ([_ record]) (rank name record))))
+            spread (if (and (first values) (not (= (first values) 0)))
+                     (str (percent (/ (* 1.0 (- (last values) (first values))) (first values))) "%")
+                     "")
+            old-wall (get old :wall_ms)
+            delta (if old-wall
+                    (signed-percent (/ (* 1.0 (- (get best :wall_ms) old-wall)) old-wall))
+                    ""))
+        [best [name old-wall (get best :wall_ms) delta spread label] problems]))))
+
+(defn- today ()
+  (let (now (datetime/epoch-ms-> (os/now)))
+    (string/format "%04d-%02d-%02d" (datetime/year now) (datetime/month now) (datetime/day now))))
+
+(defn merge (labels commit version)
+  "Merge the runs named by `labels` into the published results; answers the exit code."
+  (let (field (read-json "results/results.json")
+        runs (map labels (fn (label) [label (read-json (str "results/results." label ".json"))]))
+        names (in-order (map (seq/filter (keys field) (fn (k) (not (= k :_meta)))) ->string)
+                row-names)
+        merged (map names (fn (name) [name (merge-row name (get field (keyword name)) runs)]))
+        problems (mapcat merged (fn ([_ [_ _ found]]) found)))
+    (cond
+      (not (empty? problems))
+        (do
+          (io/puts "REFUSING to merge:" :to *err*)
+          (doseq (problem problems) (io/puts (str "  " problem) :to *err*))
+          1)
+      ;; The field must be the full "brood X.Y.Z (sha)" string, because staleness parses
+      ;; it with `brood\s+(\S+)\s+\(([0-9a-f]+)\)`; a bare "0.27.2" parses to nothing, and
+      ;; every brood commit past the measured one then reds `staleness --fail-on-version`
+      ;; (2026-09-13: the 5c913fe3 refresh shipped a bare version and CI went red).
+      (nil? (first (parse-version version)))
+        (do
+          (io/puts (str "merge-brood: version must be 'brood X.Y.Z (sha)', got "
+                     (pr-str version)
+                     " (staleness cannot parse a bare version)")
+            :to *err*)
+          1)
+      else
+        (let (meta (get field :_meta)
+              field-date (first (string/split (get meta :date) " "))
+              meta (-> meta
+                     (assoc :brood_commit commit)
+                     (assoc-in [:versions :brood] version)
+                     (assoc :brood_refresh
+                       (str "brood column re-measured "
+                         (today)
+                         " at "
+                         version
+                         " (brood-only, min of "
+                         (count labels)
+                         " interleaved harness invocations; other columns "
+                         field-date
+                         ")")))
+              field (fold merged
+                      (assoc field :_meta meta)
+                      (fn (acc [name [best _ _]])
+                        (assoc-in acc [(keyword name) :langs :brood] best))))
+          (io/puts (string/format "%-16s %10s %10s %8s %8s  %s"
+                     "row" "published" "new" "delta" "spread" "from"))
+          (doseq ([_ [_ line _]] merged)
+            (let ([name old new delta spread label] line)
+              (io/puts (string/format "%-16s %10s %10s %8s %8s  %s"
+                         name
+                         (if (nil? old) "-" (str old))
+                         (str new)
+                         delta
+                         spread
+                         label))))
+          (write-json "results/results.json" field)
+          (io/puts (str "\nwrote results/results.json  ("
+                     (count merged)
+                     " brood rows from "
+                     (count labels)
+                     " invocations)"))
+          0))))
+
+(defn main (& arguments)
+  "`nest run -- merge-brood <commit> <version-string> <label> [label …]`."
+  (let (words (seq/filter (vec arguments) (fn (w) (not (= w "--")))))
+    (if (< (count words) 3)
+      (do
+        (io/puts "usage: merge-brood <commit> <version-string> <label> [label ...]" :to *err*)
+        (system/halt 1))
+      (system/halt (merge (vec (rest (rest words))) (first words) (second words))))))

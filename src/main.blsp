@@ -1,8 +1,44 @@
 (defmodule main
-  "Placeholder entry point: this repo is driven by `python3 bench/harness.py`,
-not `nest run` — the module exists only so the nest project (and its `nest mcp`
-server, see .mcp.json) loads. The benchmark programs live under bench/brood/.")
+  "The repo's tools, one entry point: `nest run -- <tool> [flags]`.
 
-(defn main ()
-  "Point the caller at the real entry point."
-  (io/puts "run: python3 bench/harness.py  (see README.md)"))
+    nest run -- smoke                       does every brood row still RUN? (~7 s)
+    nest run -- harness [--langs brood]     the suite → results/results.json + report.md
+    nest run -- merge-brood COMMIT \"brood X.Y.Z (sha)\" LABEL…   min-of-N brood refresh
+    nest run -- chart                       results/overview.svg
+    nest run -- docs [--check]              every derivable number in BENCHMARKS.md/README.md
+    nest run -- trend                       results/trend.svg (AFTER committing results.json)
+    nest run -- staleness [--fail-on-version]   does the published column describe this brood?
+    nest run -- httpserver PORT             the `http` row's local server (the harness starts it)
+
+Each tool is `bench/<tool>/main`; this only routes to it. The benchmark programs
+themselves live under bench/<language>/."
+  (:use bench/harness :only [])
+  (:use bench/smoke :only [])
+  (:use bench/merge-brood :only [])
+  (:use bench/chart :only [])
+  (:use bench/docs :only [])
+  (:use bench/trend :only [])
+  (:use bench/staleness :only [])
+  (:use bench/httpserver :only []))
+
+(def- tools
+  {"harness" bench/harness/main
+   "smoke" bench/smoke/main
+   "merge-brood" bench/merge-brood/main
+   "chart" bench/chart/main
+   "docs" bench/docs/main
+   "trend" bench/trend/main
+   "staleness" bench/staleness/main
+   "httpserver" bench/httpserver/main})
+
+(defn main (& arguments)
+  "Route `nest run -- <tool> [flags]` to that tool's `main`."
+  (let (words (seq/filter (vec arguments) (fn (word) (not (= word "--"))))
+        tool (get tools (first words)))
+    (if (nil? tool)
+      (do
+        (io/puts (str "usage: nest run -- <tool> [flags], tool one of: "
+                   (string/join (sort (keys tools)) ", "))
+          :to *err*)
+        (system/halt 2))
+      (apply tool (rest words)))))

@@ -13,7 +13,7 @@ C number, because the honest caveats are per-row and some of them are large.
 
 One standalone binary per benchmark rather than a dispatcher, so the `startup` row measures
 a real C process — exec, loader, one write, exit — instead of a switch inside an
-already-running one. `harness.py:build_c()` does this for every `*.c` here and fails the run
+already-running one. `bench/harness`'s `build-c` does this for every `*.c` here and fails the run
 on any compile error.
 
 **`-march=native` is deliberate.** Every other runtime in this suite JITs for the host CPU at

@@ -58,7 +58,8 @@ jobs:
       # CLAUDE.md records the bogus A/B that came from exactly this).
       - name: Build brood
         working-directory: brood-src
-        # `nest` too: the static check step below needs it, and it shares the whole
+        # `nest` too: the static check and the two tools below (`bench/smoke`, `bench/staleness`,
+        # Brood modules run by `nest run -- <tool>`) need it, and it shares the whole
         # dependency graph with `brood`, so it is nearly free once brood is built.
         run: cargo build --release --bin brood --bin nest
 
@@ -81,7 +82,9 @@ jobs:
           brood-src/target/release/nest check bench/brood/*.blsp
 
       - name: Smoke — every brood row runs at a tiny BENCH_N
-        run: python3 bench/smoke.py --brood brood-src/target/release/brood
+        run: |
+          brood-src/target/release/nest run -- smoke \
+            --brood brood-src/target/release/brood
 
       # The published NUMBERS rot too, and nothing here noticed. On 2026-09-01 a refresh
       # found every compute row 4-10% slower than published — real under build-parity A/B
@@ -97,7 +100,7 @@ jobs:
       # nags at a cadence someone will still read.
       - name: Staleness — do the published numbers still describe this brood?
         run: |
-          python3 bench/staleness.py \
+          brood-src/target/release/nest run -- staleness \
             --brood brood-src/target/release/brood --fail-on-version
 
   # The other ports do not rot from a brood change, but they do rot from a system
@@ -127,7 +130,9 @@ jobs:
 
       - name: Build brood
         working-directory: brood-src
-        run: cargo build --release --bin brood
+        # `nest` runs the smoke tool (a Brood module); `python3`, `node` and `ruby` come with
+        # the runner image and are needed only as those columns' runtimes.
+        run: cargo build --release --bin brood --bin nest
 
       # Elixir >= 1.18: `bench/elixir/json.ex` uses the **built-in `JSON` module**, which
       # landed in 1.18. Pinned at "1.17" this job failed on `json/elixir` alone — CI was
@@ -141,5 +146,6 @@ jobs:
 
       - name: Smoke — brood + the interpreted ports, checksums compared
         run: |
-          python3 bench/smoke.py --brood brood-src/target/release/brood \
+          brood-src/target/release/nest run -- smoke \
+            --brood brood-src/target/release/brood \
             --langs brood,python,node,ruby,elixir
