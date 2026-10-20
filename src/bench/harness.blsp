@@ -310,6 +310,36 @@ checkout is missing or git fails."
   "Logical CPUs on this machine (Python's `os.cpu_count()`)."
   (let (n (string/->number (cmd-text "nproc" ["--all"]))) (if (int? n) n 1)))
 
+(defn- cpu-fact (cpu file)
+  (check-allow :discarded-catch
+    (try
+      (string/->number (string/trim (file/slurp (str "/sys/devices/system/cpu/cpu" cpu "/" file))))
+      (catch _ nil))))
+
+(defn compute-core-set (n ncpu)
+  "The taskset list compute rows pin to: `n` cores.
+
+On a machine whose cores are all alike this is the last `n` (`ncpu-n`..`ncpu-1`), the rule
+the published field was measured with. On a HYBRID one it is the `n` fastest physical cores,
+one logical CPU each: 2026-10-20 on an i7-14700HX (28 logical CPUs, 16-27 the 3.9 GHz
+efficiency cores) the last-n rule pinned every compute row onto E-cores and read Brood
+50-100% slower than it is — startup included — while `pfib`, which gets every core, read
+faster. One CPU per physical core keeps an SMT sibling from competing with the work."
+  (let (cpus (vec (range 0 ncpu))
+        freqs (map cpus (fn (cpu) (cpu-fact cpu "cpufreq/cpuinfo_max_freq")))
+        uniform? (or (any? freqs nil?) (= (count (into #{} freqs)) 1)))
+    (if uniform?
+      (if (= n 1) (str (dec ncpu)) (str (- ncpu n) "-" (dec ncpu)))
+      (let (per-core (fold (seq/zip cpus freqs)
+                       {}
+                       (fn (acc [cpu freq])
+                         (let (core [(cpu-fact cpu "topology/package_id")
+                                      (cpu-fact cpu "topology/core_id")])
+                           (if (contains? acc core) acc (assoc acc core [freq cpu])))))
+            ranked (sort-by (vals per-core) (fn ([freq cpu]) [(- freq) (- cpu)]))
+            chosen (sort (map (take ranked n) second)))
+        (string/join (map chosen str) ",")))))
+
 (defn- platform-string ()
   ;; Python's `platform.platform()`: Linux-<release>-<machine>-with-glibc<version>.
   (let (libc (string/replace (cmd-text "getconf" ["GNU_LIBC_VERSION"]) " " ""))
@@ -1124,9 +1154,7 @@ and `:collect-meta`. Answers the exit code."
                         false)
                       isolate)
             n-compute (math/max 1 (math/min (get options :pin-cores) ncpu))
-            compute-cores (if (= n-compute 1)
-                            (str (dec ncpu))
-                            (str (- ncpu n-compute) "-" (dec ncpu)))
+            compute-cores (compute-core-set n-compute ncpu)
             all-cores (str "0-" (dec ncpu))
             ;; `startup` is SUBTRACTED FROM EVERY OTHER ROW, so it is the one measurement whose
             ;; error propagates everywhere — it gets sampled harder than the rest by default.
