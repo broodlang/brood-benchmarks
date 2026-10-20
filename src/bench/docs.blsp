@@ -226,10 +226,24 @@ re-attach from `brood_commit`, so neither shape double-prints it (0.3.11 did: `B
         ;; surface the refresh date the merge records in `_meta.brood_refresh`.
         refresh-match (regex/find "re-measured (\\d{4}-\\d{2}-\\d{2})" (get meta :brood_refresh ""))
         refresh-date (if refresh-match (get (first (get refresh-match :groups)) :text) nil)
-        refresh (if (and refresh-date (not (= refresh-date date)))
-                  (str " **Brood column re-measured "
-                    refresh-date "** (other columns from the field run).")
-                  ""))
+        ;; …and when that refresh ran on another machine (`brood_host`, written by
+        ;; `bench/merge-brood`), say which: every cross-column ratio then compares two
+        ;; machines, and a reader must not have to dig it out of results.json.
+        brood-host (get meta :brood_host)
+        refresh (cond
+                  (and refresh-date brood-host)
+                    (str " **Brood column re-measured "
+                      refresh-date
+                      " on `"
+                      brood-host
+                      "` ("
+                      (get meta :brood_cores)
+                      "-core)** — a different machine from the other columns, so ratios"
+                      " across columns compare two machines.")
+                  (and refresh-date (not (= refresh-date date)))
+                    (str " **Brood column re-measured "
+                      refresh-date "** (other columns from the field run).")
+                  else ""))
     (str "Machine: `"
       (get meta :host)
       "`, "

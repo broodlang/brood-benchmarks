@@ -18,7 +18,8 @@ listed ones, alphabetically — deterministic, so a second write is byte-identic
       ["fat_units"
         "fat_measured_us" "ordinary_n" "p50_us" "p99_us" "p999_us" "max_us" "sustained_rps"]
       ["host"
-        "cores" "platform" "date" "brood_commit" "versions" "isolation" "warmup" "brood_refresh"])))
+        "cores" "platform" "date" "brood_commit" "versions" "isolation" "warmup" "brood_refresh"
+        "brood_host" "brood_cores"])))
 
 (defn- key-name (k) (if (string? k) k (->string k)))
 

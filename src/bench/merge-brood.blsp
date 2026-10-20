@@ -95,6 +95,13 @@ summary line, and what refuses the merge."
       else
         (let (meta (get field :_meta)
               field-date (first (string/split (get meta :date) " "))
+              ;; Which machine the runs were measured on. When it is not the field's, every
+              ;; cross-column ratio compares two machines, so the result file says so as data
+              ;; (`brood_host`, `brood_cores`) and `bench/docs` puts it in the machine line —
+              ;; rather than a published table quietly mixing hosts.
+              run-meta (get (second (first runs)) :_meta {})
+              run-host (get run-meta :host)
+              elsewhere? (and run-host (not (= run-host (get meta :host))))
               meta (-> meta
                      (assoc :brood_commit commit)
                      (assoc-in [:versions :brood] version)
@@ -103,11 +110,20 @@ summary line, and what refuses the merge."
                          (today)
                          " at "
                          version
+                         (if elsewhere?
+                           (str " on " run-host " (" (get run-meta :cores) " cores)")
+                           "")
                          " (brood-only, min of "
                          (count labels)
                          " interleaved harness invocations; other columns "
                          field-date
+                         (if elsewhere? (str " on " (get meta :host)) "")
                          ")")))
+              meta (if elsewhere?
+                     (-> meta
+                       (assoc :brood_host run-host)
+                       (assoc :brood_cores (get run-meta :cores)))
+                     (-> meta (dissoc :brood_host) (dissoc :brood_cores)))
               field (fold merged
                       (assoc field :_meta meta)
                       (fn (acc [name [best _ _]])
