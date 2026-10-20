@@ -49,10 +49,12 @@ nest run -- chart                # regenerate results/overview.svg from results.
   measuring half (`bench/harness`) and the reporting half (`bench/common` and the tools on
   it) read. `bench/json-out` writes the result files in the layout and key order the Python
   wrote, so a rewrite diffs only where a number moved.
-- **`nest run` arms contracts and exports `BROOD_CONTRACTS=1` to its children**, so the
-  harness unsets it (and `RUST_BACKTRACE`) for every program it measures. With it inherited,
-  quick `fib` measured 37.4 ms against 27.9 ms, and `nest stdimage` refused to build. Any
-  new place that starts a measured child must go through the harness's child environment.
+- **`nest run` before brood 0.42.1 armed contracts by exporting `BROOD_CONTRACTS=1` to its
+  children**, so the harness unsets it (and `RUST_BACKTRACE`) for every program it measures.
+  With it inherited, quick `fib` measured 37.4 ms against 27.9 ms, and `nest stdimage` refused
+  to build. 0.42.1 arms only its own process, but the harness keeps the unset so an older
+  `nest` measures the same thing; any new place that starts a measured child must go through
+  the harness's child environment.
 
 - **A Brood-only column refresh MUST be the min over ≥3 interleaved harness
   invocations — one invocation is a coin flip.** This box's `powersave` governor
