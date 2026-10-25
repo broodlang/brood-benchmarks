@@ -59,8 +59,12 @@ reference, so these read "vs roughly the hardware", not "vs the fastest managed 
   links, so the interpreted arm was entered natively forever. Deopt feedback now re-tiers it in
   float context, and untyped comparisons dispatch by tag. Near the JIT floor now — C is only
   1.2× ahead of .NET here, so the row is close to its arithmetic limit for everyone.
-- **`matmul` (51× C)** — inner loop is native; residual is the one read LICM can't hoist plus boxed
-  `Value` array storage. Both denominators are ~2–4 ms, so read the absolute, not the multiple.
+- **`matmul` (~24× the fastest; was 51× C)** — inner loop is native, and since brood 2026-10-25 so
+  are the reads LICM can't hoist: a `def`'d row is a shared-region vector, which native code read
+  through the `brood_rt_vector_ref` callback (31% of the cycles) and now indexes inline, and
+  `map`'s own loop, which builds the matrices, tiers instead of bailing. Together −25% on this
+  refresh. Residual: boxed 24-byte `Value` cells (brood `docs/compute-frontier.md`, 2026-10-25
+  design note). Both denominators are ~2–5 ms, so read the absolute, not the multiple.
 - **`pipeline` (6.2× Node)** — lazy-seq/transducer composition the JIT doesn't cover. **The
   "allocation churn dominates" half of this entry was withdrawn 2026-08-28: it does not.**
   Scoped counters (`perf/measure`, size-swept 100k → 1M so only work-proportional counters
