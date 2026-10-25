@@ -21,8 +21,8 @@ changed nothing about the set.) Memory per language is in the standings table be
 
 Per-row, each against its own first published run — immune to the rebase above, which is why this
 is the chart to read for progress rather than the scalar. Across every published run at this size:
-`fib` **−89%**, `bintree` **−84%**, `spawn-live` **−82%** (5362 → 975 ms), `ring` **−73%**,
-`pingpong` **−57%** — and `supervisor`, the one line that had gone the other way at the 2026-09-14
+`fib` **−89%**, `bintree` **−85%**, `spawn-live` **−82%** (5362 → 976 ms), `ring` **−73%**,
+`pingpong` **−56%** — and `supervisor`, the one line that had gone the other way at the 2026-09-14
 field run, which the two 2026-09-15 refreshes took back below where it started: the regression was
 the type checker, not the supervisor (brood KI-138 and KI-139, both fixed), and the story is in
 [BENCHMARKS.md](BENCHMARKS.md#concurrency--only-two-of-these-are-the-same-thing).
