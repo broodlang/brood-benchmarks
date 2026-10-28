@@ -46,7 +46,7 @@ silently re-plotted each new refresh's numbers under the old label."
                 (or (get meta :brood_refresh) "")))
     (if (nil? found)
       (first (string/split (or (get meta :date) "") " "))
-      (get-in found [:groups 0 :text]))))
+      (map/get-in found [:groups 0 :text]))))
 
 (defn- decode-or-nil (raw)
   (check-allow :discarded-catch (try (json/decode raw) (catch _ nil))))
@@ -95,7 +95,8 @@ date the points keep publish order (oldest first); the same refresh re-published
                            (if (or (= date "") (contains? acc key) (empty? vals))
                              acc
                              (assoc acc key [k vals])))))))))
-        ordered (sort-by (vec seen) (fn (pair) [(first (first pair)) (- (first (second pair)))])))
+        ordered (seq/sort-by (vec seen)
+                  (fn (pair) [(first (first pair)) (- (first (second pair)))])))
     (vec (map ordered (fn ([key [_ vals]]) [(first key) vals])))))
 
 (defn render (series dates rows)

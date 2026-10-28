@@ -36,7 +36,7 @@ boundary is a rare, meaningful signal, where \"any new commit\" would nag on eve
   (let (found (regex/find version-pattern (or text "")))
     (if (nil? found)
       [nil nil]
-      [(get-in found [:groups 0 :text]) (get-in found [:groups 1 :text])])))
+      [(map/get-in found [:groups 0 :text]) (map/get-in found [:groups 1 :text])])))
 
 (def- spec
   {"brood" {:kind :string :default "brood"}
@@ -60,7 +60,7 @@ boundary is a rare, meaningful signal, where \"any new commit\" would nag on eve
   "The check itself; answers the exit code (0 current or same-version, 1 a version moved
 under `--fail-on-version`, 2 the binary could not be asked)."
   (let (meta (get (read-json (get options :results)) :_meta {})
-        [published-version parsed-commit] (parse-version (get-in meta [:versions :brood] ""))
+        [published-version parsed-commit] (parse-version (map/get-in meta [:versions :brood] ""))
         published-commit (or (get meta :brood_commit) parsed-commit)
         brood (get options :brood)
         result (check-allow :discarded-catch

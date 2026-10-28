@@ -286,7 +286,7 @@ cannot disagree."
         sums (into {}
                (map langs (fn (lang) [lang (sum-in-order (map compute-rows (fn (r) (c r lang))))])))
         best-sum (min-of (map langs (fn (lang) (get sums lang))))
-        order (sort-by langs (fn (lang) (get sums lang)))
+        order (seq/sort-by langs (fn (lang) (get sums lang)))
         ;; Against the field's typical runtime rather than its fastest: the geometric mean
         ;; of the other ports' aggregates, and how many rows Brood is ahead of that mean on.
         field-geo (geomean (map (seq/filter langs (fn (lang) (not (= lang "brood"))))
@@ -327,7 +327,7 @@ cannot disagree."
         ;; geomean of per-row ratios leaves nobody at 1.0x.
         lead (min-of (map raw-geo second))
         all-geo (into {} (map raw-geo (fn ([lang v]) [lang (/ v lead)])))
-        all-order (sort-by all-langs (fn (lang) (get all-geo lang)))
+        all-order (seq/sort-by all-langs (fn (lang) (get all-geo lang)))
         rank-of (fn (xs lang) (let (i (index-of (vec xs) lang)) (if (>= i 0) (inc i) nil))))
     {:agg-all (get all-geo "brood")
      :agg-all-rank (rank-of all-order "brood")
@@ -416,7 +416,7 @@ The trailing cells carry Brood's rank and its table-level `vs best` / `vs avg`."
     (if (= used 0)
       nil
       (let (scores (normalized (get state :per))
-            rank (inc (index-of (vec (map (sort-by scores second) first)) "Brood"))
+            rank (inc (index-of (vec (map (seq/sort-by scores second) first)) "Brood"))
             cells (map cols
                     (fn ([n _])
                       (let (s (value-of scores n))
@@ -449,8 +449,8 @@ The trailing cells carry Brood's rank and its table-level `vs best` / `vs avg`."
   (let (records (get (row results "latency") :langs)
         record (fn (lang) (get records (keyword lang)))
         metric (fn (lang k) (get (get (record lang) :metrics) k))
-        langs (sort-by (seq/filter (row-langs-of results "latency")
-                         (fn (lang) (get (record lang) :metrics)))
+        langs (seq/sort-by (seq/filter (row-langs-of results "latency")
+                             (fn (lang) (get (record lang) :metrics)))
                 (fn (lang) (metric lang :p99_us)))
         lines (map langs
                 (fn (lang)
@@ -488,7 +488,7 @@ The trailing cells carry Brood's rank and its table-level `vs best` / `vs avg`."
   "`spawn-live` for a subset of the field — the peer table and the coroutine table."
   (let (records (get (row results "spawn-live") :langs)
         c (fn (lang) (compute-of results starts "spawn-live" lang))
-        got (sort-by (seq/filter langs (fn (lang) (get records (keyword lang)))) c)
+        got (seq/sort-by (seq/filter langs (fn (lang) (get records (keyword lang)))) c)
         lines (map got
                 (fn (lang)
                   (let (d (get records (keyword lang))
@@ -534,10 +534,10 @@ The trailing cells carry Brood's rank and its table-level `vs best` / `vs avg`."
         c (fn (name lang) (compute-of results starts name lang))
         record (fn (name lang) (get (get (row results name) :langs) (keyword lang)))
         field (fn (name key unit scale)
-                (let (vals (sort-by (for (lang (row-langs-of results name)
-                                           :when (and (not (= lang "brood"))
-                                             (not (nil? (get (record name lang) key)))))
-                                      [(get pretty lang) (* (get (record name lang) key) scale)])
+                (let (vals (seq/sort-by (for (lang (row-langs-of results name)
+                                               :when (and (not (= lang "brood"))
+                                                 (not (nil? (get (record name lang) key)))))
+                                          [(get pretty lang) (* (get (record name lang) key) scale)])
                              second))
                   (str (string/join (map vals (fn ([n v]) (str n " " (fixed v 1)))) ", ") unit)))
         ;; `startup` has no compute, and a percentile row (`latency`) is ranked by p99 — its
@@ -553,16 +553,16 @@ The trailing cells carry Brood's rank and its table-level `vs best` / `vs avg`."
                        (seq/filter (row-langs-of results name)
                          (fn (lang) (not (nil? (c name lang)))))]))
         ranked (for ([name ls] computed :when (and (includes? ls "brood") (>= (count ls) 3)))
-                 [name (sort-by ls (fn (lang) (c name lang)))])
+                 [name (seq/sort-by ls (fn (lang) (c name lang)))])
         firsts (for ([name order] ranked :when (= (first order) "brood")) (str "`" name "`"))
         lasts (for ([name order] ranked :when (= (last order) "brood")) (str "`" name "`"))
         sl (fn (lang) (record "spawn-live" lang))
         sup (fn (lang) (record "supervisor" lang))
         lm (fn (lang k) (get (get (record "latency" lang) :metrics) k))
-        others (string/join (map (sort-by (seq/filter (row-langs-of results "latency")
-                                            (fn (x)
-                                              (and (not (= x "brood"))
-                                                (get (record "latency" x) :metrics))))
+        others (string/join (map (seq/sort-by (seq/filter (row-langs-of results "latency")
+                                                (fn (x)
+                                                  (and (not (= x "brood"))
+                                                    (get (record "latency" x) :metrics))))
                                    (fn (x) (lm x :p99_us)))
                               (fn (lang)
                                 (str (get pretty lang)
@@ -803,7 +803,7 @@ all of them together, which is what \"how are we doing\" actually asks."
             wall (or (get (nth groups 2) :text) "")
             vals (row-values results starts name cols)
             present (vec (seq/filter vals (fn ([_ v]) (not (nil? v)))))
-            rank (inc (index-of (vec (map (sort-by present second) first)) "Brood"))
+            rank (inc (index-of (vec (map (seq/sort-by present second) first)) "Brood"))
             cells (map vals (fn ([n v]) (if (= n "Brood") (str "**" (fmt-ms v) "**") (fmt-ms v))))
             b (value-of present "Brood")
             tail (str " | "
@@ -846,7 +846,7 @@ not one."
         ;; cannot guarantee: Elixir sat left of Node on the like-for-like table while
         ;; scoring 1.65 to its 1.62. Ordered by the same score the top row reports.
         sc (score-map results starts body cols)
-        cols (sort-by cols (fn ([n _]) (let (s (value-of sc n)) (if (nil? s) 1.0e308 s))))
+        cols (seq/sort-by cols (fn ([n _]) (let (s (value-of sc n)) (if (nil? s) 1.0e308 s))))
         header (string/replace (str "| benchmark | "
                                  (string/join (map cols (fn ([n _]) (get cell-of n))) " | ")
                                  " |"

@@ -211,7 +211,7 @@ The scale is linear and starts at zero, because bar LENGTH is the encoding — a
 here would make Python's 53x look like a near neighbour of Brood's 9.6x. The price is that
 the fast end is compressed; the per-bar numbers carry the detail the lengths cannot."
   (let (grey "#b3bac1"
-        order (map (sort-by (vec points) (fn (pair) (first (second pair)))) first)
+        order (map (seq/sort-by (vec points) (fn (pair) (first (second pair)))) first)
         width 760
         rowh 34
         top 58
@@ -281,7 +281,7 @@ the fast end is compressed; the per-bar numbers carry the detail the lengths can
         [points nrows] (collect results))
     (file/spit (get options :out) (render-bars points))
     (io/puts (str "wrote " (get options :out) " — " (count points) " languages over " nrows " rows"))
-    (doseq (pair (sort-by (vec points) (fn (p) (first (second p)))))
+    (doseq (pair (seq/sort-by (vec points) (fn (p) (first (second p)))))
       (let ([l [g m o]] pair)
         (io/puts (str (string/format "  %-8s %5.2f× slowdown, %5.1f MB" l g (* 1.0 m))
                    (if o (string/format ", %5.2f× incl. spawn-live" o) "")))))))

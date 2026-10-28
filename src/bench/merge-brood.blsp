@@ -20,7 +20,7 @@ to `results/results.json`."
 
 (defn- rank (row-name record)
   (if (= row-name "latency")
-    (get-in record [:metrics :p99_us] (math/pow 10.0 400))
+    (map/get-in record [:metrics :p99_us] (math/pow 10.0 400))
     (get record :wall_ms)))
 
 (defn- percent (x) (math/->fixed (* 100.0 x) 1))
@@ -34,9 +34,9 @@ to `results/results.json`."
 summary line, and what refuses the merge."
   (let (candidates (seq/filter (map runs
                                  (fn ([label run])
-                                   [label (get-in run [(keyword name) :langs :brood])]))
+                                   [label (map/get-in run [(keyword name) :langs :brood])]))
                      (fn ([_ record]) (not (nil? record))))
-        old (get-in row [:langs :brood] {}))
+        old (map/get-in row [:langs :brood] {}))
     (if (empty? candidates)
       [nil nil [(str name ": no brood record in any run")]]
       (let (sums (into #{} (map candidates (fn ([_ record]) (get record :checksum))))
@@ -52,7 +52,7 @@ summary line, and what refuses the merge."
                             " -> "
                             (first sums))]
                        else [])
-            [label best] (first (sort-by candidates (fn ([_ record]) (rank name record))))
+            [label best] (first (seq/sort-by candidates (fn ([_ record]) (rank name record))))
             values (sort (map candidates (fn ([_ record]) (rank name record))))
             spread (if (and (first values) (not (= (first values) 0)))
                      (str (percent (/ (* 1.0 (- (last values) (first values))) (first values))) "%")
@@ -104,7 +104,7 @@ summary line, and what refuses the merge."
               elsewhere? (and run-host (not (= run-host (get meta :host))))
               meta (-> meta
                      (assoc :brood_commit commit)
-                     (assoc-in [:versions :brood] version)
+                     (map/assoc-in [:versions :brood] version)
                      (assoc :brood_refresh
                        (str "brood column re-measured "
                          (today)
@@ -127,7 +127,7 @@ summary line, and what refuses the merge."
               field (fold merged
                       (assoc field :_meta meta)
                       (fn (acc [name [best _ _]])
-                        (assoc-in acc [(keyword name) :langs :brood] best))))
+                        (map/assoc-in acc [(keyword name) :langs :brood] best))))
           (io/puts (string/format "%-16s %10s %10s %8s %8s  %s"
                      "row" "published" "new" "delta" "spread" "from"))
           (doseq ([_ [_ line _]] merged)

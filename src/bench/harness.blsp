@@ -336,7 +336,7 @@ faster. One CPU per physical core keeps an SMT sibling from competing with the w
                          (let (core [(cpu-fact cpu "topology/package_id")
                                       (cpu-fact cpu "topology/core_id")])
                            (if (contains? acc core) acc (assoc acc core [freq cpu])))))
-            ranked (sort-by (vals per-core) (fn ([freq cpu]) [(- freq) (- cpu)]))
+            ranked (seq/sort-by (vals per-core) (fn ([freq cpu]) [(- freq) (- cpu)]))
             chosen (sort (map (take ranked n) second)))
         (string/join (map chosen str) ",")))))
 
@@ -715,7 +715,7 @@ printed `103x` where it is `12x`). A run without a `startup` row has nothing to 
 
 (defn- rank-map (names value-of)
   ;; 1-based rank by `value-of`, ties kept in `names` order (Python's stable `sorted`).
-  (let (ranked (sort-by names value-of))
+  (let (ranked (seq/sort-by names value-of))
     (into {} (map (range (count ranked)) (fn (i) [(nth ranked i) (inc i)])))))
 
 (defn- metric-text (m k) (let (v (get m (keyword k))) (if (nil? v) "-" (str v))))
@@ -755,7 +755,7 @@ printed `103x` where it is `12x`). A run without a `startup` row has nothing to 
                            (into intro
                              (into ["| lang | p50 | **p99** | p99.9 | max | ordinary reqs | sustained |"
                                      "|------|-----|---------|-------|-----|---------------|-----------|"]
-                               (conj (vec (map (sort-by mrows
+                               (conj (vec (map (seq/sort-by mrows
                                                  (fn (l)
                                                    (let (v (get (get (get langs (keyword l))
                                                                   :metrics)

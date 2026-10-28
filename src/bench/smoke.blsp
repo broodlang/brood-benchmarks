@@ -222,7 +222,7 @@ joined and trimmed, is the checksum."
 (def- sleep-ms 20)
 
 (defn- fixture-handler (_request)
-  (sleep sleep-ms)
+  (proc/sleep sleep-ms)
   (http/response 200 {"Content-Type" "text/plain"} "ok"))
 
 (defn- start-http-server ()
