@@ -31,8 +31,8 @@ boundary is a rare, meaningful signal, where \"any new commit\" would nag on eve
 (defn parse-version (text)
   "`[version commit]` from a `brood X.Y.Z (sha)` string, or `[nil nil]`.
 
-    (bench/staleness/parse-version \"brood 0.42.0 (b3deae5a)\")   → [\"0.42.0\" \"b3deae5a\"]
-    (bench/staleness/parse-version \"0.42.0\")   → [nil nil]"
+    (bench/staleness/parse-version \"brood 0.42.0 (b3deae5a)\")   ;=> [\"0.42.0\" \"b3deae5a\"]
+    (bench/staleness/parse-version \"0.42.0\")   ;=> [nil nil]"
   (let (found (regex/find version-pattern (or text "")))
     (if (nil? found)
       [nil nil]

@@ -97,7 +97,7 @@ never uses `bench/common`, the reporting half's vocabulary."
   "The compiled module name for a benchmark — `B` + the name's alphanumerics. Must match
 the `defmodule B…` in the corresponding bench/elixir/<name>.ex.
 
-    (bench/harness/beam-module \"errors-deep\")   → \"Berrorsdeep\""
+    (bench/harness/beam-module \"errors-deep\")   ;=> \"Berrorsdeep\""
   (str "B" (regex/replace "[^a-zA-Z0-9]" name "")))
 
 (defn lang-cmd (lang path ctx)
@@ -703,8 +703,8 @@ printed `103x` where it is `12x`). A run without a `startup` row has nothing to 
 (defn fmt-ms (ms)
   "`ms` as the report spells a time: seconds past 1000 ms, else milliseconds.
 
-    (bench/harness/fmt-ms 1234.5)   → \"1.234s\"
-    (bench/harness/fmt-ms 71.8)   → \"71.8ms\""
+    (bench/harness/fmt-ms 1234.5)   ;=> \"1.234s\"
+    (bench/harness/fmt-ms 71.8)   ;=> \"71.8ms\""
   (if (>= ms 1000) (str (fixed (/ (* 1.0 ms) 1000) 3) "s") (str (fixed ms 1) "ms")))
 
 ;; The report's column order. Go is not in it — Python's harness never added it here, so

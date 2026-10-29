@@ -23,8 +23,8 @@ the client says `Connection: close`; HTTP/1.0 closes unless it says `Connection:
 keep-alive`. A client that reads its body to EOF (brood's `http/fetch` is HTTP/1.0)
 would otherwise wait forever.
 
-    (bench/httpserver/keep-alive? \"GET / HTTP/1.1\\r\\nHost: h\\r\\n\\r\\n\")   → true
-    (bench/httpserver/keep-alive? \"GET / HTTP/1.0\\r\\nConnection: close\\r\\n\\r\\n\")   → false"
+    (bench/httpserver/keep-alive? \"GET / HTTP/1.1\\r\\nHost: h\\r\\n\\r\\n\")   ;=> true
+    (bench/httpserver/keep-alive? \"GET / HTTP/1.0\\r\\nConnection: close\\r\\n\\r\\n\")   ;=> false"
   (let (lower (string/lower head)
         first-line (first (string/split lower "\r\n"))
         says (fn (token) (regex/matches? (str "(?m)^connection:[ \t]*" token) lower)))
