@@ -566,7 +566,8 @@ language has no port of the row; `{:error …}` when a run failed."
   (let (exe (os/exe-path)) (if (and exe (string/ends-with? exe "nest")) exe "nest")))
 
 (defn- probe-server (port)
-  ;; One GET with a 0.5 s budget; true when it answered 200 `ok`.
+  ;; One GET with a 0.5 s budget; true when it answered 200 `ok`. A server not yet listening
+  ;; answers no response at all: `http/fetch`'s failure, which is false here like a raise.
   (let (me (self)
         tag (os/now-ns))
     (spawn (send me
@@ -575,7 +576,10 @@ language has no port of the row; `{:error …}` when a run failed."
                (check-allow :discarded-catch
                  (try (http/fetch (str "http://127.0.0.1:" port "/")) (catch _e nil)))]))
     (receive
-      ([:probe ^tag resp] (and resp (= (get resp :status) 200) (= (http/body-text resp) "ok")))
+      ([:probe ^tag resp] (and resp
+                            (not (failure? resp))
+                            (= (get resp :status) 200)
+                            (= (http/body-text resp) "ok")))
       (after 500 false))))
 
 (defn- drain-stderr (proc acc)
