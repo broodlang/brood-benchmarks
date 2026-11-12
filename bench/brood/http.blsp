@@ -20,7 +20,9 @@
 (def me (self))
 
 ;; `http/fetch` must run inside a process (it `receive`s the response).
-(defn worker () (send me [:r (if (= (get (http/fetch url) :status) 200) 1 0)]))
+(defn worker ()
+  (let (r (http/fetch url))
+    (send me [:r (if (and (not (failure? r)) (= (get r :status) 200)) 1 0)])))
 
 (defn fan (i) (if (>= i n) nil (do (spawn (worker)) (fan (+ i 1)))))
 
