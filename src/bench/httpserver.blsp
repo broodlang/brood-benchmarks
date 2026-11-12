@@ -27,7 +27,7 @@ would otherwise wait forever.
     (bench/httpserver/keep-alive? \"GET / HTTP/1.0\\r\\nConnection: close\\r\\n\\r\\n\")   ;=> false"
   (let (lower (string/lower head)
         first-line (first (string/split lower "\r\n"))
-        says (fn (token) (regex/matches? (str "(?m)^connection:[ \t]*" token) lower)))
+        says (fn (token) (regex/matches? lower (str "(?m)^connection:[ \t]*" token))))
     (if (string/ends-with? first-line "http/1.0") (says "keep-alive") (not (says "close")))))
 
 (defn- serve-connection (sock seed)

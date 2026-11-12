@@ -59,7 +59,7 @@ table columns in the header's own order."
 
 (defn- group-thousands (digits &optional (grouped ""))
   "`digits` with a comma before every third digit from the right."
-  (let (n (string/length digits))
+  (let (n (count digits))
     (if (<= n 3)
       (str digits grouped)
       (group-thousands (string/substring digits 0 (- n 3))
@@ -69,10 +69,10 @@ table columns in the header's own order."
   "Python's `f\"{v:,}\"` — thousands separators on the integer part."
   (let (text (str v)
         negative (string/starts-with? text "-")
-        body (if negative (string/substring text 1 (string/length text)) text)
+        body (if negative (string/substring text 1 (count text)) text)
         dot (index-of body ".")
         whole (if (>= dot 0) (string/substring body 0 dot) body)
-        fraction (if (>= dot 0) (string/substring body dot (string/length body)) ""))
+        fraction (if (>= dot 0) (string/substring body dot (count body)) ""))
     (str (if negative "-" "") (group-thousands whole) fraction)))
 
 (defn- min-of (xs) (apply math/min (vec xs)))
@@ -153,14 +153,14 @@ visible), against the fastest column otherwise."
 (defn- strip-char (text ch)
   "Python's `text.strip(ch)` for a one-character `ch`: every leading and trailing `ch`."
   (cond
-    (string/starts-with? text ch) (strip-char (string/substring text 1 (string/length text)) ch)
-    (string/ends-with? text ch) (strip-char (string/substring text 0 (dec (string/length text))) ch)
+    (string/starts-with? text ch) (strip-char (string/substring text 1 (count text)) ch)
+    (string/ends-with? text ch) (strip-char (string/substring text 0 (dec (count text))) ch)
     else text))
 
 (defn- strip-leading-char (text ch)
   "Python's `text.lstrip(ch)` for a one-character `ch`."
   (if (string/starts-with? text ch)
-    (strip-leading-char (string/substring text 1 (string/length text)) ch)
+    (strip-leading-char (string/substring text 1 (count text)) ch)
     text))
 
 (defn- header-cells (header)
@@ -168,7 +168,7 @@ visible), against the fastest column otherwise."
 `<sup>p</sup>`, so columns can be reordered without losing them."
   (let (inner (strip-char (string/trim header) "|")
         cells (rest (map (string/split inner "|") string/trim))
-        named (map cells (fn (cell) [(string/trim (regex/replace "<sup>.*?</sup>" cell "")) cell])))
+        named (map cells (fn (cell) [(string/trim (regex/replace cell "<sup>.*?</sup>" "")) cell])))
     (vec (seq/filter named (fn ([n _]) (contains? lang-col n))))))
 
 (defn- langs-of-header (header)
@@ -180,7 +180,7 @@ visible), against the fastest column otherwise."
 (defn- version (results lang) (get (versions results) (keyword lang)))
 
 (defn- strip-trailing-sha (text)
-  (let (m (regex/find "\\s*\\([0-9a-f]{7,40}\\)\\s*$" text))
+  (let (m (regex/find text "\\s*\\([0-9a-f]{7,40}\\)\\s*$"))
     (string/trim (if m (string/substring text 0 (get m :start)) text))))
 
 (defn- brood-version (results)
@@ -195,19 +195,19 @@ re-attach from `brood_commit`, so neither shape double-prints it (0.3.11 did: `B
 
 (defn- go-version (results)
   "`Go 1.24.2` from `go version go1.24.2 linux/amd64`."
-  (let (m (regex/find "go(\\d+(?:\\.\\d+)+)" (or (version results "go") "")))
+  (let (m (regex/find (or (version results "go") "") "go(\\d+(?:\\.\\d+)+)"))
     (if m (str "Go " (get (first (get m :groups)) :text)) "Go")))
 
 (defn- has-go? (results) (contains? (versions results) :go))
 
 (defn- otp-form (elixir)
   "`… (compiled with Erlang/OTP 28)` → `… / OTP 28`."
-  (let (m (regex/find " \\(compiled with Erlang/OTP (\\d+)\\)" elixir))
+  (let (m (regex/find elixir " \\(compiled with Erlang/OTP (\\d+)\\)"))
     (if m
       (str (string/substring elixir 0 (get m :start))
         " / OTP "
         (get (first (get m :groups)) :text)
-        (string/substring elixir (get m :end) (string/length elixir)))
+        (string/substring elixir (get m :end) (count elixir)))
       elixir)))
 
 (defn- date-of (results) (first (string/split (get (get results :_meta) :date) " ")))
@@ -224,7 +224,7 @@ re-attach from `brood_commit`, so neither shape double-prints it (0.3.11 did: `B
         ;; updates the Brood column without re-measuring the others. The bare field date
         ;; then reads as "this page is stale" even though the Brood numbers are fresh —
         ;; surface the refresh date the merge records in `_meta.brood_refresh`.
-        refresh-match (regex/find "re-measured (\\d{4}-\\d{2}-\\d{2})" (get meta :brood_refresh ""))
+        refresh-match (regex/find (get meta :brood_refresh "") "re-measured (\\d{4}-\\d{2}-\\d{2})")
         refresh-date (if refresh-match (get (first (get refresh-match :groups)) :text) nil)
         ;; …and when that refresh ran on another machine (`brood_host`, written by
         ;; `bench/merge-brood`), say which: every cross-column ratio then compares two
@@ -782,7 +782,7 @@ all of them together, which is what \"how are we doing\" actually asks."
                   (let (probe (nth lines j))
                     (if (string/starts-with? probe "| **score")
                       (go (inc j) acc)
-                      (let (m (regex/find "^\\| `([a-z0-9-]+)`" probe))
+                      (let (m (regex/find probe "^\\| `([a-z0-9-]+)`"))
                         (if m (go (inc j) (conj acc (get (first (get m :groups)) :text))) acc)))))))
     (go from [])))
 
@@ -794,7 +794,7 @@ all of them together, which is what \"how are we doing\" actually asks."
 
 (defn- data-row (results starts cols rated line)
   "The regenerated table line for `line`, or nil when it is not a data row."
-  (let (m (regex/find "^\\| `([a-z0-9-]+)`( <sup>[a-z]</sup>)?( \\(wall\\))? \\|" line))
+  (let (m (regex/find line "^\\| `([a-z0-9-]+)`( <sup>[a-z]</sup>)?( \\(wall\\))? \\|"))
     (if (nil? m)
       nil
       (let (groups (get m :groups)
@@ -825,10 +825,10 @@ not one."
     (go i out 0)))
 
 (defn- heading-of (line)
-  (let (stripped (regex/replace "\\*\\*" (regex/replace "^#+ " line "") "")
+  (let (stripped (regex/replace (regex/replace line "^#+ " "") "\\*\\*" "")
         before-dash (first (string/split stripped " —"))
         before-dot (string/trim (first (string/split before-dash "."))))
-    (regex/replace "^Brood against (the |its )?" before-dot "")))
+    (regex/replace before-dot "^Brood against (the |its )?" "")))
 
 (defn- regenerate-table (results starts lines st)
   "One ordered per-row table, at `(:i st)` (its header line)."
@@ -881,7 +881,7 @@ not one."
                      (string/starts-with? line "**Brood against"))
                  (assoc st :heading (heading-of line))
                  st)
-            m (regex/find begin-re line)
+            m (regex/find line begin-re)
             block (if m (get (first (get m :groups)) :text) nil))
         (cond
           (and (= block "SCOREBOARD") (nil? fill))

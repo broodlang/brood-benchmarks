@@ -98,7 +98,7 @@ never uses `bench/common`, the reporting half's vocabulary."
 the `defmodule B…` in the corresponding bench/elixir/<name>.ex.
 
     (bench/harness/beam-module \"errors-deep\")   ;=> \"Berrorsdeep\""
-  (str "B" (regex/replace "[^a-zA-Z0-9]" name "")))
+  (str "B" (regex/replace name "[^a-zA-Z0-9]" "")))
 
 (defn lang-cmd (lang path ctx)
   "The command (a vector, program first) that runs bench file `path` in `lang`. `ctx`
@@ -398,12 +398,12 @@ faster. One CPU per physical core keeps an SMT sibling from competing with the w
 
 (defn split-metrics (out)
   "`[metrics checksum]` — pull `#metric k=v` lines out of a program's stdout."
-  (let (lines (regex/split "\r?\n" out)
+  (let (lines (regex/split out "\r?\n")
         found (fold lines
                 [{} []]
                 (fn (acc line)
                   (let ([metrics kept] acc
-                        m (regex/find metric-re (string/trim line)))
+                        m (regex/find (string/trim line) metric-re))
                     (if m
                       (let (raw (get (nth (get m :groups) 1) :text)
                             v (string/->number raw))
@@ -433,7 +433,7 @@ faster. One CPU per physical core keeps an SMT sibling from competing with the w
 (def ansi-re "\u{1b}\\[[0-9;]*m")
 
 (defn- first-group-int (re text)
-  (let (m (regex/find re text))
+  (let (m (regex/find text re))
     (when m (let (n (string/->number (get (first (get m :groups)) :text))) (if (int? n) n nil)))))
 
 (defn- sleep-seconds (s)
@@ -468,7 +468,7 @@ into this measurement. Both are the isolation knobs."
              :wall wall
              :rss rss
              :cpu cpu
-             :out (string/trim (regex/replace ansi-re (get p :stdout "") ""))}))))))
+             :out (string/trim (regex/replace (get p :stdout "") ansi-re ""))}))))))
 
 (defn warmup (langs timeout ctx hooks)
   "One discarded `startup` run per language, before anything is measured. It takes
@@ -657,7 +657,7 @@ differing checksum means the languages did NOT do equivalent work."
   (let (langs (get (get results :startup) :langs))
     (into {}
       (seq/filter (map (or langs {}) (fn ([l d]) [(->string l) (get d :wall_ms)]))
-        (fn ([l w])
+        (fn ([l _w])
           (let (d (get langs (keyword l)))
             (and (contains? d :wall_ms) (not (contains? d :error)))))))))
 

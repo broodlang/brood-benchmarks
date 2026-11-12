@@ -29,10 +29,10 @@ words, in order. An unknown flag or a missing value is an error naming it.")
         (not (string/starts-with? word "--"))
           (parse-loop spec (rest words) (assoc acc :args (conj (get acc :args) word)))
         else
-          (let (body (string/substring word 2 (string/length word))
+          (let (body (string/substring word 2 (count word))
                 eq (index-of body "=")
                 flag (if (>= eq 0) (string/substring body 0 eq) body)
-                inline (if (>= eq 0) (string/substring body (inc eq) (string/length body)) nil)
+                inline (if (>= eq 0) (string/substring body (inc eq) (count body)) nil)
                 options (get spec flag))
             (cond
               (nil? options) (error "unrecognized argument: " word)

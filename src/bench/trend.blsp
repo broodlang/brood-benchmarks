@@ -42,8 +42,8 @@ Getting this wrong froze the chart for two weeks: thirteen consecutive publishes
 (2026-08-28 -> 09-10) all carried `_meta.date = 2026-08-28`, so the dedup collapsed twelve
 refreshes onto one point — and because it keeps the NEWEST commit per date, that point
 silently re-plotted each new refresh's numbers under the old label."
-  (let (found (regex/find "re-measured ([0-9]{4}-[0-9]{2}-[0-9]{2})"
-                (or (get meta :brood_refresh) "")))
+  (let (found (regex/find (or (get meta :brood_refresh) "")
+                "re-measured ([0-9]{4}-[0-9]{2}-[0-9]{2})"))
     (if (nil? found)
       (first (string/split (or (get meta :date) "") " "))
       (map/get-in found [:groups 0 :text]))))
@@ -185,7 +185,7 @@ date the points keep publish order (oldest first); the same refresh re-published
                                     " "
                                     base
                                     ")\">"
-                                    (string/substring d 5 (string/length d))
+                                    (string/substring d 5 (count d))
                                     "</text>"))
                                 acc))))
             lines-and-labels (fold (seq/zip (range (count rows)) rows)

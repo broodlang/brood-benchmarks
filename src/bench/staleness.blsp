@@ -33,7 +33,7 @@ boundary is a rare, meaningful signal, where \"any new commit\" would nag on eve
 
     (bench/staleness/parse-version \"brood 0.42.0 (b3deae5a)\")   ;=> [\"0.42.0\" \"b3deae5a\"]
     (bench/staleness/parse-version \"0.42.0\")   ;=> [nil nil]"
-  (let (found (regex/find version-pattern (or text "")))
+  (let (found (regex/find (or text "") version-pattern))
     (if (nil? found)
       [nil nil]
       [(map/get-in found [:groups 0 :text]) (map/get-in found [:groups 1 :text])])))

@@ -88,7 +88,7 @@ wrong thing gets caught."
 
 (def- beam-dir "bench/elixir/_build")
 
-(defn- beam-module (name) (str "B" (regex/replace "[^a-zA-Z0-9]" name "")))
+(defn- beam-module (name) (str "B" (regex/replace name "[^a-zA-Z0-9]" "")))
 
 ;; ext + how to invoke a single source file, and the env merged over the inherited one.
 ;; brood pins BROOD_TIER=2 (the full tier, native code included) so an inherited lower
@@ -193,7 +193,7 @@ wrong thing gets caught."
 
 ;; Strip ANSI colour/SGR escapes before checksumming — a runtime that auto-colourises prints
 ;; the SAME integer wrapped in escapes.
-(defn- strip-ansi (s) (regex/replace "\u{1b}\\[[0-9;]*m" s ""))
+(defn- strip-ansi (s) (regex/replace s "\u{1b}\\[[0-9;]*m" ""))
 
 (def- metric-pattern "^#metric\\s+([A-Za-z0-9_]+)=(-?[\\d.]+)\\s*$")
 
@@ -205,7 +205,7 @@ joined and trimmed, is the checksum."
                 [{} []]
                 (fn (acc line)
                   (let ([metrics kept] acc
-                        m (regex/find metric-pattern (string/trim line)))
+                        m (regex/find (string/trim line) metric-pattern))
                     (if (nil? m)
                       [metrics (conj kept line)]
                       (let (raw (get (nth (get m :groups) 1) :text))
@@ -237,9 +237,9 @@ joined and trimmed, is the checksum."
 ;; ---- one row ---------------------------------------------------------------------------
 
 (defn- diagnosis? (line)
-  (and (not (nil? (regex/find "(undefined|unbound|no function|not available|cannot|Error|error:)"
-                    line)))
-    (nil? (regex/find "^\\s*\\(" line))))
+  (and (not (nil? (regex/find line
+                    "(undefined|unbound|no function|not available|cannot|Error|error:)")))
+    (nil? (regex/find line "^\\s*\\("))))
 
 (defn- failure-detail (r)
   ;; brood puts the useful text (the unbound symbol) on its LAST stderr line. Other runtimes
