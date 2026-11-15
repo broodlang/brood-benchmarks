@@ -36,13 +36,13 @@ jobs:
     name: every brood row runs
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # Both repos are public, so the default token is enough. `main` on purpose:
       # the point of the scheduled run is to catch a rename the moment it lands
       # upstream, not to pin this repo to a known-good brood.
       - name: Check out broodlang/brood
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: broodlang/brood
           ref: main
@@ -114,10 +114,10 @@ jobs:
     name: interpreted ports agree on checksums
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Check out broodlang/brood
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: broodlang/brood
           ref: main
