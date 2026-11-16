@@ -40,7 +40,7 @@ native library read as a runtime result.
 Every language expresses these the same way, so the ordering is a runtime comparison.
 
 In `vs best` / `vs avg`, **`+` is slower, `−` is faster**. Rank and distance often disagree:
-`reduce` is 2/8 but +7.7× off the best, while `collatz` is 3/8 at only +2.2×.
+`reduce` is 3/9 but +3.4× off the best, while `collatz` is 4/9 at only +2.1×.
 
 **<sup>C</sup> C runs 12 of these 15 rows** (`—` marks the three it does not: `errors`,
 `errors-deep`, `pipeline`), so Brood's rank column reads out of 9 on the rows C runs and out of 8
