@@ -101,8 +101,8 @@ nest run -- chart                # regenerate results/overview.svg from results.
 - **A published column that has stopped describing the runtime hides regressions, and no
   other gate here can see that.** `bench/smoke` proves the rows *run* and that their checksums
   *agree*; both stay green through an arbitrarily large slowdown. On 2026-09-01 the Brood
-  column was three releases stale and had a real 4–10% compute regression in it (see
-  FRONTIER.md). `nest run -- staleness --brood <path>` compares the commit the column
+  column was three releases stale and had a real 4–10% compute regression in it (FRONTIER.md's
+  git history has the write-up). `nest run -- staleness --brood <path>` compares the commit the column
   was measured at against the binary under test; the daily workflow runs it with
   `--fail-on-version`, so a release boundary nags and ordinary pushes do not. It measures
   nothing on purpose — a timing gate on a shared CI runner cannot tell a 7% regression from
@@ -271,6 +271,10 @@ line, the **Overall rating** block, the `latency` percentile table, both `spawn-
 README's standings table and environment sentence, and all six ordered per-row tables
 (times, `Brood rank`, `vs best`). Anything inside a `<!-- BEGIN NAME -->` / `<!-- END NAME -->`
 pair is generated: edit it and the next run overwrites you.
+
+**A scoreboard row's label is read from the prose**: the nearest `### ` heading, or a line
+starting `**Brood against …**`, up to its first ` —` or `.`. Reword those lines and the
+scoreboard's labels change with them.
 
 **`FRONTIER.md` is hand-written**, and only needs touching when a gap materially moved or
 closed. Same for the analysis paragraphs in `BENCHMARKS.md`/`README.md`.
