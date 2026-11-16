@@ -1,4 +1,4 @@
-# benchmark — Brood vs C vs Go vs Clojure vs Elixir vs Python vs Node vs Ruby vs .NET
+# Brood benchmarks — against eight other languages
 
 31 programs under one harness, measuring Brood's startup, memory, compute and concurrency
 against mature runtimes: a snapshot of where it stands, not a claim to lead. **C** is a
