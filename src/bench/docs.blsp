@@ -216,6 +216,11 @@ re-attach from `brood_commit`, so neither shape double-prints it (0.3.11 did: `B
 
 (defn- ruby-short (results) (first (string/split (version results "ruby") " (")))
 
+(defn- refresh-date-of (results)
+  "The date a Brood-only refresh re-measured the Brood column (`_meta.brood_refresh`), or nil."
+  (let (m (regex/find (get (get results :_meta) :brood_refresh "") "re-measured (\\d{4}-\\d{2}-\\d{2})"))
+    (if m (get (first (get m :groups)) :text) nil)))
+
 (defn- machine-line (results)
   (let (meta (get results :_meta)
         date (date-of results)
@@ -224,8 +229,7 @@ re-attach from `brood_commit`, so neither shape double-prints it (0.3.11 did: `B
         ;; updates the Brood column without re-measuring the others. The bare field date
         ;; then reads as "this page is stale" even though the Brood numbers are fresh —
         ;; surface the refresh date the merge records in `_meta.brood_refresh`.
-        refresh-match (regex/find (get meta :brood_refresh "") "re-measured (\\d{4}-\\d{2}-\\d{2})")
-        refresh-date (if refresh-match (get (first (get refresh-match :groups)) :text) nil)
+        refresh-date (refresh-date-of results)
         ;; …and when that refresh ran on another machine (`brood_host`, written by
         ;; `bench/merge-brood`), say which: every cross-column ratio then compares two
         ;; machines, and a reader must not have to dig it out of results.json.
@@ -575,10 +579,12 @@ The trailing cells carry Brood's rank and its table-level `vs best` / `vs avg`."
         or-dash (fn (xs) (if (empty? xs) "—" (string/join xs ", ")))
         startup-brood (record "startup" "brood"))
     [(begin "STANDINGS")
-      (str "**"
-        (date-of results)
-        " run.** Numbers regenerate with each run; "
-        "the full table is in [BENCHMARKS.md](BENCHMARKS.md).")
+      (let (date (date-of results)
+            refreshed (refresh-date-of results))
+        (str (if (and refreshed (not (= refreshed date)))
+               (str "**Brood measured " refreshed "; the other languages " date ".**")
+               (str "**Measured " date ".**"))
+          " Full tables: [BENCHMARKS.md](BENCHMARKS.md)."))
       ""
       "| | Brood | field |"
       "|---|---|---|"
