@@ -218,8 +218,9 @@ re-attach from `brood_commit`, so neither shape double-prints it (0.3.11 did: `B
 
 (defn- refresh-date-of (results)
   "The date a Brood-only refresh re-measured the Brood column (`_meta.brood_refresh`), or nil."
-  (let (m (regex/find (get (get results :_meta) :brood_refresh "") "re-measured (\\d{4}-\\d{2}-\\d{2})"))
-    (if m (get (first (get m :groups)) :text) nil)))
+  (let (found (regex/find (get (get results :_meta) :brood_refresh "")
+                "re-measured (\\d{4}-\\d{2}-\\d{2})"))
+    (if found (get (first (get found :groups)) :text) nil)))
 
 (defn- machine-line (results)
   (let (meta (get results :_meta)
