@@ -132,11 +132,11 @@ carries what a build resolved (`:clojure-cp`)."
 
 (defn- py-str-repr (s)
   ;; Python's repr of a str: single quotes unless the text has a ' and no ".
-  (let (quote (if (and (includes? s "'") (not (includes? s "\""))) "\"" "'")
-        escaped (string/replace (string/replace s "\\" "\\\\") quote (str "\\" quote))
+  (let (quote-mark (if (and (includes? s "'") (not (includes? s "\""))) "\"" "'")
+        escaped (string/replace (string/replace s "\\" "\\\\") quote-mark (str "\\" quote-mark))
         escaped (string/replace (string/replace (string/replace escaped "\n" "\\n") "\r" "\\r")
                   "\t" "\\t"))
-    (str quote escaped quote)))
+    (str quote-mark escaped quote-mark)))
 
 (defn- py-repr (v)
   (cond
