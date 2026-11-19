@@ -537,9 +537,9 @@ language has no port of the row; `{:error …}` when a run failed."
                     {:rss-peak 0 :best-metrics {}}))
         (if (get state :failed)
           (get state :failed)
-          (let (record {:wall_ms (round1 (if metric-key
-                                           (get state :wall-at-best)
-                                           (get state :best-wall)))
+          (let (wall (or (if metric-key (get state :wall-at-best) (get state :best-wall))
+                       (error "bench-lang: no run of " name " in " lang " measured a wall time"))
+                record {:wall_ms (round1 wall)
                         :rss_kb (get state :rss-peak)
                         :cpu_pct (get state :cpu-at-best)
                         :checksum (get state :checksum)})
@@ -576,8 +576,7 @@ language has no port of the row; `{:error …}` when a run failed."
                (check-allow :discarded-catch
                  (try (http/fetch (str "http://127.0.0.1:" port "/")) (catch _e nil)))]))
     (receive
-      ([:probe ^tag resp] (and resp
-                            (not (failure? resp))
+      ([:probe ^tag resp] (and (record? resp)
                             (= (get resp :status) 200)
                             (= (http/body-text resp) "ok")))
       (after 500 false))))
@@ -684,7 +683,7 @@ printed `103x` where it is `12x`). A run without a `startup` row has nothing to 
           (if (= name "startup")
             acc
             (let ([bad res] acc
-                  data (get res (row-key name))
+                  data (get res (row-key name) {})
                   langs (get data :langs {})
                   clamped (seq/filter (ordered-langs langs)
                             (fn (l)

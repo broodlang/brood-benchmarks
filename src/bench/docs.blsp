@@ -79,8 +79,8 @@ table columns in the header's own order."
 
 (defn- cores (d) (/ (fl (or (get d :cpu_pct) 0)) 100.0))
 
-(defn- cpu-s (d)
-  (if (get d :cpu_pct) (* (/ (fl (get d :wall_ms)) 1000.0) (cores d)) nil))
+;; A record without a `cpu_pct` reads as 0 cores, so 0 CPU·s, as `cores` already prints it.
+(defn- cpu-s (d) (* (/ (fl (get d :wall_ms)) 1000.0) (cores d)))
 
 (defn- fmt-s (ms)
   (if (>= ms 1000) (str (fixed (/ (fl ms) 1000) 2) " s") (str (round-int ms) " ms")))
@@ -296,14 +296,13 @@ cannot disagree."
         ;; of the other ports' aggregates, and how many rows Brood is ahead of that mean on.
         field-geo (geomean (map (seq/filter langs (fn (lang) (not (= lang "brood"))))
                              (fn (lang) (get sums lang))))
-        avg-ratios (vec (seq/filter (map compute-rows
-                                      (fn (r)
-                                        (let (b (c r "brood")
-                                              g (geomean (map (seq/filter langs
-                                                                (fn (lang) (not (= lang "brood"))))
-                                                           (fn (lang) (c r lang)))))
-                                          (if (and (truthy? b) (truthy? g)) (/ b g) nil))))
-                          (fn (x) (not (nil? x)))))
+        avg-ratios (vec (seq/keep compute-rows
+                          (fn (r)
+                            (let (b (c r "brood")
+                                  g (geomean (map (seq/filter langs
+                                                    (fn (lang) (not (= lang "brood"))))
+                                               (fn (lang) (c r lang)))))
+                              (if (and (truthy? b) (truthy? g)) (/ b g) nil)))))
         ;; The OVERALL figure the overview chart plots: a geomean of per-row ratios across
         ;; every row all the languages implement, not just the eleven single-threaded ones.
         ;; Kept here so the chart and the standings table cannot drift apart — they were two
@@ -323,11 +322,11 @@ cannot disagree."
                          (fn (r) (every? all-langs (fn (lang) (not (nil? (c r lang))))))))
         all-best (into {}
                    (map all-rows (fn (r) [r (min-of (map all-langs (fn (lang) (c r lang))))])))
-        raw-geo (vec (map all-langs
+        raw-geo (vec (seq/keep all-langs
                        (fn (lang)
-                         [lang
-                           (geomean (for (r all-rows :when (truthy? (get all-best r)))
-                                      (/ (c r lang) (get all-best r))))])))
+                         (let (geo (geomean (for (r all-rows :when (truthy? (get all-best r)))
+                                              (/ (c r lang) (get all-best r)))))
+                           (when geo [lang geo])))))
         ;; Normalised to the leader, matching the chart — see `bench/chart` for why a raw
         ;; geomean of per-row ratios leaves nobody at 1.0x.
         lead (min-of (map raw-geo second))
@@ -359,7 +358,8 @@ cannot disagree."
 (defn- normalized (per)
   "`per` is `[[display ratios] …]`; the geomean of each non-empty one, divided by the
 leader's, as `[[display score] …]` in the same order — or nil when none."
-  (let (raw (vec (for ([n v] per :when (not (empty? v))) [n (geomean v)])))
+  (let (raw (vec (seq/keep per
+                   (fn ([display ratios]) (let (geo (geomean ratios)) (when geo [display geo]))))))
     (if (empty? raw)
       nil
       (let (lead (min-of (map raw second)))
@@ -492,19 +492,24 @@ The trailing cells carry Brood's rank and its table-level `vs best` / `vs avg`."
 (defn- spawn-live-table (results starts langs label block)
   "`spawn-live` for a subset of the field — the peer table and the coroutine table."
   (let (records (get (row results "spawn-live") :langs)
-        c (fn (lang) (compute-of results starts "spawn-live" lang))
-        got (seq/sort-by (seq/filter langs (fn (lang) (get records (keyword lang)))) c)
+        ;; `[lang compute]` for each language with a measured record, fastest first
+        got (seq/sort-by (seq/keep langs
+                           (fn (lang)
+                             (let (compute (compute-of results starts "spawn-live" lang))
+                               (when (and compute (get records (keyword lang))) [lang compute]))))
+              second)
         lines (map got
-                (fn (lang)
+                (fn ([lang compute])
                   (let (d (get records (keyword lang))
-                        v (c lang)
-                        peers (sort (map (seq/filter got (fn (x) (not (= x lang)))) c)))
+                        peers (sort (seq/keep got
+                                      (fn ([other other-compute])
+                                        (when (not (= other lang)) other-compute)))))
                     (str "| **"
                       (get pretty lang)
                       "** ("
                       (get label lang)
                       ") | "
-                      (fmt-s v)
+                      (fmt-s compute)
                       " | "
                       (fmt-gb (get d :rss_kb))
                       " | "
@@ -512,7 +517,7 @@ The trailing cells carry Brood's rank and its table-level `vs best` / `vs avg`."
                       "× | "
                       (fixed (cpu-s d) 2)
                       " | "
-                      (if (empty? peers) "—" (signed (/ v (first peers))))
+                      (if (empty? peers) "—" (signed (/ compute (first peers))))
                       " |")))))
     (append [(begin block)
               "| | compute | peak RSS | cores | CPU·s | vs best |" "|---|---|---|---|---|---|"]
@@ -619,7 +624,7 @@ The trailing cells carry Brood's rank and its table-level `vs best` / `vs avg`."
           " · ")
         " |")
       (str "| aggregate vs the field's average | **"
-        (fixed (get o :agg-avg) 2)
+        (let (agg-avg (get o :agg-avg)) (if agg-avg (fixed agg-avg 2) "—"))
         "×** | "
         "ahead of the field average on "
         (get o :beats-avg)

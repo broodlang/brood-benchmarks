@@ -24,8 +24,10 @@ listed ones, alphabetically — deterministic, so a second write is byte-identic
 (defn- key-name (k) (if (string? k) k (->string k)))
 
 (defn read-json (path)
-  "The JSON file at `path`, decoded (object keys become keywords)."
-  (json/decode (file/slurp path)))
+  "The JSON object in the file at `path`, decoded (object keys become keywords). Every file
+this reads is a results file, whose top level is an object; anything else raises."
+  (let (decoded (json/decode (file/slurp path)))
+    (if (map? decoded) decoded (error "read-json: not a JSON object: " path))))
 
 (defn- hex4 (n) (string/pad-left (string/format "%x" n) 4 "0"))
 
