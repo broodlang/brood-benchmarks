@@ -152,16 +152,16 @@ visible), against the fastest column otherwise."
 
 (defn- strip-char (text ch)
   "Python's `text.strip(ch)` for a one-character `ch`: every leading and trailing `ch`."
-  (cond
-    (string/starts-with? text ch) (strip-char (string/substring text 1 (count text)) ch)
-    (string/ends-with? text ch) (strip-char (string/substring text 0 (dec (count text))) ch)
-    else text))
+  (match text
+    ((str ^ch rest) (strip-char rest ch))
+    ((str rest ^ch) (strip-char rest ch))
+    (_ text)))
 
 (defn- strip-leading-char (text ch)
   "Python's `text.lstrip(ch)` for a one-character `ch`."
-  (if (string/starts-with? text ch)
-    (strip-leading-char (string/substring text 1 (count text)) ch)
-    text))
+  (match text
+    ((str ^ch rest) (strip-leading-char rest ch))
+    (_ text)))
 
 (defn- header-cells (header)
   "`[[display-name exact-cell-text] …]` — the cell text keeps footnote markers like

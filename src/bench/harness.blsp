@@ -576,9 +576,8 @@ language has no port of the row; `{:error …}` when a run failed."
                (check-allow :discarded-catch
                  (try (http/fetch (str "http://127.0.0.1:" port "/")) (catch _e nil)))]))
     (receive
-      ([:probe ^tag resp] (and (record? resp)
-                            (= (get resp :status) 200)
-                            (= (http/body-text resp) "ok")))
+      ([:probe ^tag resp]
+        (and (record? resp) (= (get resp :status) 200) (= (http/body-text resp) "ok")))
       (after 500 false))))
 
 (defn- drain-stderr (proc acc)

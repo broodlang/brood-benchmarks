@@ -46,10 +46,11 @@ would otherwise wait forever.
 
 (defn- accept-loop (listener)
   (receive
-    ([:tcp-accept ^listener client] (let (pid (spawn (handle client)))
-                                      (tcp/controlling-process client pid)
-                                      (send pid [:go])
-                                      (accept-loop listener)))
+    ([:tcp-accept ^listener client]
+      (let (pid (spawn (handle client)))
+        (tcp/controlling-process client pid)
+        (send pid [:go])
+        (accept-loop listener)))
     (_ (accept-loop listener))))
 
 (defn serve (port)
