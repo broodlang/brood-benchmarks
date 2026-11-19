@@ -774,16 +774,16 @@ all of them together, which is what \"how are we doing\" actually asks."
   (letrec (go (fn (j)
                 (cond
                   (>= j (count lines)) j
-                  (string/starts-with? (nth lines j) (end block)) (inc j)
+                  (string/starts-with? (get lines j "") (end block)) (inc j)
                   else (go (inc j)))))
     (go i)))
 
 (defn- copy-to-end (lines i block out)
   "`[out i]` with every line from `i` up to (not including) `block`'s END marker copied."
   (letrec (go (fn (j acc)
-                (if (or (>= j (count lines)) (string/starts-with? (nth lines j) (end block)))
+                (if (or (>= j (count lines)) (string/starts-with? (get lines j "") (end block)))
                   [acc j]
-                  (go (inc j) (conj acc (nth lines j))))))
+                  (go (inc j) (conj acc (get lines j ""))))))
     (go i out)))
 
 (defn- table-body (lines from)
@@ -791,7 +791,7 @@ all of them together, which is what \"how are we doing\" actually asks."
   (letrec (go (fn (j acc)
                 (if (>= j (count lines))
                   acc
-                  (let (probe (nth lines j))
+                  (let (probe (get lines j ""))
                     (if (string/starts-with? probe "| **score")
                       (go (inc j) acc)
                       (let (m (regex/find probe "^\\| `([a-z0-9-]+)`"))
@@ -830,9 +830,9 @@ all of them together, which is what \"how are we doing\" actually asks."
   "`[out i rows]` — every data row from `i` regenerated, stopping at the first line that is
 not one."
   (letrec (go (fn (j acc n)
-                (if (or (>= j (count lines)) (not (string/starts-with? (nth lines j) "|")))
+                (if (or (>= j (count lines)) (not (string/starts-with? (get lines j "") "|")))
                   [acc j n]
-                  (let (regenerated (data-row results starts cols rated (nth lines j)))
+                  (let (regenerated (data-row results starts cols rated (get lines j "")))
                     (if (nil? regenerated) [acc j n] (go (inc j) (conj acc regenerated) (inc n)))))))
     (go i out 0)))
 
@@ -845,7 +845,7 @@ not one."
 (defn- regenerate-table (results starts lines st)
   "One ordered per-row table, at `(:i st)` (its header line)."
   (let (i (get st :i)
-        line (nth lines i)
+        line (get lines i "")
         cols (langs-of-header line)
         cell-of (into {} (header-cells line))
         body (table-body lines (+ i 2))
@@ -880,7 +880,9 @@ not one."
         ;; not match, so leaving it would break out of the row loop and copy every data row
         ;; through UNREGENERATED — stale numbers, silently. (Caught by the row counter
         ;; reading 3 instead of 39.)
-        i (if (and (< i (count lines)) (string/starts-with? (nth lines i) "| **score")) (inc i) i)
+        i (if (and (< i (count lines)) (string/starts-with? (get lines i "") "| **score"))
+            (inc i)
+            i)
         [out i n] (data-rows results starts cols rated lines i out))
     (assoc st :out out :i i :tables (inc (get st :tables)) :rows (+ (get st :rows) n))))
 
@@ -888,7 +890,7 @@ not one."
   (let (i (get st :i))
     (if (>= i (count lines))
       st
-      (let (line (nth lines i)
+      (let (line (get lines i "")
             st (if (or (string/starts-with? line "### ")
                      (string/starts-with? line "**Brood against"))
                  (assoc st :heading (heading-of line))
