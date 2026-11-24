@@ -16,8 +16,7 @@ reads `results/results.json` and `results/results.<label>.json`, and writes the 
 to `results/results.json`."
   (:use bench/rows)
   (:use bench/json-out)
-  (:use bench/staleness :only [parse-version])
-  (:shadow merge))
+  (:use bench/staleness :only [parse-version]))
 
 (defn- rank (row-name record)
   (if (= row-name "latency")
